@@ -41,3 +41,28 @@ void nada_report_error(NadaErrorType type, const char *format, ...) {
         default_error_handler(type, message, NULL);
     }
 }
+
+// Report a syntax error
+void nada_report_syntax_error(const char *filename, int line_number, const char *line_content, int position, const char *format, ...) {
+    va_list args;
+    char buffer[1024];
+
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+
+    fprintf(stderr, "Syntax error in %s (line %d): %s\n", filename, line_number, buffer);
+
+    // Print the offending line
+    if (line_content) {
+        fprintf(stderr, "%s\n", line_content);
+
+        // Print a caret pointer to the error position
+        if (position >= 0) {
+            for (int i = 0; i < position; i++) {
+                fputc(' ', stderr);
+            }
+            fprintf(stderr, "^\n");
+        }
+    }
+}

@@ -231,8 +231,79 @@ static NadaValue *parse_list(Tokenizer *t) {
     return result;
 }
 
+// Count and validate parentheses in a string
+static int validate_parentheses(const char *input, int *error_pos) {
+    int balance = 0;
+    int in_string = 0;
+    int in_comment = 0;
+    int i = 0;
+
+    while (input[i] != '\0') {
+        // Handle comments
+        if (input[i] == ';' && !in_string) {
+            in_comment = 1;
+        } else if (input[i] == '\n' && in_comment) {
+            in_comment = 0;
+        }
+
+        // Only process characters outside of comments
+        if (!in_comment) {
+            // Handle strings
+            if (input[i] == '"' && (i == 0 || input[i - 1] != '\\')) {
+                in_string = !in_string;
+            }
+
+            // Only count parentheses outside of strings
+            if (!in_string) {
+                if (input[i] == '(') {
+                    balance++;
+                } else if (input[i] == ')') {
+                    balance--;
+
+                    // Detect too many closing parentheses
+                    if (balance < 0) {
+                        if (error_pos) *error_pos = i;
+                        return -1;
+                    }
+                }
+            }
+        }
+        i++;
+    }
+
+    // If we have unclosed parentheses, set error position to end of input
+    if (balance > 0 && error_pos) {
+        *error_pos = i - 1;
+    }
+
+    return balance;
+}
+
 // Parse from a string
 NadaValue *nada_parse(const char *input) {
+    // First validate parentheses
+    int error_pos = -1;
+    int paren_balance = validate_parentheses(input, &error_pos);
+
+    if (paren_balance != 0) {
+        if (paren_balance > 0) {
+            fprintf(stderr, "Error: missing %d closing parentheses\n", paren_balance);
+        } else {
+            fprintf(stderr, "Error: unexpected closing parenthesis at position %d\n", error_pos);
+        }
+
+        // Show the context of the error
+        if (error_pos >= 0) {
+            int context_start = error_pos > 20 ? error_pos - 20 : 0;
+            fprintf(stderr, "Context: %.*s\n", 40, input + context_start);
+
+            // Print pointer to error position
+            fprintf(stderr, "%*s^\n", error_pos - context_start, "");
+        }
+
+        return nada_create_nil();
+    }
+
     Tokenizer t;
     tokenizer_init(&t, input);
 
@@ -242,21 +313,8 @@ NadaValue *nada_parse(const char *input) {
         return nada_create_nil();
     }
 
-    // Try-catch style parsing to catch errors
-    int error_occurred = 0;
-    NadaValue *result = NULL;
-
     // Parse the expression
-    result = parse_expr(&t);
-
-    // Special error handling for input like "(a"
-    if (t.token[0] == '\0' && strchr(input, '(') != NULL && strchr(input, ')') == NULL) {
-        fprintf(stderr, "Error: unterminated list, missing closing parenthesis\n");
-        if (result != NULL) {
-            nada_free(result);
-        }
-        return nada_create_nil();
-    }
+    NadaValue *result = parse_expr(&t);
 
     // Check if there's still more input
     if (t.token[0] != '\0' && strcmp(t.token, ")") != 0) {

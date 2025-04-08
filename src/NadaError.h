@@ -5,12 +5,12 @@
 
 // Define error type enum
 typedef enum {
-    NADA_ERROR_NONE,
-    NADA_ERROR_SYNTAX,
-    NADA_ERROR_UNDEFINED_SYMBOL,
-    NADA_ERROR_TYPE_ERROR,
-    NADA_ERROR_INVALID_ARGUMENT,  // Changed from NADA_ERROR_ARGUMENT_ERROR
-    NADA_ERROR_RUNTIME_ERROR,
+    NADA_ERROR_NONE,              // No error
+    NADA_ERROR_SYNTAX,            // Syntax error in parsing
+    NADA_ERROR_INVALID_ARGUMENT,  // Invalid argument to function
+    NADA_ERROR_TYPE_ERROR,        // Type error
+    NADA_ERROR_UNDEFINED_SYMBOL,  // Undefined symbol
+    NADA_ERROR_MEMORY,            // Memory allocation error
     // Add more error types as needed
 } NadaErrorType;
 
@@ -25,5 +25,8 @@ void nada_clear_error_handler();
 
 // Report an error (used internally by the library)
 void nada_report_error(NadaErrorType type, const char *format, ...);
+
+// Add this prototype:
+void nada_report_syntax_error(const char *filename, int line_number, const char *line_content, int position, const char *format, ...);
 
 #endif  // NADA_ERROR_H

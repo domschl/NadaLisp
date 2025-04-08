@@ -1780,23 +1780,62 @@ static NadaValue *builtin_load_file(NadaValue *args, NadaEnv *env) {
         return nada_create_bool(0);
     }
 
-    // Buffer for accumulated expressions
-    char buffer[10240] = {0};
+    // Use dynamic buffer allocation to handle files of any size
+    size_t buffer_size = 16384;  // Start with a larger initial buffer
+    char *buffer = malloc(buffer_size);
+    if (!buffer) {
+        nada_report_error(NADA_ERROR_MEMORY, "failed to allocate memory for loading file");
+        fclose(file);
+        nada_free(filename_arg);
+        return nada_create_bool(0);
+    }
+    buffer[0] = '\0';
+
     char line[1024];
     int paren_balance = 0;
     int in_string = 0;
+    int prev_char_backslash = 0;  // Track backslashes for escaped quotes
     NadaValue *last_result = nada_create_nil();
 
     while (fgets(line, sizeof(line), file)) {
-        // Skip comment lines
+        // Skip full-line comments
         if (line[0] == ';') continue;
+
+        // Check if we need to expand the buffer
+        if (strlen(buffer) + strlen(line) + 1 > buffer_size) {
+            buffer_size *= 2;
+            char *new_buffer = realloc(buffer, buffer_size);
+            if (!new_buffer) {
+                nada_report_error(NADA_ERROR_MEMORY, "failed to expand buffer for loading file");
+                free(buffer);
+                fclose(file);
+                nada_free(filename_arg);
+                nada_free(last_result);
+                return nada_create_bool(0);
+            }
+            buffer = new_buffer;
+        }
 
         // Add this line to our buffer
         strcat(buffer, line);
 
         // Count parentheses to ensure we have complete expressions
         for (char *p = line; *p; p++) {
-            if (*p == '"') in_string = !in_string;
+            // Check for comments - comments start with semicolon and continue to end of line
+            if (*p == ';' && !in_string) {
+                // Found a comment, ignore rest of line
+                break;
+            }
+
+            // Handle string delimiters correctly (respect escaping)
+            if (*p == '"' && !prev_char_backslash) {
+                in_string = !in_string;
+            }
+
+            // Track backslash for escaped quotes
+            prev_char_backslash = (*p == '\\' && !prev_char_backslash);
+
+            // Only count parentheses outside of strings
             if (!in_string) {
                 if (*p == '(')
                     paren_balance++;
@@ -1822,6 +1861,22 @@ static NadaValue *builtin_load_file(NadaValue *args, NadaEnv *env) {
         }
     }
 
+    // Process any remaining content in the buffer
+    if (strlen(buffer) > 0) {
+        if (paren_balance != 0) {
+            nada_report_error(NADA_ERROR_SYNTAX, "unbalanced parentheses in file %s",
+                              filename_arg->data.string);
+        } else {
+            NadaValue *expr = nada_parse(buffer);
+            if (expr) {
+                nada_free(last_result);
+                last_result = nada_eval(expr, env);
+                nada_free(expr);
+            }
+        }
+    }
+
+    free(buffer);
     fclose(file);
     nada_free(filename_arg);
 
