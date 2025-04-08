@@ -1,4 +1,4 @@
-(define-test "quote-basic" (assert-equal (quote hello) hello))
+(define-test "quote-basic" (assert-equal (quote hello) 'hello))
 
 (define-test "quote-list" (assert-equal (quote (1 2 3)) (quote (1 2 3))))
 

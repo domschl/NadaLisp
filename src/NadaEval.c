@@ -766,8 +766,44 @@ static NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env)
 
     // Handle built-in functions
     if (func->data.function.builtin != NULL) {
-        // Call the built-in function directly
-        return func->data.function.builtin(args, env);
+        // For a built-in function, we need to evaluate the arguments
+        // before passing them to the function, as the built-in function
+        // expects evaluated values
+
+        // Create a list to hold evaluated arguments
+        NadaValue *eval_args = nada_create_nil();
+        NadaValue *current_arg = args;
+
+        // Evaluate each argument
+        while (!nada_is_nil(current_arg)) {
+            // Evaluate the current argument
+            NadaValue *arg_val = nada_eval(nada_car(current_arg), env);
+
+            // Prepend to our list (we'll reverse it later)
+            eval_args = nada_cons(arg_val, eval_args);
+            nada_free(arg_val);
+
+            // Move to next argument
+            current_arg = nada_cdr(current_arg);
+        }
+
+        // Reverse the list to get arguments in the correct order
+        NadaValue *reversed_args = nada_create_nil();
+        current_arg = eval_args;
+
+        while (!nada_is_nil(current_arg)) {
+            reversed_args = nada_cons(nada_car(current_arg), reversed_args);
+            current_arg = nada_cdr(current_arg);
+        }
+
+        // Call the built-in function with evaluated arguments
+        NadaValue *result = func->data.function.builtin(reversed_args, env);
+
+        // Free our intermediate lists
+        nada_free(eval_args);
+        nada_free(reversed_args);
+
+        return result;
     }
 
     // Create a new environment with the function's environment as parent

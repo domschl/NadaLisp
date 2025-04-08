@@ -231,48 +231,48 @@ void nada_print(NadaValue *val) {
 NadaValue *nada_deep_copy(NadaValue *val) {
     if (val == NULL) return NULL;
 
+    NadaValue *result = malloc(sizeof(NadaValue));
+    result->type = val->type;
+
     switch (val->type) {
     case NADA_NUM:
-        return nada_create_num(val->data.number);
-
-        // Remove the NADA_INT case as it's been replaced by NADA_NUM
+        result->data.number = nada_num_copy(val->data.number);
+        break;
 
     case NADA_STRING:
-        return nada_create_string(val->data.string);
+        result->data.string = strdup(val->data.string);
+        break;
 
     case NADA_SYMBOL:
-        return nada_create_symbol(val->data.symbol);
+        result->data.symbol = strdup(val->data.symbol);
+        break;
 
     case NADA_NIL:
-        return nada_create_nil();
+        break;
 
-    case NADA_PAIR: {
-        // Create a new pair directly without using nada_cons
-        // to avoid the double-deep-copy problem
-        NadaValue *pair = malloc(sizeof(NadaValue));
-        pair->type = NADA_PAIR;
-        pair->data.pair.car = nada_deep_copy(val->data.pair.car);
-        pair->data.pair.cdr = nada_deep_copy(val->data.pair.cdr);
-        nada_increment_allocations();
-        return pair;
-    }
+    case NADA_PAIR:
+        result->data.pair.car = nada_deep_copy(val->data.pair.car);
+        result->data.pair.cdr = nada_deep_copy(val->data.pair.cdr);
+        break;
 
-    case NADA_FUNC: {
-        // Copy function including params, body and environment reference
-        return nada_create_function(
-            nada_deep_copy(val->data.function.params),
-            nada_deep_copy(val->data.function.body),
-            val->data.function.env  // Just copy the environment pointer
-        );
-    }
+    case NADA_FUNC:
+        result->data.function.params = nada_deep_copy(val->data.function.params);
+        result->data.function.body = nada_deep_copy(val->data.function.body);
+        result->data.function.env = val->data.function.env;          // Share environment
+        result->data.function.builtin = val->data.function.builtin;  // Copy the built-in function pointer
+        break;
 
     case NADA_BOOL:
-        return nada_create_bool(val->data.boolean);
+        result->data.boolean = val->data.boolean;
+        break;
 
     default:
-        // Unknown type
+        free(result);
         return nada_create_nil();
     }
+
+    nada_increment_allocations();
+    return result;
 }
 
 // Updated memory report
