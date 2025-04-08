@@ -322,6 +322,7 @@ static NadaValue *builtin_define(NadaValue *args, NadaEnv *env) {
         NadaValue *val_expr = nada_car(nada_cdr(args));
         NadaValue *val = nada_eval(val_expr, env);
         nada_env_set(env, first->data.symbol, val);
+        nada_free(val);  // Free the value after it's been stored
         return nada_create_symbol(first->data.symbol);
     }
 
@@ -547,9 +548,6 @@ static NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env)
         return func->data.function.builtin(args, env);
     }
 
-    // Original code for user-defined functions...
-    // ...
-
     // Create a new environment with the function's environment as parent
     NadaEnv *func_env = nada_env_create(func->data.function.env);
 
@@ -566,6 +564,9 @@ static NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env)
 
         // Bind parameter to argument value
         nada_env_set(func_env, param_name->data.symbol, arg_val);
+        
+        // Free the evaluated argument value after it's been copied
+        nada_free(arg_val);
 
         // Move to next parameter and argument
         param = nada_cdr(param);
@@ -589,11 +590,18 @@ static NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env)
     NadaValue *result = nada_create_nil();
     NadaValue *body = func->data.function.body;
 
+    if (nada_is_nil(body)) {
+        // If body is empty, return the initial nil result
+        // (no need to free it since we're returning it)
+        nada_env_free(func_env);
+        return result;
+    }
+
+    // Process body expressions
     while (!nada_is_nil(body)) {
-        // Free previous result except for the first iteration
-        if (result != NULL && result->type != NADA_NIL) {
-            nada_free(result);
-        }
+        // Free the previous result before replacing it
+        // Now we unconditionally free the result, even if it's nil
+        nada_free(result);
 
         // Evaluate the next expression in the body
         result = nada_eval(nada_car(body), func_env);
@@ -1323,6 +1331,38 @@ static NadaValue *builtin_list(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
+// Add this function:
+
+static NadaValue *builtin_if(NadaValue *args, NadaEnv *env) {
+    // if requires at least 2 arguments (condition, then-expr, [else-expr])
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
+        fprintf(stderr, "Error: if requires at least 2 arguments\n");
+        return nada_create_nil();
+    }
+    
+    // Evaluate the condition
+    NadaValue *condition = nada_eval(nada_car(args), env);
+    
+    // Check if condition is true (anything other than #f or nil)
+    int is_true = !(condition->type == NADA_BOOL && condition->data.boolean == 0) && 
+                 !(condition->type == NADA_NIL);
+    
+    nada_free(condition);
+    
+    if (is_true) {
+        // Evaluate the then-expression
+        return nada_eval(nada_car(nada_cdr(args)), env);
+    } else {
+        // Check if we have an else expression
+        NadaValue *else_part = nada_cdr(nada_cdr(args));
+        if (nada_is_nil(else_part)) {
+            return nada_create_nil(); // No else clause, return nil
+        }
+        // Evaluate the else-expression
+        return nada_eval(nada_car(else_part), env);
+    }
+}
+
 // Add to the builtins table (keep all string functions here)
 static BuiltinFuncInfo builtins[] = {
     {"quote", builtin_quote},
@@ -1382,6 +1422,9 @@ static BuiltinFuncInfo builtins[] = {
     {"cons", builtin_cons},
     // List function: Create a proper list
     {"list", builtin_list},
+
+    // Add the new if function
+    {"if", builtin_if},
 
     {NULL, NULL}  // Sentinel to mark end of array
 };
@@ -1480,6 +1523,11 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
             // Let special form
             if (strcmp(op->data.symbol, "let") == 0) {
                 return builtin_let(args, env);
+            }
+
+            // If special form
+            if (strcmp(op->data.symbol, "if") == 0) {
+                return builtin_if(args, env);
             }
 
             // Regular function application

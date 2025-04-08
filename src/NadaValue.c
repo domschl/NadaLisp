@@ -88,10 +88,14 @@ NadaValue *nada_cons(NadaValue *car, NadaValue *cdr) {
 // Create a function value
 NadaValue *nada_create_function(NadaValue *params, NadaValue *body, NadaEnv *env) {
     NadaValue *val = malloc(sizeof(NadaValue));
+    if (!val) return NULL;
+    
     val->type = NADA_FUNC;
     val->data.function.params = params;
     val->data.function.body = body;
     val->data.function.env = env;
+    val->data.function.builtin = NULL;  // Initialize to NULL for user-defined functions
+    
     nada_increment_allocations();
     return val;
 }

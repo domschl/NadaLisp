@@ -48,45 +48,114 @@ void process_file(const char *filename) {
         return;
     }
 
+    char buffer[10240] = {0};  // Much larger buffer
     char line[1024];
+    int paren_balance = 0;
+    int in_string = 0;
+    
     while (fgets(line, sizeof(line), file)) {
-        // Remove trailing newline
-        size_t len = strlen(line);
-        if (len > 0 && line[len - 1] == '\n') {
-            line[len - 1] = '\0';
+        // Handle comments
+        char *comment = strchr(line, ';');
+        if (comment) *comment = '\0';
+        
+        // Update buffer with this line
+        strcat(buffer, line);
+        
+        // Count parentheses and check for strings
+        for (char *p = line; *p; p++) {
+            if (*p == '"') in_string = !in_string;
+            if (!in_string) {
+                if (*p == '(') paren_balance++;
+                else if (*p == ')') paren_balance--;
+            }
         }
-
-        process_line(line);
+        
+        // If balanced, process the expression
+        if (paren_balance == 0 && strlen(buffer) > 0) {
+            NadaValue *expr = nada_parse(buffer);
+            NadaValue *result = nada_eval(expr, global_env);
+            
+            nada_free(expr);
+            nada_free(result);
+            
+            // Reset buffer for next expression
+            buffer[0] = '\0';
+        }
     }
-
+    
     fclose(file);
 }
 
 // Run an interactive REPL (Read-Eval-Print Loop)
 void run_repl(void) {
     printf("NadaLisp REPL (Ctrl+D to exit)\n");
-    nada_memory_reset();  // Reset counters at startup
-
-    char *line;
-    while ((line = readline("nada> ")) != NULL) {
-        if (strlen(line) > 0) {
-            add_history(line);
-
-            NadaValue *expr = nada_parse(line);
-            NadaValue *result = nada_eval(expr, global_env);
-
-            // Print result
-            nada_print(result);
-            printf("\n");
-
-            // Ensure both expr and result are freed
-            nada_free(expr);
-            nada_free(result);
+    nada_memory_reset();
+    
+    char buffer[10240] = {0};
+    int paren_balance = 0;
+    int in_string = 0;
+    char prompt[32] = "nada> ";
+    
+    while (1) {
+        char *line = readline(prompt);
+        if (!line) break;  // Ctrl+D
+        
+        if (strlen(line) == 0) {
+            free(line);
+            continue;
         }
-        free(line);  // Don't forget to free readline's line
-        nada_memory_report();
+        
+        // Handle comments
+        char *comment = strchr(line, ';');
+        if (comment) *comment = '\0';
+        
+        // Skip empty lines
+        if (strlen(line) == 0) {
+            free(line);
+            continue;
+        }
+        
+        // Add to history only if we're at the start of an expression
+        if (buffer[0] == '\0') {
+            add_history(line);
+        }
+        
+        // Append to the buffer
+        strcat(buffer, line);
+        strcat(buffer, " ");  // Add space for readability
+        
+        // Count parentheses and track strings
+        for (char *p = line; *p; p++) {
+            if (*p == '"') in_string = !in_string;
+            if (!in_string) {
+                if (*p == '(') paren_balance++;
+                else if (*p == ')') paren_balance--;
+            }
+        }
+        
+        free(line);
+        
+        // If balanced, process the expression
+        if (paren_balance == 0) {
+            if (strlen(buffer) > 0) {
+                NadaValue *expr = nada_parse(buffer);
+                NadaValue *result = nada_eval(expr, global_env);
+                
+                nada_print(result);
+                printf("\n");
+                
+                nada_free(expr);
+                nada_free(result);
+                nada_memory_report();
+            }
+            buffer[0] = '\0';
+            strcpy(prompt, "nada> ");
+        } else {
+            // Change prompt to show we're awaiting more input
+            strcpy(prompt, "...... ");
+        }
     }
-
+    
     printf("\nGoodbye!\n");
 }
 

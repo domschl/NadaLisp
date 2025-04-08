@@ -22,6 +22,21 @@ static void skip_whitespace(Tokenizer *t) {
 int get_next_token(Tokenizer *t) {
     skip_whitespace(t);
 
+    // Handle comments - skip to end of line
+    if (t->input[t->position] == ';') {
+        while (t->input[t->position] != '\0' && t->input[t->position] != '\n') {
+            t->position++;
+        }
+        // After skipping comment, skip any whitespace and check again
+        skip_whitespace(t);
+        
+        // If we reached the end, return 0
+        if (t->input[t->position] == '\0') {
+            t->token[0] = '\0';
+            return 0;
+        }
+    }
+
     if (t->input[t->position] == '\0') {
         t->token[0] = '\0';  // Explicitly set token to empty
         return 0;            // End of input

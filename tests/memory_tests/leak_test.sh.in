@@ -42,6 +42,8 @@ for script in "$TEST_SCRIPTS_DIR"/*.lisp; do
     if [ $? -ne 0 ]; then
         echo "Memory leak test failed for $script"
         exit 1
+    else
+        echo "Memory leak test passed for $script"
     fi
 done
 
