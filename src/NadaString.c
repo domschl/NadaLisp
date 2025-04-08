@@ -60,7 +60,7 @@ NadaValue *builtin_string_length(NadaValue *args, NadaEnv *env) {
     int length = utf8_strlen(str_val->data.string);
     nada_free(str_val);
 
-    return nada_create_int(length);
+    return nada_create_num_from_int(length);
 }
 
 // substring: Extract a substring
@@ -82,14 +82,22 @@ NadaValue *builtin_substring(NadaValue *args, NadaEnv *env) {
 
     // Evaluate start index
     NadaValue *start_val = nada_eval(nada_car(nada_cdr(args)), env);
-    if (start_val->type != NADA_INT) {
-        fprintf(stderr, "Error: substring requires an integer as second argument\n");
+    if (start_val->type != NADA_NUM) {
+        fprintf(stderr, "Error: substring requires a number as second argument\n");
         nada_free(str_val);
         nada_free(start_val);
         return nada_create_nil();
     }
 
-    int start = start_val->data.integer;
+    // Check if start is an integer
+    if (!nada_num_is_integer(start_val->data.number)) {
+        fprintf(stderr, "Error: substring start index must be an integer\n");
+        nada_free(str_val);
+        nada_free(start_val);
+        return nada_create_nil();
+    }
+
+    int start = nada_num_to_int(start_val->data.number);
     if (start < 0) {
         fprintf(stderr, "Error: substring start index must be non-negative\n");
         nada_free(str_val);
@@ -101,15 +109,24 @@ NadaValue *builtin_substring(NadaValue *args, NadaEnv *env) {
     int length = -1;  // Default to rest of string
     if (!nada_is_nil(nada_cdr(nada_cdr(args)))) {
         NadaValue *length_val = nada_eval(nada_car(nada_cdr(nada_cdr(args))), env);
-        if (length_val->type != NADA_INT) {
-            fprintf(stderr, "Error: substring requires an integer as third argument\n");
+        if (length_val->type != NADA_NUM) {
+            fprintf(stderr, "Error: substring requires a number as third argument\n");
             nada_free(str_val);
             nada_free(start_val);
             nada_free(length_val);
             return nada_create_nil();
         }
 
-        length = length_val->data.integer;
+        // Check if length is an integer
+        if (!nada_num_is_integer(length_val->data.number)) {
+            fprintf(stderr, "Error: substring length must be an integer\n");
+            nada_free(str_val);
+            nada_free(start_val);
+            nada_free(length_val);
+            return nada_create_nil();
+        }
+
+        length = nada_num_to_int(length_val->data.number);
         if (length < 0) {
             fprintf(stderr, "Error: substring length must be non-negative\n");
             nada_free(str_val);
@@ -121,6 +138,7 @@ NadaValue *builtin_substring(NadaValue *args, NadaEnv *env) {
         nada_free(length_val);
     }
 
+    // The rest of the function remains unchanged
     // Get pointers to the relevant positions
     const char *str = str_val->data.string;
     const char *start_ptr = utf8_index(str, start);
@@ -365,17 +383,14 @@ NadaValue *builtin_string_to_number(NadaValue *args, NadaEnv *env) {
         return nada_create_nil();
     }
 
-    char *endptr;
-    long num = strtol(str_val->data.string, &endptr, 10);
-
-    if (*endptr != '\0') {
-        // Not a valid number
+    if (!nada_is_valid_number_string(str_val->data.string)) {
         nada_free(str_val);
         return nada_create_bool(0);  // Return #f for invalid number
     }
 
+    NadaValue *result = nada_create_num_from_string(str_val->data.string);
     nada_free(str_val);
-    return nada_create_int((int)num);
+    return result;
 }
 
 // number->string: Convert number to string
@@ -386,17 +401,18 @@ NadaValue *builtin_number_to_string(NadaValue *args, NadaEnv *env) {
     }
 
     NadaValue *num_val = nada_eval(nada_car(args), env);
-    if (num_val->type != NADA_INT) {
+    if (num_val->type != NADA_NUM) {
         fprintf(stderr, "Error: number->string requires a number argument\n");
         nada_free(num_val);
         return nada_create_nil();
     }
 
-    char buffer[32];
-    snprintf(buffer, sizeof(buffer), "%d", num_val->data.integer);
+    char *str = nada_num_to_string(num_val->data.number);
+    NadaValue *result = nada_create_string(str);
 
+    free(str);
     nada_free(num_val);
-    return nada_create_string(buffer);
+    return result;
 }
 
 // read-from-string: Parse a string as a Lisp expression

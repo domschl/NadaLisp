@@ -34,7 +34,34 @@ int test_multiplication() {
 int test_division() {
     int success = 1;
     success &= run_test("simple_division", "(/ 10 2)", "5");
-    success &= run_test("integer_division", "(/ 10 3)", "3");  // Integer division
+    success &= run_test("rational_division", "(/ 10 3)", "10/3");  // Now returns exact rational
+
+    // Add tests for the new rational number capabilities
+    success &= run_test("simple_fraction", "(/ 1 2)", "1/2");
+    success &= run_test("reduced_fraction", "(/ 4 8)", "1/2");  // Should be automatically reduced
+    success &= run_test("negative_fraction", "(/ -1 4)", "-1/4");
+    success &= run_test("negative_denominator", "(/ 1 -4)", "-1/4");  // Result should have standard sign format
+
+    return success;
+}
+
+int test_rational_arithmetic() {
+    int success = 1;
+
+    // Adding fractions
+    success &= run_test("add_fractions", "(+ 1/3 1/6)", "1/2");
+    success &= run_test("add_mixed", "(+ 2/3 1)", "5/3");
+
+    // Subtracting fractions
+    success &= run_test("subtract_fractions", "(- 7/8 1/4)", "5/8");
+
+    // Multiplying fractions
+    success &= run_test("multiply_fractions", "(* 2/3 3/4)", "1/2");
+
+    // More complex expressions
+    success &= run_test("complex_fraction_expr", "(/ (+ 1 2) (- 6 3))", "1");
+    success &= run_test("mixed_arithmetic", "(+ (* 1/2 1/3) (/ 1 6))", "1/3");
+
     return success;
 }
 
@@ -46,6 +73,7 @@ int main() {
     success &= test_subtraction();
     success &= test_multiplication();
     success &= test_division();
+    success &= test_rational_arithmetic();
 
     report_results();
     cleanup_test_env();

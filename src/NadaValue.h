@@ -2,13 +2,14 @@
 #define NADA_VALUE_H
 
 #include <stddef.h>
+#include "NadaNum.h"  // Include the new NadaNum header
 
 // Forward declaration for NadaEnv (defined in NadaEval.h)
 typedef struct NadaEnv NadaEnv;
 
 // Type enumeration for our Lisp values
 typedef enum {
-    NADA_INT,     // Integer value
+    NADA_NUM,     // Number value (replacing NADA_INT)
     NADA_STRING,  // String value
     NADA_SYMBOL,  // Symbol (identifier)
     NADA_PAIR,    // Cons cell (for lists)
@@ -39,7 +40,7 @@ typedef struct {
 struct NadaValue {
     NadaValueType type;
     union {
-        int integer;        // For NADA_INT
+        NadaNum *number;    // For NADA_NUM (replacing integer)
         char *string;       // For NADA_STRING
         char *symbol;       // For NADA_SYMBOL
         NadaPair pair;      // For NADA_PAIR
@@ -50,7 +51,9 @@ struct NadaValue {
 };
 
 // Constructor functions
-NadaValue *nada_create_int(int value);
+NadaValue *nada_create_num(NadaNum *num);                 // New function
+NadaValue *nada_create_num_from_int(int value);           // Replacement for nada_create_int
+NadaValue *nada_create_num_from_string(const char *str);  // New function
 NadaValue *nada_create_string(const char *str);
 NadaValue *nada_create_symbol(const char *name);
 NadaValue *nada_create_nil(void);

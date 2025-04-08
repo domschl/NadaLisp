@@ -177,133 +177,248 @@ static NadaValue *builtin_cdr(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
-// Built-in function: add
+// Addition (+)
 static NadaValue *builtin_add(NadaValue *args, NadaEnv *env) {
-    int result = 0;
-    NadaValue *current = args;
+    if (nada_is_nil(args)) {
+        return nada_create_num_from_int(0);
+    }
 
+    // Start with first argument
+    NadaValue *first_arg = nada_eval(nada_car(args), env);
+    if (first_arg->type != NADA_NUM) {
+        fprintf(stderr, "Error: '+' requires number arguments\n");
+        nada_free(first_arg);
+        return nada_create_num_from_int(0);
+    }
+
+    char *num_str = nada_num_to_string(first_arg->data.number);
+    free(num_str);
+
+    NadaNum *result = nada_num_copy(first_arg->data.number);
+    nada_free(first_arg);
+
+    // Add the rest of the arguments
+    NadaValue *current = nada_cdr(args);
     while (!nada_is_nil(current)) {
         NadaValue *arg = nada_eval(nada_car(current), env);
-        if (arg->type != NADA_INT) {
-            fprintf(stderr, "Error: '+' requires integer arguments\n");
+        if (arg->type != NADA_NUM) {
+            fprintf(stderr, "Error: '+' requires number arguments\n");
+            nada_num_free(result);
             nada_free(arg);
-            return nada_create_int(0);
+            return nada_create_num_from_int(0);
         }
-        result += arg->data.integer;
+
+        char *arg_str = nada_num_to_string(arg->data.number);
+        free(arg_str);
+
+        NadaNum *temp = nada_num_add(result, arg->data.number);
+
+        char *temp_str = nada_num_to_string(temp);
+        free(temp_str);
+
+        nada_num_free(result);
+        result = temp;
+
         nada_free(arg);
         current = nada_cdr(current);
     }
 
-    return nada_create_int(result);
+    NadaValue *val = nada_create_num(result);
+    nada_num_free(result);
+    return val;
 }
 
-// Built-in function: subtract
+// Subtraction (-)
 static NadaValue *builtin_subtract(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args)) {
         fprintf(stderr, "Error: '-' requires at least one argument\n");
-        return nada_create_int(0);
+        return nada_create_num_from_int(0);
     }
 
     NadaValue *first = nada_eval(nada_car(args), env);
-    if (first->type != NADA_INT) {
-        fprintf(stderr, "Error: '-' requires integer arguments\n");
+    if (first->type != NADA_NUM) {
+        fprintf(stderr, "Error: '-' requires number arguments\n");
         nada_free(first);
-        return nada_create_int(0);
+        return nada_create_num_from_int(0);
     }
 
-    int result = first->data.integer;
+    NadaNum *result = nada_num_copy(first->data.number);
     nada_free(first);
 
     NadaValue *rest = nada_cdr(args);
     if (nada_is_nil(rest)) {
         // Unary minus
-        return nada_create_int(-result);
+        NadaNum *neg = nada_num_negate(result);
+        nada_num_free(result);
+        NadaValue *val = nada_create_num(neg);
+        nada_num_free(neg);
+        return val;
     }
 
     // Binary subtraction
     while (!nada_is_nil(rest)) {
         NadaValue *arg = nada_eval(nada_car(rest), env);
-        if (arg->type != NADA_INT) {
-            fprintf(stderr, "Error: '-' requires integer arguments\n");
+        if (arg->type != NADA_NUM) {
+            fprintf(stderr, "Error: '-' requires number arguments\n");
+            nada_num_free(result);
             nada_free(arg);
-            return nada_create_int(0);
+            return nada_create_num_from_int(0);
         }
-        result -= arg->data.integer;
+
+        NadaNum *temp = nada_num_subtract(result, arg->data.number);
+        nada_num_free(result);
+        result = temp;
+
         nada_free(arg);
         rest = nada_cdr(rest);
     }
 
-    return nada_create_int(result);
+    NadaValue *val = nada_create_num(result);
+    nada_num_free(result);
+    return val;
 }
 
-// Built-in function: multiply
+// Multiplication (*)
 static NadaValue *builtin_multiply(NadaValue *args, NadaEnv *env) {
-    int result = 1;
-    NadaValue *current = args;
+    if (nada_is_nil(args)) {
+        // Multiplication with no args is 1
+        return nada_create_num_from_int(1);
+    }
 
+    // Start with first argument
+    NadaValue *first_arg = nada_eval(nada_car(args), env);
+    if (first_arg->type != NADA_NUM) {
+        fprintf(stderr, "Error: '*' requires number arguments\n");
+        nada_free(first_arg);
+        return nada_create_num_from_int(0);
+    }
+
+    NadaNum *result = nada_num_copy(first_arg->data.number);
+    nada_free(first_arg);
+
+    // Multiply by the rest of the arguments
+    NadaValue *current = nada_cdr(args);
     while (!nada_is_nil(current)) {
         NadaValue *arg = nada_eval(nada_car(current), env);
-        if (arg->type != NADA_INT) {
-            fprintf(stderr, "Error: '*' requires integer arguments\n");
+        if (arg->type != NADA_NUM) {
+            fprintf(stderr, "Error: '*' requires number arguments\n");
+            nada_num_free(result);
             nada_free(arg);
-            return nada_create_int(0);
+            return nada_create_num_from_int(0);
         }
-        result *= arg->data.integer;
+
+        NadaNum *temp = nada_num_multiply(result, arg->data.number);
+        nada_num_free(result);
+        result = temp;
+
         nada_free(arg);
         current = nada_cdr(current);
     }
 
-    return nada_create_int(result);
+    NadaValue *val = nada_create_num(result);
+    nada_num_free(result);
+    return val;
 }
 
-// Built-in function: divide
+// Division (/)
 static NadaValue *builtin_divide(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args)) {
         fprintf(stderr, "Error: '/' requires at least one argument\n");
-        return nada_create_int(0);
+        return nada_create_num_from_int(0);
     }
 
     NadaValue *first = nada_eval(nada_car(args), env);
-    if (first->type != NADA_INT) {
-        fprintf(stderr, "Error: '/' requires integer arguments\n");
+    if (first->type != NADA_NUM) {
+        fprintf(stderr, "Error: '/' requires number arguments\n");
         nada_free(first);
-        return nada_create_int(0);
+        return nada_create_num_from_int(0);
     }
 
-    int result = first->data.integer;
+    NadaNum *result = nada_num_copy(first->data.number);
     nada_free(first);
 
     NadaValue *rest = nada_cdr(args);
     if (nada_is_nil(rest)) {
         // Unary division (1/x)
-        if (result == 0) {
+        if (nada_num_is_zero(result)) {
             fprintf(stderr, "Error: division by zero\n");
-            return nada_create_int(0);
+            nada_num_free(result);
+            return nada_create_num_from_int(0);
         }
-        return nada_create_int(1 / result);
+
+        NadaNum *one = nada_num_from_int(1);
+        NadaNum *temp = nada_num_divide(one, result);
+        nada_num_free(one);
+        nada_num_free(result);
+
+        NadaValue *val = nada_create_num(temp);
+        nada_num_free(temp);
+        return val;
     }
 
     // Binary division
     while (!nada_is_nil(rest)) {
         NadaValue *arg = nada_eval(nada_car(rest), env);
-        if (arg->type != NADA_INT) {
-            fprintf(stderr, "Error: '/' requires integer arguments\n");
+        if (arg->type != NADA_NUM) {
+            fprintf(stderr, "Error: '/' requires number arguments\n");
+            nada_num_free(result);
             nada_free(arg);
-            return nada_create_int(0);
+            return nada_create_num_from_int(0);
         }
 
-        if (arg->data.integer == 0) {
+        if (nada_num_is_zero(arg->data.number)) {
             fprintf(stderr, "Error: division by zero\n");
+            nada_num_free(result);
             nada_free(arg);
-            return nada_create_int(0);
+            return nada_create_num_from_int(0);
         }
 
-        result /= arg->data.integer;
+        NadaNum *temp = nada_num_divide(result, arg->data.number);
+        nada_num_free(result);
+        result = temp;
+
         nada_free(arg);
         rest = nada_cdr(rest);
     }
 
-    return nada_create_int(result);
+    NadaValue *val = nada_create_num(result);
+    nada_num_free(result);
+    return val;
+}
+
+// Modulo (%)
+static NadaValue *builtin_modulo(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
+        !nada_is_nil(nada_cdr(nada_cdr(args)))) {
+        fprintf(stderr, "Error: modulo requires exactly 2 arguments\n");
+        return nada_create_num_from_int(0);
+    }
+
+    NadaValue *first = nada_eval(nada_car(args), env);
+    NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
+
+    if (first->type != NADA_NUM || second->type != NADA_NUM) {
+        fprintf(stderr, "Error: modulo requires number arguments\n");
+        nada_free(first);
+        nada_free(second);
+        return nada_create_num_from_int(0);
+    }
+
+    if (nada_num_is_zero(second->data.number)) {
+        fprintf(stderr, "Error: modulo by zero\n");
+        nada_free(first);
+        nada_free(second);
+        return nada_create_num_from_int(0);
+    }
+
+    NadaNum *result = nada_num_modulo(first->data.number, second->data.number);
+
+    nada_free(first);
+    nada_free(second);
+
+    NadaValue *val = nada_create_num(result);
+    nada_num_free(result);
+    return val;
 }
 
 // Built-in special form: define
@@ -394,9 +509,12 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
 
     // Process each clause
     NadaValue *clauses = args;
+    NadaValue *prev_clauses = NULL;
+
     while (!nada_is_nil(clauses)) {
         // Get current clause
         NadaValue *clause = nada_car(clauses);
+        NadaValue *next_clauses = nada_cdr(clauses);
 
         // Each clause should be a list
         if (clause->type != NADA_PAIR) {
@@ -404,8 +522,46 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
             return nada_create_nil();
         }
 
-        // Get and evaluate the condition
+        // Get the condition
         NadaValue *condition = nada_car(clause);
+
+        // Handle 'else' keyword (must be the last clause)
+        int is_else = (condition->type == NADA_SYMBOL &&
+                       strcmp(condition->data.symbol, "else") == 0);
+
+        if (is_else) {
+            // Verify this is the last clause
+            if (!nada_is_nil(next_clauses)) {
+                fprintf(stderr, "Error: 'else' must be in the last cond clause\n");
+                return nada_create_nil();
+            }
+
+            // Treat else as true without evaluation
+            NadaValue *body = nada_cdr(clause);
+
+            // If body is empty, return true
+            if (nada_is_nil(body)) {
+                return nada_create_bool(1);
+            }
+
+            // Evaluate each expression in the body, returning the last result
+            NadaValue *result = nada_create_nil();
+
+            while (!nada_is_nil(body)) {
+                // Free previous intermediate result
+                if (result->type != NADA_NIL) {
+                    nada_free(result);
+                }
+
+                // Evaluate next expression
+                result = nada_eval(nada_car(body), env);
+                body = nada_cdr(body);
+            }
+
+            return result;
+        }
+
+        // Normal clause - evaluate the condition
         NadaValue *test_result = nada_eval(condition, env);
 
         // Check if condition is true (anything other than #f or nil)
@@ -442,97 +598,159 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
         }
 
         // Move to next clause
-        clauses = nada_cdr(clauses);
+        prev_clauses = clauses;
+        clauses = next_clauses;
     }
 
     // No condition matched
     return nada_create_nil();
 }
 
-// Built-in special form: let
+// Built-in special form: let (with support for named let)
 static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
-    // Check for at least one argument (bindings list)
-    if (nada_is_nil(args)) {
+    // Check we have at least bindings and body
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
         fprintf(stderr, "Error: let requires bindings and body\n");
         return nada_create_nil();
     }
 
-    // First argument must be a list of bindings
-    NadaValue *bindings = nada_car(args);
-    if (bindings->type != NADA_PAIR && bindings->type != NADA_NIL) {
-        fprintf(stderr, "Error: let bindings must be a list\n");
-        return nada_create_nil();
-    }
+    // Get bindings list or loop name
+    NadaValue *first_arg = nada_car(args);
 
-    // Body is the rest of the args
-    NadaValue *body = nada_cdr(args);
-    if (nada_is_nil(body)) {
-        fprintf(stderr, "Error: let requires a body\n");
-        return nada_create_nil();
-    }
+    // Check if this is a named let
+    if (first_arg->type == NADA_SYMBOL) {
+        // Named let: (let loop ((var1 val1)...) body...)
+        char *loop_name = first_arg->data.symbol;
+        NadaValue *bindings = nada_car(nada_cdr(args));
+        NadaValue *body = nada_cdr(nada_cdr(args));
 
-    // Create a new environment with the current environment as parent
-    NadaEnv *let_env = nada_env_create(env);
-
-    // Process each binding
-    NadaValue *binding_list = bindings;
-    while (!nada_is_nil(binding_list)) {
-        NadaValue *binding = nada_car(binding_list);
-
-        // Each binding should be a list (var val)
-        if (binding->type != NADA_PAIR) {
-            fprintf(stderr, "Error: each let binding must be a list\n");
-            nada_env_free(let_env);
+        // Bindings must be a list
+        if (!nada_is_nil(bindings) && bindings->type != NADA_PAIR) {
+            fprintf(stderr, "Error: let bindings must be a list\n");
             return nada_create_nil();
         }
 
-        // Extract variable name (first element)
-        NadaValue *var = nada_car(binding);
-        if (var->type != NADA_SYMBOL) {
-            fprintf(stderr, "Error: binding variable must be a symbol\n");
-            nada_env_free(let_env);
+        // Create a new environment
+        NadaEnv *let_env = nada_env_create(env);
+
+        // Extract parameters and initial values
+        NadaValue *params = nada_create_nil();
+        NadaValue *param_names = nada_create_nil();
+        NadaValue *current_binding = bindings;
+
+        while (!nada_is_nil(current_binding)) {
+            NadaValue *binding = nada_car(current_binding);
+
+            // Each binding must be a pair (var val)
+            if (binding->type != NADA_PAIR ||
+                nada_car(binding)->type != NADA_SYMBOL ||
+                nada_is_nil(nada_cdr(binding)) ||
+                !nada_is_nil(nada_cdr(nada_cdr(binding)))) {
+                fprintf(stderr, "Error: let binding must be a (variable value) pair\n");
+                nada_env_free(let_env);
+                nada_free(params);
+                nada_free(param_names);
+                return nada_create_nil();
+            }
+
+            // Build parameter list for the function
+            NadaValue *param = nada_car(binding);
+            param_names = nada_cons(param, param_names);
+
+            // Evaluate initial values
+            NadaValue *val_expr = nada_car(nada_cdr(binding));
+            NadaValue *val = nada_eval(val_expr, env);
+            params = nada_cons(val, params);
+
+            current_binding = nada_cdr(current_binding);
+        }
+
+        // Reverse parameters to match order
+        NadaValue *reversed_params = nada_create_nil();
+        NadaValue *reversed_names = nada_create_nil();
+
+        while (!nada_is_nil(params)) {
+            reversed_params = nada_cons(nada_car(params), reversed_params);
+            params = nada_cdr(params);
+        }
+
+        while (!nada_is_nil(param_names)) {
+            reversed_names = nada_cons(nada_car(param_names), reversed_names);
+            param_names = nada_cdr(param_names);
+        }
+
+        // Create a lambda for the recursive function
+        NadaValue *lambda = nada_create_function(reversed_names, body, let_env);
+
+        // Bind the function in its own environment
+        nada_env_set(let_env, loop_name, lambda);
+
+        // Call the function with initial parameters
+        NadaValue *call = nada_cons(nada_create_symbol(loop_name), reversed_params);
+        NadaValue *result = nada_eval(call, let_env);
+
+        // Clean up
+        nada_free(call);
+        nada_env_free(let_env);
+
+        return result;
+    } else {
+        // Regular let: (let ((var1 val1)...) body...)
+        NadaValue *bindings = first_arg;
+
+        // Bindings must be a list
+        if (!nada_is_nil(bindings) && bindings->type != NADA_PAIR) {
+            fprintf(stderr, "Error: let bindings must be a list\n");
             return nada_create_nil();
         }
 
-        // Extract and evaluate the value (second element)
-        NadaValue *val_expr = nada_car(nada_cdr(binding));
-        if (val_expr == NULL) {
-            fprintf(stderr, "Error: binding requires a value\n");
-            nada_env_free(let_env);
-            return nada_create_nil();
+        // Create a new environment with the parent as the current environment
+        NadaEnv *let_env = nada_env_create(env);
+
+        // Process each binding
+        NadaValue *binding_list = bindings;
+        while (!nada_is_nil(binding_list)) {
+            NadaValue *binding = nada_car(binding_list);
+
+            // Each binding must be a pair (var val)
+            if (binding->type != NADA_PAIR ||
+                nada_car(binding)->type != NADA_SYMBOL ||
+                nada_is_nil(nada_cdr(binding)) ||
+                !nada_is_nil(nada_cdr(nada_cdr(binding)))) {
+                fprintf(stderr, "Error: let binding must be a (variable value) pair\n");
+                nada_env_free(let_env);
+                return nada_create_nil();
+            }
+
+            // Get the variable name and value
+            char *var_name = nada_car(binding)->data.symbol;
+            NadaValue *val_expr = nada_car(nada_cdr(binding));
+
+            // Evaluate the value in the original environment
+            NadaValue *val = nada_eval(val_expr, env);
+
+            // Bind it in the new environment
+            nada_env_set(let_env, var_name, val);
+            nada_free(val);
+
+            binding_list = nada_cdr(binding_list);
         }
 
-        // Evaluate in the original environment, not the new one
-        NadaValue *val = nada_eval(val_expr, env);
+        // Evaluate the body in the new environment
+        NadaValue *body = nada_cdr(args);
+        NadaValue *result = nada_create_nil();
 
-        // Bind the variable in the new environment
-        nada_env_set(let_env, var->data.symbol, val);
-
-        // Move to the next binding
-        binding_list = nada_cdr(binding_list);
-    }
-
-    // Evaluate the body expressions in the new environment, keeping only the last result
-    NadaValue *result = nada_create_nil();
-    NadaValue *current_body = body;
-
-    while (!nada_is_nil(current_body)) {
-        // Free the previous result (unless it's the first iteration)
-        if (result->type != NADA_NIL) {
+        // Evaluate each form in the body, returning the last result
+        while (!nada_is_nil(body)) {
             nada_free(result);
+            NadaValue *expr = nada_car(body);
+            result = nada_eval(expr, let_env);
+            body = nada_cdr(body);
         }
 
-        // Evaluate the next expression
-        result = nada_eval(nada_car(current_body), let_env);
-
-        // Move to the next expression
-        current_body = nada_cdr(current_body);
+        nada_env_free(let_env);
+        return result;
     }
-
-    // Clean up the let environment
-    nada_env_free(let_env);
-
-    return result;
 }
 
 // Apply a function to arguments
@@ -625,14 +843,14 @@ static NadaValue *builtin_less_than(NadaValue *args, NadaEnv *env) {
     NadaValue *first = nada_eval(nada_car(args), env);
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
-    if (first->type != NADA_INT || second->type != NADA_INT) {
-        fprintf(stderr, "Error: < requires integer arguments\n");
+    if (first->type != NADA_NUM || second->type != NADA_NUM) {
+        fprintf(stderr, "Error: < requires number arguments\n");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
     }
 
-    int result = first->data.integer < second->data.integer;
+    bool result = nada_num_less(first->data.number, second->data.number);
 
     nada_free(first);
     nada_free(second);
@@ -642,7 +860,6 @@ static NadaValue *builtin_less_than(NadaValue *args, NadaEnv *env) {
 
 // Less than or equal (<=)
 static NadaValue *builtin_less_equal(NadaValue *args, NadaEnv *env) {
-    // Similar to less_than but with <= operator
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
         fprintf(stderr, "Error: <= requires exactly 2 arguments\n");
@@ -652,14 +869,14 @@ static NadaValue *builtin_less_equal(NadaValue *args, NadaEnv *env) {
     NadaValue *first = nada_eval(nada_car(args), env);
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
-    if (first->type != NADA_INT || second->type != NADA_INT) {
-        fprintf(stderr, "Error: <= requires integer arguments\n");
+    if (first->type != NADA_NUM || second->type != NADA_NUM) {
+        fprintf(stderr, "Error: <= requires number arguments\n");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
     }
 
-    int result = first->data.integer <= second->data.integer;
+    bool result = nada_num_less_equal(first->data.number, second->data.number);
 
     nada_free(first);
     nada_free(second);
@@ -669,7 +886,6 @@ static NadaValue *builtin_less_equal(NadaValue *args, NadaEnv *env) {
 
 // Greater than (>)
 static NadaValue *builtin_greater_than(NadaValue *args, NadaEnv *env) {
-    // Similar to less_than but with > operator
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
         fprintf(stderr, "Error: > requires exactly 2 arguments\n");
@@ -679,14 +895,14 @@ static NadaValue *builtin_greater_than(NadaValue *args, NadaEnv *env) {
     NadaValue *first = nada_eval(nada_car(args), env);
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
-    if (first->type != NADA_INT || second->type != NADA_INT) {
-        fprintf(stderr, "Error: > requires integer arguments\n");
+    if (first->type != NADA_NUM || second->type != NADA_NUM) {
+        fprintf(stderr, "Error: > requires number arguments\n");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
     }
 
-    int result = first->data.integer > second->data.integer;
+    bool result = nada_num_greater(first->data.number, second->data.number);
 
     nada_free(first);
     nada_free(second);
@@ -696,7 +912,6 @@ static NadaValue *builtin_greater_than(NadaValue *args, NadaEnv *env) {
 
 // Greater than or equal (>=)
 static NadaValue *builtin_greater_equal(NadaValue *args, NadaEnv *env) {
-    // Similar to less_than but with >= operator
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
         fprintf(stderr, "Error: >= requires exactly 2 arguments\n");
@@ -706,14 +921,14 @@ static NadaValue *builtin_greater_equal(NadaValue *args, NadaEnv *env) {
     NadaValue *first = nada_eval(nada_car(args), env);
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
-    if (first->type != NADA_INT || second->type != NADA_INT) {
-        fprintf(stderr, "Error: >= requires integer arguments\n");
+    if (first->type != NADA_NUM || second->type != NADA_NUM) {
+        fprintf(stderr, "Error: >= requires number arguments\n");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
     }
 
-    int result = first->data.integer >= second->data.integer;
+    bool result = nada_num_greater_equal(first->data.number, second->data.number);
 
     nada_free(first);
     nada_free(second);
@@ -732,14 +947,14 @@ static NadaValue *builtin_numeric_equal(NadaValue *args, NadaEnv *env) {
     NadaValue *first = nada_eval(nada_car(args), env);
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
-    if (first->type != NADA_INT || second->type != NADA_INT) {
-        fprintf(stderr, "Error: = requires integer arguments\n");
+    if (first->type != NADA_NUM || second->type != NADA_NUM) {
+        fprintf(stderr, "Error: = requires number arguments\n");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
     }
 
-    int result = first->data.integer == second->data.integer;
+    bool result = nada_num_equal(first->data.number, second->data.number);
 
     nada_free(first);
     nada_free(second);
@@ -763,8 +978,9 @@ static NadaValue *builtin_eq(NadaValue *args, NadaEnv *env) {
     // Must be the same type to be eq?
     if (first->type == second->type) {
         switch (first->type) {
-        case NADA_INT:
-            result = (first->data.integer == second->data.integer);
+        case NADA_NUM:
+            // For rational numbers, compare using nada_num_equal
+            result = nada_num_equal(first->data.number, second->data.number);
             break;
         case NADA_BOOL:
             result = (first->data.boolean == second->data.boolean);
@@ -801,8 +1017,8 @@ static int values_equal(NadaValue *a, NadaValue *b) {
     if (a->type != b->type) return 0;
 
     switch (a->type) {
-    case NADA_INT:
-        return a->data.integer == b->data.integer;
+    case NADA_NUM:
+        return nada_num_equal(a->data.number, b->data.number);
     case NADA_BOOL:
         return a->data.boolean == b->data.boolean;
     case NADA_STRING:
@@ -865,7 +1081,20 @@ static NadaValue *builtin_integer_p(NadaValue *args, NadaEnv *env) {
     }
 
     NadaValue *val = nada_eval(nada_car(args), env);
-    int result = (val->type == NADA_INT);
+    int result = (val->type == NADA_NUM && nada_num_is_integer(val->data.number));
+    nada_free(val);
+    return nada_create_bool(result);
+}
+
+// Number predicate (number?)
+static NadaValue *builtin_number_p(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        fprintf(stderr, "Error: number? requires exactly 1 argument\n");
+        return nada_create_bool(0);
+    }
+
+    NadaValue *val = nada_eval(nada_car(args), env);
+    int result = (val->type == NADA_NUM);
     nada_free(val);
     return nada_create_bool(result);
 }
@@ -1055,9 +1284,12 @@ void print_bindings(NadaEnv *current_env, int level) {
 
         // Print type-specific information
         switch (binding->value->type) {
-        case NADA_INT:
-            printf("Integer (%d)\n", binding->value->data.integer);
+        case NADA_NUM: {
+            char *num_str = nada_num_to_string(binding->value->data.number);
+            printf("Number (%s)\n", num_str);
+            free(num_str);
             break;
+        }
         case NADA_STRING:
             printf("String (\"%s\")\n", binding->value->data.string);
             break;
@@ -1105,9 +1337,12 @@ static NadaValue *builtin_env_describe(NadaValue *args, NadaEnv *env) {
 // Helper to serialize a value to the file
 void serialize_value(NadaValue *val, FILE *f) {
     switch (val->type) {
-    case NADA_INT:
-        fprintf(f, "%d", val->data.integer);
+    case NADA_NUM: {
+        char *num_str = nada_num_to_string(val->data.number);
+        fprintf(f, "%s", num_str);
+        free(num_str);
         break;
+    }
     case NADA_STRING:
         fprintf(f, "\"%s\"", val->data.string);
         break;
@@ -1363,6 +1598,88 @@ static NadaValue *builtin_if(NadaValue *args, NadaEnv *env) {
     }
 }
 
+// Length function - count elements in a list
+static NadaValue *builtin_length(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        fprintf(stderr, "Error: length requires exactly 1 argument\n");
+        return nada_create_num_from_int(0);
+    }
+
+    NadaValue *list_val = nada_eval(nada_car(args), env);
+
+    // For nil (empty list), return 0
+    if (nada_is_nil(list_val)) {
+        nada_free(list_val);
+        return nada_create_num_from_int(0);
+    }
+
+    // For non-list values, return error
+    if (list_val->type != NADA_PAIR) {
+        fprintf(stderr, "Error: length requires a list argument\n");
+        nada_free(list_val);
+        return nada_create_num_from_int(0);
+    }
+
+    // Count elements
+    int count = 0;
+    NadaValue *current = list_val;
+
+    while (current->type == NADA_PAIR) {
+        count++;
+        current = current->data.pair.cdr;
+    }
+
+    nada_free(list_val);
+    return nada_create_num_from_int(count);
+}
+
+// Built-in function: define-test
+static NadaValue *builtin_define_test(NadaValue *args, NadaEnv *env) {
+    // Ensure we have at least a name and one expression
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
+        fprintf(stderr, "Error: define-test requires a name and at least one test expression\n");
+        return nada_create_nil();
+    }
+
+    // Extract the test name
+    NadaValue *name_val = nada_car(args);
+    if (name_val->type != NADA_STRING) {
+        fprintf(stderr, "Error: define-test name must be a string\n");
+        return nada_create_nil();
+    }
+    char *test_name = name_val->data.string;
+
+    // Get all the body expressions
+    NadaValue *body = nada_cdr(args);
+
+    // Begin the test
+    printf("Running test: %s\n", test_name);
+    int passed = 1;
+
+    // Evaluate each expression in the body
+    while (!nada_is_nil(body)) {
+        NadaValue *expr = nada_car(body);
+        NadaValue *result = nada_eval(expr, env);
+
+        // If any expression returns false, the test fails
+        if (result->type == NADA_BOOL && result->data.boolean == 0) {
+            passed = 0;
+        }
+
+        nada_free(result);
+        body = nada_cdr(body);
+    }
+
+    // Report test results
+    if (passed) {
+        printf("Test '%s' PASSED\n", test_name);
+    } else {
+        printf("Test '%s' FAILED\n", test_name);
+    }
+
+    return nada_create_bool(passed);
+}
+
 // Add to the builtins table (keep all string functions here)
 static BuiltinFuncInfo builtins[] = {
     {"quote", builtin_quote},
@@ -1372,6 +1689,8 @@ static BuiltinFuncInfo builtins[] = {
     {"-", builtin_subtract},
     {"*", builtin_multiply},
     {"/", builtin_divide},
+    {"%", builtin_modulo},
+    {"modulo", builtin_modulo},  // Add modulo as alias
     {"define", builtin_define},
     {"lambda", builtin_lambda},
     {"<", builtin_less_than},
@@ -1390,6 +1709,7 @@ static BuiltinFuncInfo builtins[] = {
     {"load-file", builtin_load_file},
     {"undef", builtin_undef},
     {"integer?", builtin_integer_p},
+    {"number?", builtin_number_p},  // New number? predicate
     {"string?", builtin_string_p},
     {"symbol?", builtin_symbol_p},
     {"boolean?", builtin_boolean_p},
@@ -1425,6 +1745,12 @@ static BuiltinFuncInfo builtins[] = {
 
     // Add the new if function
     {"if", builtin_if},
+
+    // Add the new length function
+    {"length", builtin_length},
+
+    // Add the new define-test function
+    {"define-test", builtin_define_test},
 
     {NULL, NULL}  // Sentinel to mark end of array
 };
@@ -1470,13 +1796,13 @@ static BuiltinFunc get_builtin_func(const char *name) {
 
 // Evaluate an expression in an environment
 NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
-    // Self-evaluating expressions: integers, strings, booleans, and nil
-    if (expr->type == NADA_INT || expr->type == NADA_STRING ||
+    // Self-evaluating expressions: numbers, strings, booleans, and nil
+    if (expr->type == NADA_NUM || expr->type == NADA_STRING ||
         expr->type == NADA_BOOL || expr->type == NADA_NIL) {
         // Make a copy to avoid double-freeing
         switch (expr->type) {
-        case NADA_INT:
-            return nada_create_int(expr->data.integer);
+        case NADA_NUM:
+            return nada_create_num(expr->data.number);
         case NADA_STRING:
             return nada_create_string(expr->data.string);
         case NADA_BOOL:
@@ -1493,6 +1819,7 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
         return nada_env_get(env, expr->data.symbol);
     }
 
+    // List processing and the rest of the function...
     // List processing - function application
     if (expr->type == NADA_PAIR) {
         NadaValue *op = nada_car(expr);

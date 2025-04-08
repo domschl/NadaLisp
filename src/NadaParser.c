@@ -18,30 +18,35 @@ static void skip_whitespace(Tokenizer *t) {
     }
 }
 
-// Get the next token from the input
-int get_next_token(Tokenizer *t) {
-    skip_whitespace(t);
+// Update the next_token function to handle comments
+static int next_token(Tokenizer *t) {
+    // Skip whitespace
+    while (isspace(t->input[t->position])) {
+        t->position++;
 
-    // Handle comments - skip to end of line
-    if (t->input[t->position] == ';') {
-        while (t->input[t->position] != '\0' && t->input[t->position] != '\n') {
-            t->position++;
-        }
-        // After skipping comment, skip any whitespace and check again
-        skip_whitespace(t);
-        
-        // If we reached the end, return 0
         if (t->input[t->position] == '\0') {
             t->token[0] = '\0';
             return 0;
         }
     }
 
-    if (t->input[t->position] == '\0') {
-        t->token[0] = '\0';  // Explicitly set token to empty
-        return 0;            // End of input
+    // Handle comments (lines starting with ; or ;;)
+    if (t->input[t->position] == ';') {
+        // Skip to the end of the line
+        while (t->input[t->position] != '\0' && t->input[t->position] != '\n') {
+            t->position++;
+        }
+
+        // Skip the newline if present
+        if (t->input[t->position] == '\n') {
+            t->position++;
+        }
+
+        // Recursively call next_token to get the next valid token
+        return next_token(t);
     }
 
+    // Rest of the function remains the same
     // Special characters (parentheses and quote)
     if (t->input[t->position] == '(' ||
         t->input[t->position] == ')' ||
@@ -85,7 +90,12 @@ int get_next_token(Tokenizer *t) {
     return 1;
 }
 
-// Parse an atom (number, string, symbol, boolean)
+// Get the next token from the input
+int get_next_token(Tokenizer *t) {
+    return next_token(t);
+}
+
+// Update the parse_atom function to handle rational numbers
 static NadaValue *parse_atom(Tokenizer *t) {
     // Check for boolean literals
     if (strcmp(t->token, "#t") == 0) {
@@ -95,12 +105,9 @@ static NadaValue *parse_atom(Tokenizer *t) {
     }
 
     // Check if it's a number
-    char *endptr;
-    long value = strtol(t->token, &endptr, 10);
-
-    if (*endptr == '\0') {
-        // It's a valid integer
-        return nada_create_int((int)value);
+    if (nada_is_valid_number_string(t->token)) {
+        // It's a valid number (integer, fraction or decimal)
+        return nada_create_num_from_string(t->token);
     } else if (t->token[0] == '"' && t->token[strlen(t->token) - 1] == '"') {
         // It's a string - remove the quotes
         t->token[strlen(t->token) - 1] = '\0';
@@ -132,21 +139,21 @@ NadaValue *parse_expr(Tokenizer *t) {
 
         // Parse the quoted expression
         NadaValue *quoted_expr = parse_expr(t);
-        
+
         // Create the quote symbol
         NadaValue *quote_sym = nada_create_symbol("quote");
-        
+
         // Create the resulting expression: (quote <quoted_expr>)
         NadaValue *nil = nada_create_nil();
         NadaValue *inner = nada_cons(quoted_expr, nil);
         NadaValue *result = nada_cons(quote_sym, inner);
-        
+
         // Free intermediate values that were deep-copied by nada_cons
         nada_free(quoted_expr);
         nada_free(quote_sym);
         nada_free(nil);
         nada_free(inner);
-        
+
         return result;
     }
 
@@ -205,11 +212,11 @@ static NadaValue *parse_list(Tokenizer *t) {
 
         get_next_token(t);  // Consume closing parenthesis
         NadaValue *result = nada_cons(head, cdr);
-        
+
         // Free the original values since nada_cons makes deep copies
         nada_free(head);
         nada_free(cdr);
-        
+
         return result;
     }
 
@@ -220,7 +227,7 @@ static NadaValue *parse_list(Tokenizer *t) {
     NadaValue *result = nada_cons(head, tail);
     nada_free(head);
     nada_free(tail);
-    
+
     return result;
 }
 

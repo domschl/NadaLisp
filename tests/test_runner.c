@@ -35,8 +35,9 @@ int values_equal(NadaValue *a, NadaValue *b) {
     }
 
     switch (a->type) {
-    case NADA_INT:
-        return a->data.integer == b->data.integer;
+    case NADA_NUM:
+        // Use the rational number equality function
+        return nada_num_equal(a->data.number, b->data.number);
     case NADA_BOOL:
         return a->data.boolean == b->data.boolean;
     case NADA_STRING:
@@ -52,7 +53,6 @@ int values_equal(NadaValue *a, NadaValue *b) {
         }
 
         // For dotted pairs, directly compare the cdr values
-        // (This is the key change)
         return values_equal(a->data.pair.cdr, b->data.pair.cdr);
     default:
         return 0;

@@ -26,16 +26,34 @@ void nada_memory_reset() {
     current_values = 0;
 }
 
-// Create a new integer value
-NadaValue *nada_create_int(int value) {
+// Create a new number value
+NadaValue *nada_create_num(NadaNum *num) {
     NadaValue *val = malloc(sizeof(NadaValue));
     if (val == NULL) {
         fprintf(stderr, "Error: Out of memory\n");
         exit(1);
     }
-    val->type = NADA_INT;
-    val->data.integer = value;
+    val->type = NADA_NUM;
+    val->data.number = nada_num_copy(num);  // Make a copy to own the number
     nada_increment_allocations();
+    return val;
+}
+
+NadaValue *nada_create_num_from_int(int value) {
+    NadaNum *num = nada_num_from_int(value);
+    NadaValue *val = nada_create_num(num);
+    nada_num_free(num);  // Free the original since nada_create_num makes a copy
+    return val;
+}
+
+NadaValue *nada_create_num_from_string(const char *str) {
+    NadaNum *num = nada_num_from_string(str);
+    if (num == NULL) {
+        // Invalid number string
+        return nada_create_nil();
+    }
+    NadaValue *val = nada_create_num(num);
+    nada_num_free(num);  // Free the original
     return val;
 }
 
@@ -89,13 +107,13 @@ NadaValue *nada_cons(NadaValue *car, NadaValue *cdr) {
 NadaValue *nada_create_function(NadaValue *params, NadaValue *body, NadaEnv *env) {
     NadaValue *val = malloc(sizeof(NadaValue));
     if (!val) return NULL;
-    
+
     val->type = NADA_FUNC;
     val->data.function.params = params;
     val->data.function.body = body;
     val->data.function.env = env;
     val->data.function.builtin = NULL;  // Initialize to NULL for user-defined functions
-    
+
     nada_increment_allocations();
     return val;
 }
@@ -128,6 +146,9 @@ void nada_free(NadaValue *val) {
     if (val == NULL) return;
 
     switch (val->type) {
+    case NADA_NUM:
+        nada_num_free(val->data.number);
+        break;
     case NADA_STRING:
         free(val->data.string);
         break;
@@ -161,9 +182,13 @@ void nada_print(NadaValue *val) {
     }
 
     switch (val->type) {
-    case NADA_INT:
-        printf("%d", val->data.integer);
+    case NADA_NUM: {
+        char *str = nada_num_to_string(val->data.number);
+        printf("%s", str);
+        free(str);
         break;
+    }
+    // Remove the NADA_INT case as it's been replaced by NADA_NUM
     case NADA_STRING:
         printf("\"%s\"", val->data.string);
         break;
@@ -207,8 +232,10 @@ NadaValue *nada_deep_copy(NadaValue *val) {
     if (val == NULL) return NULL;
 
     switch (val->type) {
-    case NADA_INT:
-        return nada_create_int(val->data.integer);
+    case NADA_NUM:
+        return nada_create_num(val->data.number);
+
+        // Remove the NADA_INT case as it's been replaced by NADA_NUM
 
     case NADA_STRING:
         return nada_create_string(val->data.string);
