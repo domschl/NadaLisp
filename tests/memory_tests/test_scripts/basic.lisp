@@ -1,0 +1,12 @@
+;; tests/memory_tests/test_scripts/basic.lisp
+(define a 10)
+(define b 20)
+(+ a b)
+(- a b)
+(* a b)
+(/ b a)
+(define c (+ a b))
+(define d (* a b))
+(= c (+ a b))
+(< a b)
+(> d c)

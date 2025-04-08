@@ -28,9 +28,11 @@ typedef struct {
 
 // Function structure
 typedef struct {
-    NadaValue *params;  // Parameter list
-    NadaValue *body;    // Function body
-    NadaEnv *env;       // Captured environment (closure)
+    NadaValue *params;    // Parameter list
+    NadaValue *body;      // Function body
+    struct NadaEnv *env;  // Captured environment (closure)
+    // Add this new field to store built-in function pointers
+    NadaValue *(*builtin)(NadaValue *, struct NadaEnv *);
 } NadaFunc;
 
 // Main value structure (tagged union)

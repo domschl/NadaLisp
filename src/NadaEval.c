@@ -119,67 +119,37 @@ void nada_env_remove(NadaEnv *env, const char *name) {
 
 // Built-in function: quote
 static NadaValue *builtin_quote(NadaValue *args, NadaEnv *env) {
-    // Quote just returns its first argument unevaluated
+    // Check for exactly 1 argument
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: quote takes exactly one argument\n");
+        fprintf(stderr, "Error: quote requires exactly 1 argument\n");
         return nada_create_nil();
     }
 
-    // We must make a deep copy of the argument, not just return a reference
-    NadaValue *arg = nada_car(args);
-
-    // Helper function to deep copy a value (to be implemented)
-    return nada_deep_copy(arg);
+    // Return unevaluated argument (make a deep copy to prevent modification)
+    return nada_deep_copy(nada_car(args));
 }
 
 // Built-in function: car
 static NadaValue *builtin_car(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: car takes exactly one argument\n");
+        fprintf(stderr, "Error: car requires exactly 1 argument\n");
         return nada_create_nil();
     }
 
-    NadaValue *arg = nada_eval(nada_car(args), env);
-    if (arg->type != NADA_PAIR) {
-        fprintf(stderr, "Error: car requires a list argument\n");
-        nada_free(arg);
+    // Evaluate the argument
+    NadaValue *val = nada_eval(nada_car(args), env);
+
+    // Check that it's a pair
+    if (val->type != NADA_PAIR) {
+        fprintf(stderr, "Error: car called on non-pair\n");
+        nada_free(val);
         return nada_create_nil();
     }
 
-    // We need to make a copy to avoid double-freeing
-    NadaValue *result = nada_car(arg);
-    NadaValue *result_copy = NULL;
-
-    // Deep copy the result
-    switch (result->type) {
-    case NADA_INT:
-        result_copy = nada_create_int(result->data.integer);
-        break;
-    case NADA_STRING:
-        result_copy = nada_create_string(result->data.string);
-        break;
-    case NADA_SYMBOL:
-        result_copy = nada_create_symbol(result->data.symbol);
-        break;
-    case NADA_BOOL:
-        result_copy = nada_create_bool(result->data.boolean);
-        break;
-    case NADA_FUNC:
-        // For simplicity, we could just return a placeholder function or nil
-        // A proper implementation would deep-copy the function
-        result_copy = nada_create_nil();
-        fprintf(stderr, "Warning: car on a list with function not fully supported\n");
-        break;
-    case NADA_PAIR:
-    case NADA_NIL:
-        // For simplicity, just returning nil for now for complex types
-        // A proper implementation would deep-copy these
-        result_copy = nada_create_nil();
-        break;
-    }
-
-    nada_free(arg);
-    return result_copy;
+    // Return a copy of the car value to prevent modification
+    NadaValue *result = nada_deep_copy(val->data.pair.car);
+    nada_free(val);
+    return result;
 }
 
 // Built-in function: cdr
@@ -568,6 +538,15 @@ static NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env)
         fprintf(stderr, "Error: attempt to apply non-function\n");
         return nada_create_nil();
     }
+
+    // Handle built-in functions
+    if (func->data.function.builtin != NULL) {
+        // Call the built-in function directly
+        return func->data.function.builtin(args, env);
+    }
+
+    // Original code for user-defined functions...
+    // ...
 
     // Create a new environment with the function's environment as parent
     NadaEnv *func_env = nada_env_create(func->data.function.env);
@@ -1277,6 +1256,71 @@ static NadaValue *builtin_undef(NadaValue *args, NadaEnv *env) {
     return nada_create_bool(1);  // Return true for success
 }
 
+// Cons function: Create a pair
+static NadaValue *builtin_cons(NadaValue *args, NadaEnv *env) {
+    // Check for exactly 2 arguments
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
+        !nada_is_nil(nada_cdr(nada_cdr(args)))) {
+        fprintf(stderr, "Error: cons requires exactly 2 arguments\n");
+        return nada_create_nil();
+    }
+
+    // Evaluate both arguments
+    NadaValue *car_val = nada_eval(nada_car(args), env);
+    NadaValue *cdr_val = nada_eval(nada_car(nada_cdr(args)), env);
+
+    // Create a new pair
+    NadaValue *result = nada_cons(car_val, cdr_val);
+
+    // Free the evaluated arguments since nada_cons makes copies
+    nada_free(car_val);
+    nada_free(cdr_val);
+
+    return result;
+}
+
+// Fix in NadaEval.c
+static NadaValue *builtin_list(NadaValue *args, NadaEnv *env) {
+    // Start with an empty list
+    NadaValue *result = nada_create_nil();
+
+    // Process arguments in reverse (last to first)
+    NadaValue *arg_ptr = args;
+    NadaValue **args_array = NULL;
+    int count = 0;
+
+    // First, count the arguments
+    while (!nada_is_nil(arg_ptr)) {
+        count++;
+        arg_ptr = nada_cdr(arg_ptr);
+    }
+
+    // Allocate array to store evaluated arguments
+    args_array = malloc(count * sizeof(NadaValue *));
+
+    // Evaluate all arguments
+    arg_ptr = args;
+    for (int i = 0; i < count; i++) {
+        args_array[i] = nada_eval(nada_car(arg_ptr), env);
+        arg_ptr = nada_cdr(arg_ptr);
+    }
+
+    // Build list from end to beginning
+    for (int i = count - 1; i >= 0; i--) {
+        NadaValue *new_result = nada_cons(args_array[i], result);
+        nada_free(result);
+        result = new_result;
+    }
+
+    // Free the evaluated argument values
+    for (int i = 0; i < count; i++) {
+        nada_free(args_array[i]);
+    }
+    free(args_array);
+
+    return result;
+}
+
 // Add to the builtins table (keep all string functions here)
 static BuiltinFuncInfo builtins[] = {
     {"quote", builtin_quote},
@@ -1332,6 +1376,11 @@ static BuiltinFuncInfo builtins[] = {
     // Evaluation
     {"eval", builtin_eval},
 
+    // Cons function: Create a pair
+    {"cons", builtin_cons},
+    // List function: Create a proper list
+    {"list", builtin_list},
+
     {NULL, NULL}  // Sentinel to mark end of array
 };
 
@@ -1344,6 +1393,19 @@ NadaEnv *nada_standard_env(void) {
         // For simplicity, we're not creating proper function objects yet
         // We'll just use symbols with special handling in the evaluator
         nada_env_set(env, builtins[i].name, nada_create_symbol(builtins[i].name));
+    }
+
+    return env;
+}
+
+// Create a standard environment with all built-in functions
+NadaEnv *nada_create_standard_env(void) {
+    NadaEnv *env = nada_env_create(NULL);
+
+    // Register all built-in functions from the builtins array
+    for (int i = 0; builtins[i].name != NULL; i++) {
+        NadaValue *func = nada_create_builtin_function(builtins[i].func);
+        nada_env_set(env, builtins[i].name, func);
     }
 
     return env;
@@ -1453,4 +1515,15 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
 
 // In the initialization function (or main), add:
 void nada_init(void) {
+}
+
+// Add to NadaEval.c
+NadaValue *nada_create_builtin_function(NadaValue *(*func)(NadaValue *, NadaEnv *)) {
+    NadaValue *val = malloc(sizeof(NadaValue));
+    val->type = NADA_FUNC;
+    val->data.function.params = NULL;   // No explicit parameters for builtins
+    val->data.function.body = NULL;     // No body for builtins
+    val->data.function.env = NULL;      // No closure environment
+    val->data.function.builtin = func;  // Store the function pointer
+    return val;
 }

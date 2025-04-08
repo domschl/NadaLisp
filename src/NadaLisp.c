@@ -70,7 +70,18 @@ void run_repl(void) {
     while ((line = readline("nada> ")) != NULL) {
         if (strlen(line) > 0) {
             add_history(line);
-            process_line(line);
+            // ...
+            NadaValue *expr = nada_parse(line);
+            NadaValue *result = nada_eval(expr, global_env);
+
+            // Print result
+            nada_print(result);
+            printf("\n");
+
+            // Free both the expression and result
+            nada_free(expr);
+            nada_free(result);
+            // ...
         }
         free(line);
     }
@@ -80,7 +91,7 @@ void run_repl(void) {
 
 int main(int argc, char *argv[]) {
     // Initialize the global environment
-    global_env = nada_standard_env();
+    global_env = nada_create_standard_env();
 
     if (argc > 1) {
         // File mode: process the specified file

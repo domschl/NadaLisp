@@ -3,25 +3,22 @@
 
 #include "NadaValue.h"
 
-// Environment for storing bindings
+// Environment type
 typedef struct NadaEnv NadaEnv;
 
-// Create a new environment
+// Environment functions
 NadaEnv *nada_env_create(NadaEnv *parent);
-
-// Free an environment and all its bindings
 void nada_env_free(NadaEnv *env);
-
-// Add a binding to the environment
 void nada_env_set(NadaEnv *env, const char *name, NadaValue *value);
-
-// Look up a binding in the environment
 NadaValue *nada_env_get(NadaEnv *env, const char *name);
 
-// Create a standard environment with basic operations
-NadaEnv *nada_standard_env(void);
+// Create a standard environment with all built-in functions
+NadaEnv *nada_create_standard_env(void);
 
-// Evaluate an expression in an environment
+// Evaluation function
 NadaValue *nada_eval(NadaValue *expr, NadaEnv *env);
 
-#endif /* NADA_EVAL_H */
+// Function to create a built-in function
+NadaValue *nada_create_builtin_function(NadaValue *(*func)(NadaValue *, NadaEnv *));
+
+#endif  // NADA_EVAL_H

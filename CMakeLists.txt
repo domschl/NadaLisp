@@ -6,18 +6,6 @@ project(NadaLisp VERSION 0.1.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# Source files
-set(SOURCES
-    src/NadaLisp.c
-    src/NadaValue.c
-    src/NadaParser.c
-    src/NadaEval.c
-    src/NadaString.c
-)
-
-# Create executable
-add_executable(nada ${SOURCES})
-
 # Try to find readline using pkg-config first
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
@@ -27,6 +15,7 @@ endif()
 # If pkg-config didn't work, try to find readline manually (common on macOS with Homebrew)
 if(NOT READLINE_FOUND)
     # Common Homebrew paths on macOS
+    message("     Probably your are using Mac: searching mac paths...")
     find_path(READLINE_INCLUDE_DIR readline/readline.h
         PATHS
         /usr/local/opt/readline/include  # Intel Macs
@@ -58,20 +47,16 @@ if(NOT READLINE_FOUND)
     endif()
 endif()
 
-# Link and include
-if(READLINE_FOUND)
-    if(TARGET READLINE::readline)
-        target_link_libraries(nada PRIVATE READLINE::readline)
-    else()
-        target_include_directories(nada PRIVATE ${READLINE_INCLUDE_DIR})
-        target_link_libraries(nada PRIVATE ${READLINE_LIBRARY})
-        if(TERMCAP_LIBRARY)
-            target_link_libraries(nada PRIVATE ${TERMCAP_LIBRARY})
-        endif()
-    endif()
-else()
+# Check if readline was found
+if(NOT READLINE_FOUND)
     message(FATAL_ERROR "readline library not found. Please install readline development package.")
 endif()
 
-# Installation
-install(TARGETS nada DESTINATION bin)
+# Enable testing
+enable_testing()
+
+# Add the src directory
+add_subdirectory(src)
+
+# Add the tests directory
+add_subdirectory(tests)

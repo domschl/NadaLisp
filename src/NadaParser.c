@@ -167,6 +167,25 @@ static NadaValue *parse_list(Tokenizer *t) {
         return nada_create_nil();
     }
 
+    // In your parser function that handles lists
+    if (strcmp(t->token, ".") == 0) {
+        // Special handling for dotted pairs
+        // Properly parse the cdr expression after the dot
+        get_next_token(t);  // Consume the dot
+        NadaValue *cdr = parse_expr(t);
+
+        // Ensure the list is properly closed
+        if (strcmp(t->token, ")") != 0) {
+            fprintf(stderr, "Error: expected closing parenthesis after dotted pair\n");
+            nada_free(head);
+            nada_free(cdr);
+            return nada_create_nil();
+        }
+
+        get_next_token(t);  // Consume closing parenthesis
+        return nada_cons(head, cdr);
+    }
+
     // Parse the rest of the list
     NadaValue *tail = parse_list(t);
 

@@ -3,11 +3,15 @@
 #include <string.h>
 #include <stdio.h>
 
+static int value_allocations = 0;
+static int value_frees = 0;
+
 // Create a new integer value
 NadaValue *nada_create_int(int value) {
     NadaValue *val = malloc(sizeof(NadaValue));
     val->type = NADA_INT;
     val->data.integer = value;
+    value_allocations++;
     return val;
 }
 
@@ -16,6 +20,7 @@ NadaValue *nada_create_string(const char *str) {
     NadaValue *val = malloc(sizeof(NadaValue));
     val->type = NADA_STRING;
     val->data.string = strdup(str);
+    value_allocations++;
     return val;
 }
 
@@ -24,6 +29,7 @@ NadaValue *nada_create_symbol(const char *name) {
     NadaValue *val = malloc(sizeof(NadaValue));
     val->type = NADA_SYMBOL;
     val->data.symbol = strdup(name);
+    value_allocations++;
     return val;
 }
 
@@ -31,6 +37,7 @@ NadaValue *nada_create_symbol(const char *name) {
 NadaValue *nada_create_nil(void) {
     NadaValue *val = malloc(sizeof(NadaValue));
     val->type = NADA_NIL;
+    value_allocations++;
     return val;
 }
 
@@ -39,16 +46,19 @@ NadaValue *nada_create_bool(int boolean) {
     NadaValue *val = malloc(sizeof(NadaValue));
     val->type = NADA_BOOL;
     val->data.boolean = boolean ? 1 : 0;
+    value_allocations++;
     return val;
 }
 
-// Create a cons cell (pair)
+// Create a cons cell / pair
 NadaValue *nada_cons(NadaValue *car, NadaValue *cdr) {
-    NadaValue *val = malloc(sizeof(NadaValue));
-    val->type = NADA_PAIR;
-    val->data.pair.car = car;
-    val->data.pair.cdr = cdr;
-    return val;
+    NadaValue *pair = malloc(sizeof(NadaValue));
+    pair->type = NADA_PAIR;
+    // Make deep copies of car and cdr
+    pair->data.pair.car = nada_deep_copy(car);
+    pair->data.pair.cdr = nada_deep_copy(cdr);
+    value_allocations++;
+    return pair;
 }
 
 // Create a function value
@@ -58,6 +68,7 @@ NadaValue *nada_create_function(NadaValue *params, NadaValue *body, NadaEnv *env
     val->data.function.params = params;
     val->data.function.body = body;
     val->data.function.env = env;
+    value_allocations++;
     return val;
 }
 
@@ -110,6 +121,7 @@ void nada_free(NadaValue *val) {
     }
 
     free(val);
+    value_frees++;
 }
 
 // Print a value (for debugging and REPL output)
@@ -201,4 +213,11 @@ NadaValue *nada_deep_copy(NadaValue *val) {
         // Unknown type
         return nada_create_nil();
     }
+}
+
+// Add a function to print leak report
+void nada_memory_report() {
+    printf("Memory report: %d allocations, %d frees, %d leak(s)\n",
+           value_allocations, value_frees,
+           value_allocations - value_frees);
 }

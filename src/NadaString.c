@@ -273,8 +273,8 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env) {
 // string-join: Join a list of strings
 NadaValue *builtin_string_join(NadaValue *args, NadaEnv *env) {
     // Check args: (string-join list [delimiter])
-    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        fprintf(stderr, "Error: string-join requires 1 or 2 arguments\n");
+    if (nada_is_nil(args)) {
+        fprintf(stderr, "Error: string-join requires at least 1 argument\n");
         return nada_create_nil();
     }
 
@@ -289,7 +289,9 @@ NadaValue *builtin_string_join(NadaValue *args, NadaEnv *env) {
     // Evaluate delimiter if provided
     const char *delim = "";
     NadaValue *delim_val = NULL;
-    if (!nada_is_nil(nada_cdr(args))) {
+
+    // Check if second argument exists before accessing it
+    if (!nada_is_nil(args) && !nada_is_nil(nada_cdr(args))) {
         delim_val = nada_eval(nada_car(nada_cdr(args)), env);
         if (delim_val->type != NADA_STRING) {
             fprintf(stderr, "Error: string-join requires a string as second argument\n");
