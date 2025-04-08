@@ -27,13 +27,34 @@ add_test(NAME IOOperations COMMAND test_io)
 add_executable(run_lisp_tests run_lisp_tests.c)
 target_link_libraries(run_lisp_tests PRIVATE test_runner nada_lib)
 
-# Create lisp_tests directory if it doesn't exist
+# Copy Lisp test files to build directory
+file(GLOB LISP_TEST_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/lisp_tests/*.lisp"
+)
+
+# Create lisp_tests directory in build directory
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lisp_tests)
 
-# Add test to CTest
+# Copy each test file
+foreach(LISP_TEST_FILE ${LISP_TEST_FILES})
+    get_filename_component(FILENAME ${LISP_TEST_FILE} NAME)
+    configure_file(
+        ${LISP_TEST_FILE}
+        ${CMAKE_CURRENT_BINARY_DIR}/lisp_tests/${FILENAME}
+        COPYONLY
+    )
+endforeach()
+
+# Remove existing LispBasedTests definition
+if(TARGET LispBasedTests)
+  remove_test(LispBasedTests)
+endif()
+
+# Add updated test definition
 add_test(
-    NAME LispBasedTests
-    COMMAND run_lisp_tests ${CMAKE_CURRENT_SOURCE_DIR}/lisp_tests
+  NAME LispBasedTests
+  COMMAND run_lisp_tests "${CMAKE_CURRENT_SOURCE_DIR}/lisp_tests"
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
 
 # Memory leak test

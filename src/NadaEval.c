@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "NadaError.h"
+
+// Add near the top of the file, after includes
+extern void mark_evaluation_error();  // From run_lisp_tests.c
 
 // Environment structure
 struct NadaBinding {
@@ -83,7 +87,7 @@ NadaValue *nada_env_get(NadaEnv *env, const char *name) {
     }
 
     // Not found
-    fprintf(stderr, "Error: symbol '%s' not found in environment\n", name);
+    nada_report_error(NADA_ERROR_UNDEFINED_SYMBOL, "symbol '%s' not found in environment", name);
     return nada_create_nil();  // Return nil for undefined symbols
 }
 
@@ -123,7 +127,7 @@ void nada_env_remove(NadaEnv *env, const char *name) {
 static NadaValue *builtin_quote(NadaValue *args, NadaEnv *env) {
     // Check for exactly 1 argument
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: quote requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "quote requires exactly 1 argument");
         return nada_create_nil();
     }
 
@@ -134,7 +138,7 @@ static NadaValue *builtin_quote(NadaValue *args, NadaEnv *env) {
 // Built-in function: car
 static NadaValue *builtin_car(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: car requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "car requires exactly 1 argument");
         return nada_create_nil();
     }
 
@@ -143,7 +147,7 @@ static NadaValue *builtin_car(NadaValue *args, NadaEnv *env) {
 
     // Check that it's a pair
     if (val->type != NADA_PAIR) {
-        fprintf(stderr, "Error: car called on non-pair\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "car called on non-pair");
         nada_free(val);
         return nada_create_nil();
     }
@@ -157,13 +161,13 @@ static NadaValue *builtin_car(NadaValue *args, NadaEnv *env) {
 // Built-in function: cdr
 static NadaValue *builtin_cdr(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: cdr takes exactly one argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "cdr takes exactly one argument");
         return nada_create_nil();
     }
 
     NadaValue *arg = nada_eval(nada_car(args), env);
     if (arg->type != NADA_PAIR) {
-        fprintf(stderr, "Error: cdr requires a list argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "cdr requires a list argument");
         nada_free(arg);
         return nada_create_nil();
     }
@@ -186,7 +190,7 @@ static NadaValue *builtin_add(NadaValue *args, NadaEnv *env) {
     // Start with first argument
     NadaValue *first_arg = nada_eval(nada_car(args), env);
     if (first_arg->type != NADA_NUM) {
-        fprintf(stderr, "Error: '+' requires number arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'+' requires number arguments");
         nada_free(first_arg);
         return nada_create_num_from_int(0);
     }
@@ -202,7 +206,7 @@ static NadaValue *builtin_add(NadaValue *args, NadaEnv *env) {
     while (!nada_is_nil(current)) {
         NadaValue *arg = nada_eval(nada_car(current), env);
         if (arg->type != NADA_NUM) {
-            fprintf(stderr, "Error: '+' requires number arguments\n");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'+' requires number arguments");
             nada_num_free(result);
             nada_free(arg);
             return nada_create_num_from_int(0);
@@ -231,13 +235,13 @@ static NadaValue *builtin_add(NadaValue *args, NadaEnv *env) {
 // Subtraction (-)
 static NadaValue *builtin_subtract(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args)) {
-        fprintf(stderr, "Error: '-' requires at least one argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'-' requires at least one argument");
         return nada_create_num_from_int(0);
     }
 
     NadaValue *first = nada_eval(nada_car(args), env);
     if (first->type != NADA_NUM) {
-        fprintf(stderr, "Error: '-' requires number arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'-' requires number arguments");
         nada_free(first);
         return nada_create_num_from_int(0);
     }
@@ -259,7 +263,7 @@ static NadaValue *builtin_subtract(NadaValue *args, NadaEnv *env) {
     while (!nada_is_nil(rest)) {
         NadaValue *arg = nada_eval(nada_car(rest), env);
         if (arg->type != NADA_NUM) {
-            fprintf(stderr, "Error: '-' requires number arguments\n");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'-' requires number arguments");
             nada_num_free(result);
             nada_free(arg);
             return nada_create_num_from_int(0);
@@ -288,7 +292,7 @@ static NadaValue *builtin_multiply(NadaValue *args, NadaEnv *env) {
     // Start with first argument
     NadaValue *first_arg = nada_eval(nada_car(args), env);
     if (first_arg->type != NADA_NUM) {
-        fprintf(stderr, "Error: '*' requires number arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'*' requires number arguments");
         nada_free(first_arg);
         return nada_create_num_from_int(0);
     }
@@ -301,7 +305,7 @@ static NadaValue *builtin_multiply(NadaValue *args, NadaEnv *env) {
     while (!nada_is_nil(current)) {
         NadaValue *arg = nada_eval(nada_car(current), env);
         if (arg->type != NADA_NUM) {
-            fprintf(stderr, "Error: '*' requires number arguments\n");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'*' requires number arguments");
             nada_num_free(result);
             nada_free(arg);
             return nada_create_num_from_int(0);
@@ -323,13 +327,13 @@ static NadaValue *builtin_multiply(NadaValue *args, NadaEnv *env) {
 // Division (/)
 static NadaValue *builtin_divide(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args)) {
-        fprintf(stderr, "Error: '/' requires at least one argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'/' requires at least one argument");
         return nada_create_num_from_int(0);
     }
 
     NadaValue *first = nada_eval(nada_car(args), env);
     if (first->type != NADA_NUM) {
-        fprintf(stderr, "Error: '/' requires number arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'/' requires number arguments");
         nada_free(first);
         return nada_create_num_from_int(0);
     }
@@ -341,7 +345,7 @@ static NadaValue *builtin_divide(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(rest)) {
         // Unary division (1/x)
         if (nada_num_is_zero(result)) {
-            fprintf(stderr, "Error: division by zero\n");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "division by zero");
             nada_num_free(result);
             return nada_create_num_from_int(0);
         }
@@ -360,14 +364,14 @@ static NadaValue *builtin_divide(NadaValue *args, NadaEnv *env) {
     while (!nada_is_nil(rest)) {
         NadaValue *arg = nada_eval(nada_car(rest), env);
         if (arg->type != NADA_NUM) {
-            fprintf(stderr, "Error: '/' requires number arguments\n");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'/' requires number arguments");
             nada_num_free(result);
             nada_free(arg);
             return nada_create_num_from_int(0);
         }
 
         if (nada_num_is_zero(arg->data.number)) {
-            fprintf(stderr, "Error: division by zero\n");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "division by zero");
             nada_num_free(result);
             nada_free(arg);
             return nada_create_num_from_int(0);
@@ -390,7 +394,7 @@ static NadaValue *builtin_divide(NadaValue *args, NadaEnv *env) {
 static NadaValue *builtin_modulo(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        fprintf(stderr, "Error: modulo requires exactly 2 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "modulo requires exactly 2 arguments");
         return nada_create_num_from_int(0);
     }
 
@@ -398,14 +402,14 @@ static NadaValue *builtin_modulo(NadaValue *args, NadaEnv *env) {
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
     if (first->type != NADA_NUM || second->type != NADA_NUM) {
-        fprintf(stderr, "Error: modulo requires number arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "modulo requires number arguments");
         nada_free(first);
         nada_free(second);
         return nada_create_num_from_int(0);
     }
 
     if (nada_num_is_zero(second->data.number)) {
-        fprintf(stderr, "Error: modulo by zero\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "modulo by zero");
         nada_free(first);
         nada_free(second);
         return nada_create_num_from_int(0);
@@ -425,7 +429,7 @@ static NadaValue *builtin_modulo(NadaValue *args, NadaEnv *env) {
 static NadaValue *builtin_define(NadaValue *args, NadaEnv *env) {
     // Check that we have at least two arguments
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: define requires at least 2 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "define requires at least 2 arguments");
         return nada_create_nil();
     }
 
@@ -465,7 +469,7 @@ static NadaValue *builtin_define(NadaValue *args, NadaEnv *env) {
         return nada_create_symbol(func_name->data.symbol);
     }
 
-    fprintf(stderr, "Error: invalid define syntax\n");
+    nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "invalid define syntax");
     return nada_create_nil();
 }
 
@@ -473,7 +477,7 @@ static NadaValue *builtin_define(NadaValue *args, NadaEnv *env) {
 static NadaValue *builtin_lambda(NadaValue *args, NadaEnv *env) {
     // Check that we have at least two arguments: params and body
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: lambda requires parameters and body\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda requires parameters and body");
         return nada_create_nil();
     }
 
@@ -483,7 +487,7 @@ static NadaValue *builtin_lambda(NadaValue *args, NadaEnv *env) {
     NadaValue *param_check = params;
     while (param_check->type == NADA_PAIR) {
         if (nada_car(param_check)->type != NADA_SYMBOL) {
-            fprintf(stderr, "Error: lambda parameters must be symbols\n");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda parameters must be symbols");
             return nada_create_nil();
         }
         param_check = nada_cdr(param_check);
@@ -518,7 +522,7 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
 
         // Each clause should be a list
         if (clause->type != NADA_PAIR) {
-            fprintf(stderr, "Error: cond clause must be a list\n");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "cond clause must be a list");
             return nada_create_nil();
         }
 
@@ -532,7 +536,7 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
         if (is_else) {
             // Verify this is the last clause
             if (!nada_is_nil(next_clauses)) {
-                fprintf(stderr, "Error: 'else' must be in the last cond clause\n");
+                nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'else' must be in the last cond clause");
                 return nada_create_nil();
             }
 
@@ -610,7 +614,7 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
 static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
     // Check we have at least bindings and body
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: let requires bindings and body\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let requires bindings and body");
         return nada_create_nil();
     }
 
@@ -626,7 +630,7 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
 
         // Bindings must be a list
         if (!nada_is_nil(bindings) && bindings->type != NADA_PAIR) {
-            fprintf(stderr, "Error: let bindings must be a list\n");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let bindings must be a list");
             return nada_create_nil();
         }
 
@@ -646,7 +650,7 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
                 nada_car(binding)->type != NADA_SYMBOL ||
                 nada_is_nil(nada_cdr(binding)) ||
                 !nada_is_nil(nada_cdr(nada_cdr(binding)))) {
-                fprintf(stderr, "Error: let binding must be a (variable value) pair\n");
+                nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let binding must be a (variable value) pair");
                 nada_env_free(let_env);
                 nada_free(params);
                 nada_free(param_names);
@@ -700,7 +704,7 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
 
         // Bindings must be a list
         if (!nada_is_nil(bindings) && bindings->type != NADA_PAIR) {
-            fprintf(stderr, "Error: let bindings must be a list\n");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let bindings must be a list");
             return nada_create_nil();
         }
 
@@ -717,7 +721,7 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
                 nada_car(binding)->type != NADA_SYMBOL ||
                 nada_is_nil(nada_cdr(binding)) ||
                 !nada_is_nil(nada_cdr(nada_cdr(binding)))) {
-                fprintf(stderr, "Error: let binding must be a (variable value) pair\n");
+                nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let binding must be a (variable value) pair");
                 nada_env_free(let_env);
                 return nada_create_nil();
             }
@@ -756,7 +760,7 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
 // Apply a function to arguments
 static NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
     if (func->type != NADA_FUNC) {
-        fprintf(stderr, "Error: attempt to apply non-function\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "attempt to apply non-function");
         return nada_create_nil();
     }
 
@@ -793,13 +797,13 @@ static NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env)
 
     // Check for argument count mismatches
     if (!nada_is_nil(param)) {
-        fprintf(stderr, "Error: too few arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
         nada_env_free(func_env);
         return nada_create_nil();
     }
 
     if (!nada_is_nil(arg)) {
-        fprintf(stderr, "Error: too many arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too many arguments");
         nada_env_free(func_env);
         return nada_create_nil();
     }
@@ -836,7 +840,7 @@ static NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env)
 static NadaValue *builtin_less_than(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        fprintf(stderr, "Error: < requires exactly 2 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "< requires exactly 2 arguments");
         return nada_create_bool(0);
     }
 
@@ -844,7 +848,7 @@ static NadaValue *builtin_less_than(NadaValue *args, NadaEnv *env) {
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
     if (first->type != NADA_NUM || second->type != NADA_NUM) {
-        fprintf(stderr, "Error: < requires number arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "< requires number arguments");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
@@ -862,7 +866,7 @@ static NadaValue *builtin_less_than(NadaValue *args, NadaEnv *env) {
 static NadaValue *builtin_less_equal(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        fprintf(stderr, "Error: <= requires exactly 2 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "<= requires exactly 2 arguments");
         return nada_create_bool(0);
     }
 
@@ -870,7 +874,7 @@ static NadaValue *builtin_less_equal(NadaValue *args, NadaEnv *env) {
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
     if (first->type != NADA_NUM || second->type != NADA_NUM) {
-        fprintf(stderr, "Error: <= requires number arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "<= requires number arguments");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
@@ -888,7 +892,7 @@ static NadaValue *builtin_less_equal(NadaValue *args, NadaEnv *env) {
 static NadaValue *builtin_greater_than(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        fprintf(stderr, "Error: > requires exactly 2 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "> requires exactly 2 arguments");
         return nada_create_bool(0);
     }
 
@@ -896,7 +900,7 @@ static NadaValue *builtin_greater_than(NadaValue *args, NadaEnv *env) {
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
     if (first->type != NADA_NUM || second->type != NADA_NUM) {
-        fprintf(stderr, "Error: > requires number arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "> requires number arguments");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
@@ -914,7 +918,7 @@ static NadaValue *builtin_greater_than(NadaValue *args, NadaEnv *env) {
 static NadaValue *builtin_greater_equal(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        fprintf(stderr, "Error: >= requires exactly 2 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, ">= requires exactly 2 arguments");
         return nada_create_bool(0);
     }
 
@@ -922,7 +926,7 @@ static NadaValue *builtin_greater_equal(NadaValue *args, NadaEnv *env) {
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
     if (first->type != NADA_NUM || second->type != NADA_NUM) {
-        fprintf(stderr, "Error: >= requires number arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, ">= requires number arguments");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
@@ -940,7 +944,7 @@ static NadaValue *builtin_greater_equal(NadaValue *args, NadaEnv *env) {
 static NadaValue *builtin_numeric_equal(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        fprintf(stderr, "Error: = requires exactly 2 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "= requires exactly 2 arguments");
         return nada_create_bool(0);
     }
 
@@ -948,7 +952,7 @@ static NadaValue *builtin_numeric_equal(NadaValue *args, NadaEnv *env) {
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
     if (first->type != NADA_NUM || second->type != NADA_NUM) {
-        fprintf(stderr, "Error: = requires number arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "= requires number arguments");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
@@ -966,7 +970,7 @@ static NadaValue *builtin_numeric_equal(NadaValue *args, NadaEnv *env) {
 static NadaValue *builtin_eq(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        fprintf(stderr, "Error: eq? requires exactly 2 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "eq? requires exactly 2 arguments");
         return nada_create_bool(0);
     }
 
@@ -1043,7 +1047,7 @@ static int values_equal(NadaValue *a, NadaValue *b) {
 static NadaValue *builtin_equal(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        fprintf(stderr, "Error: equal? requires exactly 2 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "equal? requires exactly 2 arguments");
         return nada_create_bool(0);
     }
 
@@ -1061,7 +1065,7 @@ static NadaValue *builtin_equal(NadaValue *args, NadaEnv *env) {
 // Empty list test (null?)
 static NadaValue *builtin_null(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: null? requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "null? requires exactly 1 argument");
         return nada_create_bool(0);
     }
 
@@ -1076,7 +1080,7 @@ static NadaValue *builtin_null(NadaValue *args, NadaEnv *env) {
 // Integer predicate (integer?)
 static NadaValue *builtin_integer_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: integer? requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "integer? requires exactly 1 argument");
         return nada_create_bool(0);
     }
 
@@ -1089,7 +1093,7 @@ static NadaValue *builtin_integer_p(NadaValue *args, NadaEnv *env) {
 // Number predicate (number?)
 static NadaValue *builtin_number_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: number? requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "number? requires exactly 1 argument");
         return nada_create_bool(0);
     }
 
@@ -1102,7 +1106,7 @@ static NadaValue *builtin_number_p(NadaValue *args, NadaEnv *env) {
 // String predicate (string?)
 static NadaValue *builtin_string_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: string? requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "string? requires exactly 1 argument");
         return nada_create_bool(0);
     }
 
@@ -1115,7 +1119,7 @@ static NadaValue *builtin_string_p(NadaValue *args, NadaEnv *env) {
 // Symbol predicate (symbol?)
 static NadaValue *builtin_symbol_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: symbol? requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "symbol? requires exactly 1 argument");
         return nada_create_bool(0);
     }
 
@@ -1128,7 +1132,7 @@ static NadaValue *builtin_symbol_p(NadaValue *args, NadaEnv *env) {
 // Boolean predicate (boolean?)
 static NadaValue *builtin_boolean_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: boolean? requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "boolean? requires exactly 1 argument");
         return nada_create_bool(0);
     }
 
@@ -1141,7 +1145,7 @@ static NadaValue *builtin_boolean_p(NadaValue *args, NadaEnv *env) {
 // Pair predicate (pair?)
 static NadaValue *builtin_pair_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: pair? requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "pair? requires exactly 1 argument");
         return nada_create_bool(0);
     }
 
@@ -1154,7 +1158,7 @@ static NadaValue *builtin_pair_p(NadaValue *args, NadaEnv *env) {
 // Function predicate (function?)
 static NadaValue *builtin_function_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: function? requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "function? requires exactly 1 argument");
         return nada_create_bool(0);
     }
 
@@ -1174,7 +1178,7 @@ static int is_proper_list(NadaValue *v) {
 // List predicate (list?)
 static NadaValue *builtin_list_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: list? requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "list? requires exactly 1 argument");
         return nada_create_bool(0);
     }
 
@@ -1187,7 +1191,7 @@ static NadaValue *builtin_list_p(NadaValue *args, NadaEnv *env) {
 // Atom predicate (atom?) - anything that's not a pair or nil
 static NadaValue *builtin_atom_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: atom? requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "atom? requires exactly 1 argument");
         return nada_create_bool(0);
     }
 
@@ -1222,7 +1226,7 @@ static int is_builtin(const char *name) {
 // Built-in function predicate
 static NadaValue *builtin_builtin_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: builtin? requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "builtin? requires exactly 1 argument");
         return nada_create_bool(0);
     }
 
@@ -1265,7 +1269,7 @@ void collect_symbols(NadaEnv *current_env, NadaValue **list) {
 // Built-in function: env-symbols
 static NadaValue *builtin_env_symbols(NadaValue *args, NadaEnv *env) {
     if (!nada_is_nil(args)) {
-        fprintf(stderr, "Error: env-symbols takes no arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "env-symbols takes no arguments");
         return nada_create_nil();
     }
 
@@ -1323,7 +1327,7 @@ void print_bindings(NadaEnv *current_env, int level) {
 // Built-in function: env-describe
 static NadaValue *builtin_env_describe(NadaValue *args, NadaEnv *env) {
     if (!nada_is_nil(args)) {
-        fprintf(stderr, "Error: env-describe takes no arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "env-describe takes no arguments");
         return nada_create_nil();
     }
 
@@ -1397,21 +1401,20 @@ void serialize_env(NadaEnv *current_env, FILE *out) {
 // Built-in function: save-environment
 static NadaValue *builtin_save_environment(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: save-environment requires exactly one filename argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "save-environment requires exactly one filename argument");
         return nada_create_bool(0);
     }
 
     NadaValue *filename_arg = nada_eval(nada_car(args), env);
     if (filename_arg->type != NADA_STRING) {
-        fprintf(stderr, "Error: save-environment requires a string filename\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "save-environment requires a string filename");
         nada_free(filename_arg);
         return nada_create_bool(0);
     }
 
     FILE *file = fopen(filename_arg->data.string, "w");
     if (!file) {
-        fprintf(stderr, "Error: could not open file %s for writing\n",
-                filename_arg->data.string);
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "could not open file %s for writing", filename_arg->data.string);
         nada_free(filename_arg);
         return nada_create_bool(0);
     }
@@ -1426,21 +1429,20 @@ static NadaValue *builtin_save_environment(NadaValue *args, NadaEnv *env) {
 // Built-in function: load-file
 static NadaValue *builtin_load_file(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: load-file requires exactly one filename argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "load-file requires exactly one filename argument");
         return nada_create_bool(0);
     }
 
     NadaValue *filename_arg = nada_eval(nada_car(args), env);
     if (filename_arg->type != NADA_STRING) {
-        fprintf(stderr, "Error: load-file requires a string filename\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "load-file requires a string filename");
         nada_free(filename_arg);
         return nada_create_bool(0);
     }
 
     FILE *file = fopen(filename_arg->data.string, "r");
     if (!file) {
-        fprintf(stderr, "Error: could not open file %s for reading\n",
-                filename_arg->data.string);
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "could not open file %s for reading", filename_arg->data.string);
         nada_free(filename_arg);
         return nada_create_bool(0);
     }
@@ -1470,7 +1472,7 @@ static NadaValue *builtin_load_file(NadaValue *args, NadaEnv *env) {
 // Built-in function: undef
 static NadaValue *builtin_undef(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: undef requires exactly one argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "undef requires exactly one argument");
         return nada_create_bool(0);
     }
 
@@ -1489,7 +1491,7 @@ static NadaValue *builtin_undef(NadaValue *args, NadaEnv *env) {
     }
 
     if (arg->type != NADA_SYMBOL) {
-        fprintf(stderr, "Error: undef requires a symbol argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "undef requires a symbol argument");
         nada_free(arg);
         return nada_create_bool(0);
     }
@@ -1506,7 +1508,7 @@ static NadaValue *builtin_cons(NadaValue *args, NadaEnv *env) {
     // Check for exactly 2 arguments
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        fprintf(stderr, "Error: cons requires exactly 2 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "cons requires exactly 2 arguments");
         return nada_create_nil();
     }
 
@@ -1571,7 +1573,7 @@ static NadaValue *builtin_list(NadaValue *args, NadaEnv *env) {
 static NadaValue *builtin_if(NadaValue *args, NadaEnv *env) {
     // if requires at least 2 arguments (condition, then-expr, [else-expr])
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: if requires at least 2 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "if requires at least 2 arguments");
         return nada_create_nil();
     }
 
@@ -1601,7 +1603,7 @@ static NadaValue *builtin_if(NadaValue *args, NadaEnv *env) {
 // Length function - count elements in a list
 static NadaValue *builtin_length(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: length requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "length requires exactly 1 argument");
         return nada_create_num_from_int(0);
     }
 
@@ -1615,7 +1617,7 @@ static NadaValue *builtin_length(NadaValue *args, NadaEnv *env) {
 
     // For non-list values, return error
     if (list_val->type != NADA_PAIR) {
-        fprintf(stderr, "Error: length requires a list argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "length requires a list argument");
         nada_free(list_val);
         return nada_create_num_from_int(0);
     }
@@ -1637,14 +1639,14 @@ static NadaValue *builtin_length(NadaValue *args, NadaEnv *env) {
 static NadaValue *builtin_define_test(NadaValue *args, NadaEnv *env) {
     // Ensure we have at least a name and one expression
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: define-test requires a name and at least one test expression\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "define-test requires a name and at least one test expression");
         return nada_create_nil();
     }
 
     // Extract the test name
     NadaValue *name_val = nada_car(args);
     if (name_val->type != NADA_STRING) {
-        fprintf(stderr, "Error: define-test name must be a string\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "define-test name must be a string");
         return nada_create_nil();
     }
     char *test_name = name_val->data.string;
@@ -1883,12 +1885,12 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
         }
 
         nada_free(eval_op);
-        fprintf(stderr, "Error: not a function\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "not a function");
         return nada_create_nil();
     }
 
     // Default case
-    fprintf(stderr, "Error: cannot evaluate expression\n");
+    nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "cannot evaluate expression");
     return nada_create_nil();
 }
 

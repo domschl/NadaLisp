@@ -7,6 +7,7 @@ set(LIB_SOURCES
     NadaEval.c
     NadaString.c
     NadaNum.c
+    NadaError.c
 )
 
 # Create the library with all the source code
