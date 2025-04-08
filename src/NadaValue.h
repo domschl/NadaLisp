@@ -72,4 +72,12 @@ NadaValue *nada_deep_copy(NadaValue *val);
 // Print function for debugging and REPL output
 void nada_print(NadaValue *val);
 
+// Memory report function
+void nada_memory_report();
+void nada_memory_reset();
+
+// Memory tracking functions
+void nada_increment_allocations(void);
+void nada_increment_frees(void);
+
 #endif /* NADA_VALUE_H */

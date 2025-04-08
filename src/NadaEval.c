@@ -43,24 +43,26 @@ void nada_env_free(NadaEnv *env) {
 
 // Add a binding to the environment
 void nada_env_set(NadaEnv *env, const char *name, NadaValue *value) {
-    // Check if binding already exists
+    // Check if symbol already exists
     struct NadaBinding *current = env->bindings;
     while (current != NULL) {
         if (strcmp(current->name, name) == 0) {
-            // Update existing binding
+            // Free the old value before replacing it
             nada_free(current->value);
-            current->value = value;
+
+            // Store a copy of the value (so caller can free original)
+            current->value = nada_deep_copy(value);
             return;
         }
         current = current->next;
     }
 
-    // Create new binding
-    struct NadaBinding *binding = malloc(sizeof(struct NadaBinding));
-    binding->name = strdup(name);
-    binding->value = value;
-    binding->next = env->bindings;
-    env->bindings = binding;
+    // Add new binding
+    struct NadaBinding *new_binding = malloc(sizeof(struct NadaBinding));
+    new_binding->name = strdup(name);
+    new_binding->value = nada_deep_copy(value);
+    new_binding->next = env->bindings;  // Add to front of list
+    env->bindings = new_binding;
 }
 
 // Look up a binding in the environment
@@ -1400,12 +1402,14 @@ NadaEnv *nada_standard_env(void) {
 
 // Create a standard environment with all built-in functions
 NadaEnv *nada_create_standard_env(void) {
+    // Add tracking here
     NadaEnv *env = nada_env_create(NULL);
 
     // Register all built-in functions from the builtins array
     for (int i = 0; builtins[i].name != NULL; i++) {
         NadaValue *func = nada_create_builtin_function(builtins[i].func);
         nada_env_set(env, builtins[i].name, func);
+        // Each of these creates values that should be tracked
     }
 
     return env;
@@ -1520,6 +1524,7 @@ void nada_init(void) {
 // Add to NadaEval.c
 NadaValue *nada_create_builtin_function(NadaValue *(*func)(NadaValue *, NadaEnv *)) {
     NadaValue *val = malloc(sizeof(NadaValue));
+    nada_increment_allocations();  // Use the function instead of direct access
     val->type = NADA_FUNC;
     val->data.function.params = NULL;   // No explicit parameters for builtins
     val->data.function.body = NULL;     // No body for builtins

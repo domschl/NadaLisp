@@ -65,12 +65,13 @@ void process_file(const char *filename) {
 // Run an interactive REPL (Read-Eval-Print Loop)
 void run_repl(void) {
     printf("NadaLisp REPL (Ctrl+D to exit)\n");
+    nada_memory_reset();  // Reset counters at startup
 
     char *line;
     while ((line = readline("nada> ")) != NULL) {
         if (strlen(line) > 0) {
             add_history(line);
-            // ...
+
             NadaValue *expr = nada_parse(line);
             NadaValue *result = nada_eval(expr, global_env);
 
@@ -78,20 +79,35 @@ void run_repl(void) {
             nada_print(result);
             printf("\n");
 
-            // Free both the expression and result
+            // Ensure both expr and result are freed
             nada_free(expr);
             nada_free(result);
-            // ...
         }
-        free(line);
+        free(line);  // Don't forget to free readline's line
+        nada_memory_report();
     }
 
     printf("\nGoodbye!\n");
 }
 
+// Fix environment handling
+void nada_cleanup() {
+    // Free the global environment (which will free all values in it)
+    if (global_env != NULL) {
+        nada_env_free(global_env);
+        global_env = NULL;
+    }
+
+    // Print final memory report
+    nada_memory_report();
+}
+
 int main(int argc, char *argv[]) {
     // Initialize the global environment
     global_env = nada_create_standard_env();
+
+    // Register cleanup
+    atexit(nada_cleanup);
 
     if (argc > 1) {
         // File mode: process the specified file
@@ -100,9 +116,6 @@ int main(int argc, char *argv[]) {
         // Interactive mode: use readline for REPL
         run_repl();
     }
-
-    // Clean up environment
-    nada_env_free(global_env);
 
     return 0;
 }

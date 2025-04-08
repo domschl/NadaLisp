@@ -3,15 +3,39 @@
 #include <string.h>
 #include <stdio.h>
 
+// Initialize counters
 static int value_allocations = 0;
 static int value_frees = 0;
+static int current_values = 0;
+
+// Functions to increment counters
+void nada_increment_allocations(void) {
+    value_allocations++;
+    current_values++;
+}
+
+void nada_increment_frees(void) {
+    value_frees++;
+    current_values--;
+}
+
+// Reset for accurate tracking
+void nada_memory_reset() {
+    value_allocations = 0;
+    value_frees = 0;
+    current_values = 0;
+}
 
 // Create a new integer value
 NadaValue *nada_create_int(int value) {
     NadaValue *val = malloc(sizeof(NadaValue));
+    if (val == NULL) {
+        fprintf(stderr, "Error: Out of memory\n");
+        exit(1);
+    }
     val->type = NADA_INT;
     val->data.integer = value;
-    value_allocations++;
+    nada_increment_allocations();
     return val;
 }
 
@@ -20,7 +44,7 @@ NadaValue *nada_create_string(const char *str) {
     NadaValue *val = malloc(sizeof(NadaValue));
     val->type = NADA_STRING;
     val->data.string = strdup(str);
-    value_allocations++;
+    nada_increment_allocations();
     return val;
 }
 
@@ -29,7 +53,7 @@ NadaValue *nada_create_symbol(const char *name) {
     NadaValue *val = malloc(sizeof(NadaValue));
     val->type = NADA_SYMBOL;
     val->data.symbol = strdup(name);
-    value_allocations++;
+    nada_increment_allocations();
     return val;
 }
 
@@ -37,7 +61,7 @@ NadaValue *nada_create_symbol(const char *name) {
 NadaValue *nada_create_nil(void) {
     NadaValue *val = malloc(sizeof(NadaValue));
     val->type = NADA_NIL;
-    value_allocations++;
+    nada_increment_allocations();
     return val;
 }
 
@@ -46,7 +70,7 @@ NadaValue *nada_create_bool(int boolean) {
     NadaValue *val = malloc(sizeof(NadaValue));
     val->type = NADA_BOOL;
     val->data.boolean = boolean ? 1 : 0;
-    value_allocations++;
+    nada_increment_allocations();
     return val;
 }
 
@@ -57,7 +81,7 @@ NadaValue *nada_cons(NadaValue *car, NadaValue *cdr) {
     // Make deep copies of car and cdr
     pair->data.pair.car = nada_deep_copy(car);
     pair->data.pair.cdr = nada_deep_copy(cdr);
-    value_allocations++;
+    nada_increment_allocations();
     return pair;
 }
 
@@ -68,7 +92,7 @@ NadaValue *nada_create_function(NadaValue *params, NadaValue *body, NadaEnv *env
     val->data.function.params = params;
     val->data.function.body = body;
     val->data.function.env = env;
-    value_allocations++;
+    nada_increment_allocations();
     return val;
 }
 
@@ -121,7 +145,7 @@ void nada_free(NadaValue *val) {
     }
 
     free(val);
-    value_frees++;
+    nada_increment_frees();
 }
 
 // Print a value (for debugging and REPL output)
@@ -215,9 +239,9 @@ NadaValue *nada_deep_copy(NadaValue *val) {
     }
 }
 
-// Add a function to print leak report
+// Updated memory report
 void nada_memory_report() {
-    printf("Memory report: %d allocations, %d frees, %d leak(s)\n",
-           value_allocations, value_frees,
+    printf("Memory report: %d allocations, %d frees, %d active, %d leak(s)\n",
+           value_allocations, value_frees, current_values,
            value_allocations - value_frees);
 }
