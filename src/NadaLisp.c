@@ -52,37 +52,39 @@ void process_file(const char *filename) {
     char line[1024];
     int paren_balance = 0;
     int in_string = 0;
-    
+
     while (fgets(line, sizeof(line), file)) {
         // Handle comments
         char *comment = strchr(line, ';');
         if (comment) *comment = '\0';
-        
+
         // Update buffer with this line
         strcat(buffer, line);
-        
+
         // Count parentheses and check for strings
         for (char *p = line; *p; p++) {
             if (*p == '"') in_string = !in_string;
             if (!in_string) {
-                if (*p == '(') paren_balance++;
-                else if (*p == ')') paren_balance--;
+                if (*p == '(')
+                    paren_balance++;
+                else if (*p == ')')
+                    paren_balance--;
             }
         }
-        
+
         // If balanced, process the expression
         if (paren_balance == 0 && strlen(buffer) > 0) {
             NadaValue *expr = nada_parse(buffer);
             NadaValue *result = nada_eval(expr, global_env);
-            
+
             nada_free(expr);
             nada_free(result);
-            
+
             // Reset buffer for next expression
             buffer[0] = '\0';
         }
     }
-    
+
     fclose(file);
 }
 
@@ -90,63 +92,65 @@ void process_file(const char *filename) {
 void run_repl(void) {
     printf("NadaLisp REPL (Ctrl+D to exit)\n");
     nada_memory_reset();
-    
+
     char buffer[10240] = {0};
     int paren_balance = 0;
     int in_string = 0;
     char prompt[32] = "nada> ";
-    
+
     while (1) {
         char *line = readline(prompt);
         if (!line) break;  // Ctrl+D
-        
+
         if (strlen(line) == 0) {
             free(line);
             continue;
         }
-        
+
         // Handle comments
         char *comment = strchr(line, ';');
         if (comment) *comment = '\0';
-        
+
         // Skip empty lines
         if (strlen(line) == 0) {
             free(line);
             continue;
         }
-        
+
         // Add to history only if we're at the start of an expression
         if (buffer[0] == '\0') {
             add_history(line);
         }
-        
+
         // Append to the buffer
         strcat(buffer, line);
         strcat(buffer, " ");  // Add space for readability
-        
+
         // Count parentheses and track strings
         for (char *p = line; *p; p++) {
             if (*p == '"') in_string = !in_string;
             if (!in_string) {
-                if (*p == '(') paren_balance++;
-                else if (*p == ')') paren_balance--;
+                if (*p == '(')
+                    paren_balance++;
+                else if (*p == ')')
+                    paren_balance--;
             }
         }
-        
+
         free(line);
-        
+
         // If balanced, process the expression
         if (paren_balance == 0) {
             if (strlen(buffer) > 0) {
                 NadaValue *expr = nada_parse(buffer);
                 NadaValue *result = nada_eval(expr, global_env);
-                
+
                 nada_print(result);
                 printf("\n");
-                
+
                 nada_free(expr);
                 nada_free(result);
-                nada_memory_report();
+                // nada_memory_report();
             }
             buffer[0] = '\0';
             strcpy(prompt, "nada> ");
@@ -155,7 +159,7 @@ void run_repl(void) {
             strcpy(prompt, "...... ");
         }
     }
-    
+
     printf("\nGoodbye!\n");
 }
 
@@ -168,7 +172,7 @@ void nada_cleanup() {
     }
 
     // Print final memory report
-    nada_memory_report();
+    // nada_memory_report();
 }
 
 int main(int argc, char *argv[]) {
