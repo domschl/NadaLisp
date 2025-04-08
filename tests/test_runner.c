@@ -11,7 +11,7 @@ int tests_run = 0;
 int tests_passed = 0;
 
 // Test environment
-static NadaEnv *test_env = NULL;
+NadaEnv *test_env = NULL;
 
 // Initialize testing environment
 void init_test_env() {

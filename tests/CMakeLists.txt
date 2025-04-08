@@ -23,6 +23,19 @@ add_test(NAME StringOperations COMMAND test_string)
 add_test(NAME ListOperations COMMAND test_list)
 add_test(NAME IOOperations COMMAND test_io)
 
+# Lisp-based test runner
+add_executable(run_lisp_tests run_lisp_tests.c)
+target_link_libraries(run_lisp_tests PRIVATE test_runner nada_lib)
+
+# Create lisp_tests directory if it doesn't exist
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lisp_tests)
+
+# Add test to CTest
+add_test(
+    NAME LispBasedTests
+    COMMAND run_lisp_tests ${CMAKE_CURRENT_SOURCE_DIR}/lisp_tests
+)
+
 # Memory leak test
 if(UNIX)
     # Create script for running memory tests
