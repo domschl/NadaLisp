@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
+#include <unistd.h>  // For getcwd()
 #include "../src/NadaError.h"
 
 // Define test variables locally instead of importing them
@@ -51,6 +52,76 @@ static const char *nada_type_name(int type) {
     }
 }
 
+// Add a library loading function similar to the one in NadaLisp.c
+static void load_test_libraries() {
+    // Try multiple potential library locations with more options
+    const char *lib_dirs[] = {
+        "src/nadalib",                // From project root
+        "../src/nadalib",             // From build directory
+        "../../src/nadalib",          // From build/tests
+        "../../../src/nadalib",       // Deeper nested builds
+        "./nadalib",                  // Local directory
+        "/usr/local/share/nada/lib",  // System-wide
+        NULL                          // End marker
+    };
+
+    DIR *dir = NULL;
+    char cwd_buffer[1024];
+    int found_index = -1;  // Store the index of the found directory
+
+    // Get current working directory for better diagnostics
+    if (getcwd(cwd_buffer, sizeof(cwd_buffer)) == NULL) {
+        strcpy(cwd_buffer, "(unknown)");
+    }
+
+    printf("Searching for libraries from test working directory: %s\n", cwd_buffer);
+
+    // Try each potential location
+    for (int i = 0; lib_dirs[i] != NULL; i++) {
+        dir = opendir(lib_dirs[i]);
+        if (dir) {
+            printf("Found library directory: %s\n", lib_dirs[i]);
+            found_index = i;  // Store the index
+            break;
+        }
+    }
+
+    if (found_index < 0) {
+        printf("Note: No library directory found. Tests may fail if they depend on libraries.\n");
+        return;
+    }
+
+    // Use the actual found directory path for loading
+    const char *found_dir = lib_dirs[found_index];
+    printf("Loading libraries for tests from %s...\n", found_dir);
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        // Skip directories and non-.lisp files
+        if (entry->d_type == DT_DIR) continue;
+
+        const char *filename = entry->d_name;
+        size_t len = strlen(filename);
+
+        // Check for .lisp extension
+        if (len > 5 && strcmp(filename + len - 5, ".lisp") == 0) {
+            // Use the correct found directory path
+            char full_path[1024];
+            snprintf(full_path, sizeof(full_path), "%s/%s", found_dir, filename);
+
+            printf("  Loading %s\n", filename);
+            NadaValue *result = nada_load_file(full_path, test_env);
+            nada_free(result);
+
+            // Reset error flag after each library load
+            reset_error_flag();
+        }
+    }
+
+    closedir(dir);
+    printf("Libraries loaded for tests.\n");
+}
+
 // Initialize test environment
 static void init_test_env() {
     // Use the function from NadaEval.h
@@ -65,6 +136,9 @@ static void init_test_env() {
     // Reset test counters
     tests_run = 0;
     tests_passed = 0;
+
+    // Load library files - similar to what we do in the REPL
+    load_test_libraries();
 }
 
 // Cleanup the test environment
@@ -162,118 +236,28 @@ static void setup_test_env(NadaEnv *env) {
 
 // Run a single test file
 static int run_test_file(const char *filename, NadaEnv *env) {
-    FILE *file = fopen(filename, "r");
-    if (!file) {
-        fprintf(stderr, "Error: Could not open test file: %s\n", filename);
-        return 0;
-    }
-
     printf("Running tests from %s\n", filename);
 
-    char buffer[10240] = {0};
-    char line[1024];
-    int paren_balance = 0;
-    int in_string = 0;
-    int file_tests_passed = 0;
-    int file_tests_run = 0;
-    int line_num = 0;
+    // Reset error flag
+    reset_error_flag();
 
-    while (fgets(line, sizeof(line), file)) {
-        line_num++;
+    // Store current test count
+    int tests_before = tests_run;
 
-        // Skip comments and empty lines
-        if (line[0] == ';' || line[0] == '\n') continue;
+    // Load and evaluate the file
+    NadaValue *result = nada_load_file(filename, env);
 
-        // Update buffer with this line
-        strcat(buffer, line);
+    // Check for errors
+    int success = !had_evaluation_error;
 
-        // Count parentheses and check for strings
-        for (char *p = line; *p; p++) {
-            if (*p == '"') in_string = !in_string;
-            if (!in_string) {
-                if (*p == '(')
-                    paren_balance++;
-                else if (*p == ')')
-                    paren_balance--;
-            }
-        }
+    // Calculate tests run in this file
+    int file_tests = tests_run - tests_before;
+    printf("Ran %d tests from %s\n", file_tests, filename);
 
-        // If balanced, process the expression
-        if (paren_balance == 0 && strlen(buffer) > 0) {
-            // Parse as NadaValue
-            NadaValue *expr = nada_parse(buffer);
+    // Clean up
+    nada_free(result);
 
-            // Skip if parsing failed
-            if (!expr) {
-                fprintf(stderr, "  ERROR: Failed to parse expression at line %d in %s\n",
-                        line_num, filename);
-                buffer[0] = '\0';
-                continue;
-            }
-
-            // Check if this is a test definition
-            if (expr->type == NADA_PAIR &&
-                nada_car(expr)->type == NADA_SYMBOL &&
-                strcmp(nada_car(expr)->data.symbol, "define-test") == 0) {
-
-                // Get test name for better reporting
-                NadaValue *test_name = NULL;
-                if (!nada_is_nil(nada_cdr(expr)) &&
-                    nada_car(nada_cdr(expr))->type == NADA_STRING) {
-                    test_name = nada_car(nada_cdr(expr));
-                    printf("  Running test: %s (%s:%d)... ",
-                           test_name->data.string, filename, line_num);
-                } else {
-                    printf("  Running unnamed test (%s:%d)... ", filename, line_num);
-                }
-
-                tests_run++;
-                file_tests_run++;
-
-                // Set current test info for better error reporting
-                nada_env_set(env, "current-test-file", nada_create_string(filename));
-                nada_env_set(env, "current-test-line", nada_create_num_from_int(line_num));
-
-                // Reset error flag before evaluation
-                reset_error_flag();
-
-                // Evaluate the test
-                NadaValue *result = nada_eval(expr, env);
-
-                // Determine test success by checking both result and error flag
-                int success = (result->type == NADA_BOOL && result->data.boolean && !had_evaluation_error);
-
-                // Update the conditional for checking success
-                if (success) {
-                    tests_passed++;
-                    file_tests_passed++;
-                    printf("PASSED\n");
-                } else {
-                    // Detailed failure debug info
-                    printf("FAILED\n");
-                    printf("  Error flag: %s\n", had_evaluation_error ? "true (errors occurred)" : "false (no errors)");
-                    printf("  Result type: %s\n", nada_type_name(result->type));
-                    if (result->type == NADA_BOOL) {
-                        printf("  Result value: %s\n", result->data.boolean ? "true" : "false");
-                    }
-                }
-
-                nada_free(result);
-            } else {
-                // Just evaluate non-test expressions
-                reset_error_flag();  // Reset before each evaluation
-                NadaValue *result = nada_eval(expr, env);
-                nada_free(result);
-            }
-
-            nada_free(expr);
-            buffer[0] = '\0';  // Reset buffer for next expression
-        }
-    }
-
-    fclose(file);
-    printf("File results: %d/%d tests passed\n\n", file_tests_passed, file_tests_run);
-    return file_tests_passed == file_tests_run;
+    return success;
 }
 
 // Report test coverage details

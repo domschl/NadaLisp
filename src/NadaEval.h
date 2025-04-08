@@ -21,4 +21,7 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env);
 // Function to create a built-in function
 NadaValue *nada_create_builtin_function(NadaValue *(*func)(NadaValue *, NadaEnv *));
 
+// Add to public API:
+NadaValue *nada_load_file(const char *filename, NadaEnv *env);
+
 #endif  // NADA_EVAL_H

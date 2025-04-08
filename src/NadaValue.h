@@ -65,6 +65,7 @@ NadaValue *nada_create_bool(int boolean);
 NadaValue *nada_car(NadaValue *pair);
 NadaValue *nada_cdr(NadaValue *pair);
 int nada_is_nil(NadaValue *val);
+NadaValue *nada_reverse(NadaValue *list);
 
 // Memory management
 void nada_free(NadaValue *val);

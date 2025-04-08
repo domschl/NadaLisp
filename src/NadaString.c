@@ -2,9 +2,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>  // Add this for isdigit, isalpha, isspace
 #include "NadaValue.h"
 #include "NadaEval.h"
 #include "NadaParser.h"
+#include "NadaError.h"
 
 // Calculate the number of UTF-8 characters in a string
 int utf8_strlen(const char *str) {
@@ -412,6 +414,111 @@ NadaValue *builtin_number_to_string(NadaValue *args, NadaEnv *env) {
 
     free(str);
     nada_free(num_val);
+    return result;
+}
+
+// string->symbol: Convert string to symbol
+NadaValue *builtin_string_to_symbol(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
+                          "string->symbol requires exactly one string argument");
+        return nada_create_nil();
+    }
+
+    NadaValue *str_arg = nada_eval(nada_car(args), env);
+    if (str_arg->type != NADA_STRING) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR,
+                          "string->symbol requires a string argument");
+        nada_free(str_arg);
+        return nada_create_nil();
+    }
+
+    // Create a symbol from the string
+    NadaValue *result = nada_create_symbol(str_arg->data.string);
+    nada_free(str_arg);
+    return result;
+}
+
+// Updated tokenize-expr function
+NadaValue *builtin_tokenize_expr(NadaValue *args, NadaEnv *env) {
+    // Check args
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
+                          "tokenize-expr requires exactly one string argument");
+        return nada_create_nil();
+    }
+
+    // Evaluate the argument
+    NadaValue *str_arg = nada_eval(nada_car(args), env);
+    if (str_arg->type != NADA_STRING) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR,
+                          "tokenize-expr requires a string argument");
+        nada_free(str_arg);
+        return nada_create_nil();
+    }
+
+    // Implement tokenization logic here
+    // Split the string into tokens (numbers, operators, parentheses)
+    // Return a list of string tokens
+
+    // Example implementation outline:
+    const char *input = str_arg->data.string;
+    NadaValue *tokens = nada_create_nil();
+
+    // Simple tokenizer for algebraic expressions
+    char token_buf[256];
+    int token_pos = 0;
+
+    for (int i = 0; input[i] != '\0'; i++) {
+        char c = input[i];
+
+        // Handle operators and parentheses as single-character tokens
+        if (c == '+' || c == '-' || c == '*' || c == '/' ||
+            c == '^' || c == '(' || c == ')') {
+
+            // If we have a pending token, add it first
+            if (token_pos > 0) {
+                token_buf[token_pos] = '\0';
+                NadaValue *token = nada_create_string(token_buf);
+                tokens = nada_cons(token, tokens);
+                nada_free(token);
+                token_pos = 0;
+            }
+
+            // Add the operator token
+            token_buf[0] = c;
+            token_buf[1] = '\0';
+            NadaValue *op_token = nada_create_string(token_buf);
+            tokens = nada_cons(op_token, tokens);
+            nada_free(op_token);
+
+        } else if (isdigit(c) || isalpha(c) || c == '.') {
+            // Build number or variable tokens
+            token_buf[token_pos++] = c;
+        } else if (isspace(c)) {
+            // Finish current token if any
+            if (token_pos > 0) {
+                token_buf[token_pos] = '\0';
+                NadaValue *token = nada_create_string(token_buf);
+                tokens = nada_cons(token, tokens);
+                nada_free(token);
+                token_pos = 0;
+            }
+        }
+    }
+
+    // Add any final token
+    if (token_pos > 0) {
+        token_buf[token_pos] = '\0';
+        NadaValue *token = nada_create_string(token_buf);
+        tokens = nada_cons(token, tokens);
+        nada_free(token);
+    }
+
+    // Reverse the tokens list to get them in the original order
+    NadaValue *result = nada_reverse(tokens);
+    nada_free(tokens);
+    nada_free(str_arg);
     return result;
 }
 

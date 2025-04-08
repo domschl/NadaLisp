@@ -275,6 +275,21 @@ NadaValue *nada_deep_copy(NadaValue *val) {
     return result;
 }
 
+// Reverse a list in-place
+NadaValue *nada_reverse(NadaValue *list) {
+    NadaValue *result = nada_create_nil();
+
+    while (!nada_is_nil(list)) {
+        NadaValue *head = nada_car(list);
+        NadaValue *tail = nada_cdr(list);
+
+        result = nada_cons(head, result);
+        list = tail;
+    }
+
+    return result;
+}
+
 // Updated memory report
 void nada_memory_report() {
     printf("Memory report: %d allocations, %d frees, %d active, %d leak(s)\n",

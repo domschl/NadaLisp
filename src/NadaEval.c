@@ -181,6 +181,88 @@ static NadaValue *builtin_cdr(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
+// cadr: Get the second element of a list (car of cdr)
+static NadaValue *builtin_cadr(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "cadr requires exactly 1 argument");
+        return nada_create_nil();
+    }
+
+    // Evaluate the argument
+    NadaValue *list_arg = nada_eval(nada_car(args), env);
+
+    // Check that it's a pair
+    if (list_arg->type != NADA_PAIR) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "cadr requires a list argument");
+        nada_free(list_arg);
+        return nada_create_nil();
+    }
+
+    // Get the cdr
+    NadaValue *cdr_val = nada_cdr(list_arg);
+
+    // Check that cdr is a pair
+    if (cdr_val->type != NADA_PAIR) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "list has no second element");
+        nada_free(list_arg);
+        return nada_create_nil();
+    }
+
+    // Get the car of cdr (second element)
+    NadaValue *result = nada_deep_copy(nada_car(cdr_val));
+
+    // Clean up
+    nada_free(list_arg);
+
+    return result;
+}
+
+// caddr: Get the third element of a list (car of cdr of cdr)
+static NadaValue *builtin_caddr(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "caddr requires exactly 1 argument");
+        return nada_create_nil();
+    }
+
+    // Evaluate the argument
+    NadaValue *list_arg = nada_eval(nada_car(args), env);
+
+    // Check that it's a pair
+    if (list_arg->type != NADA_PAIR) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "caddr requires a list argument");
+        nada_free(list_arg);
+        return nada_create_nil();
+    }
+
+    // Get the cdr
+    NadaValue *cdr_val = nada_cdr(list_arg);
+
+    // Check that cdr is a pair
+    if (cdr_val->type != NADA_PAIR) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "list has no second element");
+        nada_free(list_arg);
+        return nada_create_nil();
+    }
+
+    // Get the cdr of cdr
+    NadaValue *cddr_val = nada_cdr(cdr_val);
+
+    // Check that cddr is a pair
+    if (cddr_val->type != NADA_PAIR) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "list has no third element");
+        nada_free(list_arg);
+        return nada_create_nil();
+    }
+
+    // Get the car of cdr of cdr (third element)
+    NadaValue *result = nada_deep_copy(nada_car(cddr_val));
+
+    // Clean up
+    nada_free(list_arg);
+
+    return result;
+}
+
 // Addition (+)
 static NadaValue *builtin_add(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args)) {
@@ -1237,6 +1319,220 @@ static NadaValue *builtin_atom_p(NadaValue *args, NadaEnv *env) {
     return nada_create_bool(result);
 }
 
+// Logical negation (not)
+static NadaValue *builtin_not(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "not requires exactly 1 argument");
+        return nada_create_bool(0);
+    }
+
+    NadaValue *arg = nada_eval(nada_car(args), env);
+
+    // In Lisp, only #f and nil are falsy, everything else is truthy
+    int is_falsy = (arg->type == NADA_BOOL && arg->data.boolean == 0) ||
+                   (arg->type == NADA_NIL);
+
+    nada_free(arg);
+
+    // Return the logical negation
+    return nada_create_bool(is_falsy);
+}
+
+// sublist: Extract a portion of a list
+static NadaValue *builtin_sublist(NadaValue *args, NadaEnv *env) {
+    // Check for three arguments: list, start, end
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
+        nada_is_nil(nada_cdr(nada_cdr(args))) ||
+        !nada_is_nil(nada_cdr(nada_cdr(nada_cdr(args))))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
+                          "sublist requires three arguments: list, start, end");
+        return nada_create_nil();
+    }
+
+    // Evaluate arguments
+    NadaValue *list_arg = nada_eval(nada_car(args), env);
+    NadaValue *start_arg = nada_eval(nada_car(nada_cdr(args)), env);
+    NadaValue *end_arg = nada_eval(nada_car(nada_cdr(nada_cdr(args))), env);
+
+    // Validate types
+    if (start_arg->type != NADA_NUM || end_arg->type != NADA_NUM) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR,
+                          "sublist start and end must be numbers");
+        nada_free(list_arg);
+        nada_free(start_arg);
+        nada_free(end_arg);
+        return nada_create_nil();
+    }
+
+    // Convert to integers
+    int start = nada_num_to_int(start_arg->data.number);
+    int end = nada_num_to_int(end_arg->data.number);
+
+    // Validate indices
+    if (start < 0) {
+        start = 0;  // Handle negative start gracefully
+    }
+
+    // Extract the sublist
+    NadaValue *result = nada_create_nil();
+    NadaValue *current = list_arg;
+    int pos = 0;
+
+    // Skip elements before start
+    while (pos < start && !nada_is_nil(current) && current->type == NADA_PAIR) {
+        current = nada_cdr(current);
+        pos++;
+    }
+
+    // Collect elements from start to end
+    NadaValue *items = nada_create_nil();
+    while (pos < end && !nada_is_nil(current) && current->type == NADA_PAIR) {
+        items = nada_cons(nada_car(current), items);
+        current = nada_cdr(current);
+        pos++;
+    }
+
+    // Reverse to get correct order
+    result = nada_reverse(items);
+
+    // Clean up
+    nada_free(items);
+    nada_free(list_arg);
+    nada_free(start_arg);
+    nada_free(end_arg);
+
+    return result;
+}
+
+// list-ref: Get an element at a specific position in a list
+static NadaValue *builtin_list_ref(NadaValue *args, NadaEnv *env) {
+    // Check for exactly 2 arguments: list and index
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
+        !nada_is_nil(nada_cdr(nada_cdr(args)))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
+                          "list-ref requires exactly 2 arguments: list and index");
+        return nada_create_nil();
+    }
+
+    // Evaluate the arguments
+    NadaValue *list_arg = nada_eval(nada_car(args), env);
+    NadaValue *index_arg = nada_eval(nada_car(nada_cdr(args)), env);
+
+    // Check that index is a number
+    if (index_arg->type != NADA_NUM) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "list-ref index must be a number");
+        nada_free(list_arg);
+        nada_free(index_arg);
+        return nada_create_nil();
+    }
+
+    // Convert index to integer
+    int index = nada_num_to_int(index_arg->data.number);
+    if (index < 0) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "list-ref index must be non-negative");
+        nada_free(list_arg);
+        nada_free(index_arg);
+        return nada_create_nil();
+    }
+
+    // Traverse the list to find the element
+    NadaValue *current = list_arg;
+    int current_pos = 0;
+
+    while (current->type == NADA_PAIR && current_pos < index) {
+        current = nada_cdr(current);
+        current_pos++;
+    }
+
+    // Check if we found a valid element
+    if (current->type != NADA_PAIR) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "list-ref index out of bounds");
+        nada_free(list_arg);
+        nada_free(index_arg);
+        return nada_create_nil();
+    }
+
+    // Return a copy of the element
+    NadaValue *result = nada_deep_copy(nada_car(current));
+
+    // Clean up
+    nada_free(list_arg);
+    nada_free(index_arg);
+
+    return result;
+}
+
+// Map function: Apply a function to each element of a list
+static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
+                          "map requires at least 2 arguments: function and list");
+        return nada_create_nil();
+    }
+
+    // Evaluate the function argument
+    NadaValue *func_arg = nada_eval(nada_car(args), env);
+
+    // Check that it's a function
+    if (func_arg->type != NADA_FUNC) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "map requires a function as first argument");
+        nada_free(func_arg);
+        return nada_create_nil();
+    }
+
+    // Evaluate the list argument
+    NadaValue *list_arg = nada_eval(nada_car(nada_cdr(args)), env);
+
+    // Check that it's a list (or nil)
+    if (list_arg->type != NADA_PAIR && list_arg->type != NADA_NIL) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "map requires a list as second argument");
+        nada_free(func_arg);
+        nada_free(list_arg);
+        return nada_create_nil();
+    }
+
+    // Empty list case
+    if (list_arg->type == NADA_NIL) {
+        nada_free(func_arg);
+        nada_free(list_arg);
+        return nada_create_nil();
+    }
+
+    // Map the function over the list
+    NadaValue *result = nada_create_nil();
+    NadaValue *current = list_arg;
+    NadaValue *mapped_items = nada_create_nil();
+
+    while (current->type == NADA_PAIR) {
+        // Get the current element
+        NadaValue *element = nada_car(current);
+
+        // Apply the function to the element
+        NadaValue *func_call = nada_cons(element, nada_create_nil());
+        NadaValue *mapped_value = apply_function(func_arg, func_call, env);
+
+        // Add the result to our collected items (in reverse order for now)
+        mapped_items = nada_cons(mapped_value, mapped_items);
+
+        // Free temporary values
+        nada_free(func_call);
+        nada_free(mapped_value);
+
+        // Move to next element
+        current = nada_cdr(current);
+    }
+
+    // Reverse the list to get correct order
+    result = nada_reverse(mapped_items);
+
+    // Free intermediate values
+    nada_free(mapped_items);
+    nada_free(func_arg);
+    nada_free(list_arg);
+
+    return result;
+}
+
 // Type to represent a built-in function
 typedef NadaValue *(*BuiltinFunc)(NadaValue *, NadaEnv *);
 
@@ -1478,31 +1774,58 @@ static NadaValue *builtin_load_file(NadaValue *args, NadaEnv *env) {
 
     FILE *file = fopen(filename_arg->data.string, "r");
     if (!file) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "could not open file %s for reading", filename_arg->data.string);
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "could not open file %s for reading",
+                          filename_arg->data.string);
         nada_free(filename_arg);
         return nada_create_bool(0);
     }
 
-    // Read and evaluate the file line by line
-    char buffer[1024];
-    NadaValue *result = nada_create_nil();
+    // Buffer for accumulated expressions
+    char buffer[10240] = {0};
+    char line[1024];
+    int paren_balance = 0;
+    int in_string = 0;
+    NadaValue *last_result = nada_create_nil();
 
-    while (fgets(buffer, sizeof(buffer), file)) {
-        // Free previous result
-        if (result != NULL) {
-            nada_free(result);
+    while (fgets(line, sizeof(line), file)) {
+        // Skip comment lines
+        if (line[0] == ';') continue;
+
+        // Add this line to our buffer
+        strcat(buffer, line);
+
+        // Count parentheses to ensure we have complete expressions
+        for (char *p = line; *p; p++) {
+            if (*p == '"') in_string = !in_string;
+            if (!in_string) {
+                if (*p == '(')
+                    paren_balance++;
+                else if (*p == ')')
+                    paren_balance--;
+            }
         }
 
-        // Parse and evaluate the expression
-        NadaValue *expr = nada_parse(buffer);
-        result = nada_eval(expr, env);
-        nada_free(expr);
+        // If balanced and buffer isn't empty, evaluate the expression
+        if (paren_balance == 0 && strlen(buffer) > 0) {
+            NadaValue *expr = nada_parse(buffer);
+            if (expr) {
+                // Free previous result
+                nada_free(last_result);
+
+                // Evaluate this expression
+                last_result = nada_eval(expr, env);
+                nada_free(expr);
+            }
+
+            // Clear buffer for next expression
+            buffer[0] = '\0';
+        }
     }
 
     fclose(file);
     nada_free(filename_arg);
 
-    return result;  // Return the result of the last evaluation
+    return last_result;  // Return the result of the last evaluation
 }
 
 // Built-in function: undef
@@ -1741,11 +2064,77 @@ static NadaValue *builtin_begin(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
+// Built-in special form: or
+static NadaValue *builtin_or(NadaValue *args, NadaEnv *env) {
+    // Empty 'or' evaluates to #f
+    if (nada_is_nil(args)) {
+        return nada_create_bool(0);
+    }
+
+    // Evaluate each argument in sequence
+    NadaValue *result = nada_create_bool(0);
+    NadaValue *expr = args;
+
+    while (!nada_is_nil(expr)) {
+        // Free the previous result
+        nada_free(result);
+
+        // Evaluate the current expression
+        result = nada_eval(nada_car(expr), env);
+
+        // If truthy (anything except #f or nil), short-circuit and return it
+        if (!(result->type == NADA_BOOL && result->data.boolean == 0) &&
+            !(result->type == NADA_NIL)) {
+            return result;
+        }
+
+        // Otherwise, move to next argument
+        expr = nada_cdr(expr);
+    }
+
+    // All arguments were falsy, return the last result (which is falsy)
+    return result;
+}
+
+// Built-in special form: and
+static NadaValue *builtin_and(NadaValue *args, NadaEnv *env) {
+    // Empty 'and' evaluates to #t
+    if (nada_is_nil(args)) {
+        return nada_create_bool(1);
+    }
+
+    // Evaluate each argument in sequence
+    NadaValue *result = nada_create_bool(1);
+    NadaValue *expr = args;
+
+    while (!nada_is_nil(expr)) {
+        // Free the previous result
+        nada_free(result);
+
+        // Evaluate the current expression
+        result = nada_eval(nada_car(expr), env);
+
+        // If falsy (#f or nil), short-circuit and return it
+        if ((result->type == NADA_BOOL && result->data.boolean == 0) ||
+            (result->type == NADA_NIL)) {
+            return result;
+        }
+
+        // Otherwise, move to next argument
+        expr = nada_cdr(expr);
+    }
+
+    // All arguments were truthy, return the last result (which is truthy)
+    return result;
+}
+
 // Add to the builtins table (keep all string functions here)
 static BuiltinFuncInfo builtins[] = {
     {"quote", builtin_quote},
     {"car", builtin_car},
     {"cdr", builtin_cdr},
+    {"cadr", builtin_cadr},    // Add cadr function
+    {"caddr", builtin_caddr},  // Add caddr function
     {"+", builtin_add},
     {"-", builtin_subtract},
     {"*", builtin_multiply},
@@ -1787,8 +2176,10 @@ static BuiltinFuncInfo builtins[] = {
     {"string-join", builtin_string_join},
     {"string->number", builtin_string_to_number},
     {"number->string", builtin_number_to_string},
+    {"tokenize-expr", builtin_tokenize_expr},  // Add this line
     {"read-from-string", builtin_read_from_string},
     {"write-to-string", builtin_write_to_string},
+    {"string->symbol", builtin_string_to_symbol},  // Add this line
 
     // I/O operations
     {"read-file", builtin_read_file},
@@ -1815,6 +2206,24 @@ static BuiltinFuncInfo builtins[] = {
 
     // Add the new begin function
     {"begin", builtin_begin},
+
+    // Add the new or function
+    {"or", builtin_or},
+
+    // Add the new and function
+    {"and", builtin_and},
+
+    // Add the new sublist function
+    {"sublist", builtin_sublist},
+
+    // Add the new list-ref function
+    {"list-ref", builtin_list_ref},
+
+    // Add the new not function
+    {"not", builtin_not},
+
+    // Add the new map function
+    {"map", builtin_map},
 
     {NULL, NULL}  // Sentinel to mark end of array
 };
@@ -1926,6 +2335,16 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
                 return builtin_begin(args, env);
             }
 
+            // And special form
+            if (strcmp(op->data.symbol, "and") == 0) {
+                return builtin_and(args, env);
+            }
+
+            // Or special form
+            if (strcmp(op->data.symbol, "or") == 0) {
+                return builtin_or(args, env);
+            }
+
             // Regular function application
             BuiltinFunc func = get_builtin_func(op->data.symbol);
             if (func != NULL) {
@@ -1975,4 +2394,20 @@ NadaValue *nada_create_builtin_function(NadaValue *(*func)(NadaValue *, NadaEnv 
     val->data.function.builtin = func;  // Store the function pointer
     nada_increment_allocations();       // Move this AFTER initialization
     return val;
+}
+
+// Public helper to load a file
+NadaValue *nada_load_file(const char *filename, NadaEnv *env) {
+    // Create load-file arguments: filename as a string
+    NadaValue *args = nada_cons(
+        nada_create_string(filename),
+        nada_create_nil());
+
+    // Call the built-in function
+    NadaValue *result = builtin_load_file(args, env);
+
+    // Clean up
+    nada_free(args);
+
+    return result;
 }
