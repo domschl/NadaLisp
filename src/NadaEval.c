@@ -1682,6 +1682,29 @@ static NadaValue *builtin_define_test(NadaValue *args, NadaEnv *env) {
     return nada_create_bool(passed);
 }
 
+// Built-in special form: begin
+static NadaValue *builtin_begin(NadaValue *args, NadaEnv *env) {
+    // Handle empty begin
+    if (nada_is_nil(args)) {
+        return nada_create_nil();
+    }
+
+    // Evaluate each expression in sequence, returning the last result
+    NadaValue *result = nada_create_nil();
+    NadaValue *expr = args;
+
+    while (!nada_is_nil(expr)) {
+        // Always free the previous result
+        nada_free(result);
+
+        // Evaluate the next expression
+        result = nada_eval(nada_car(expr), env);
+        expr = nada_cdr(expr);
+    }
+
+    return result;
+}
+
 // Add to the builtins table (keep all string functions here)
 static BuiltinFuncInfo builtins[] = {
     {"quote", builtin_quote},
@@ -1753,6 +1776,9 @@ static BuiltinFuncInfo builtins[] = {
 
     // Add the new define-test function
     {"define-test", builtin_define_test},
+
+    // Add the new begin function
+    {"begin", builtin_begin},
 
     {NULL, NULL}  // Sentinel to mark end of array
 };
@@ -1857,6 +1883,11 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
             // If special form
             if (strcmp(op->data.symbol, "if") == 0) {
                 return builtin_if(args, env);
+            }
+
+            // Begin special form
+            if (strcmp(op->data.symbol, "begin") == 0) {
+                return builtin_begin(args, env);
             }
 
             // Regular function application
