@@ -135,9 +135,10 @@ void nada_free(NadaValue *val) {
         nada_free(val->data.pair.cdr);
         break;
     case NADA_FUNC:
-        nada_free(val->data.function.params);
-        nada_free(val->data.function.body);
-        // Don't free env - it might be shared
+        if (val->data.function.params) nada_free(val->data.function.params);
+        if (val->data.function.body) nada_free(val->data.function.body);
+        // Don't free env - it's just a reference
+        // Don't free builtin - it's a function pointer
         break;
     default:
         // No special cleanup needed
@@ -215,10 +216,14 @@ NadaValue *nada_deep_copy(NadaValue *val) {
         return nada_create_nil();
 
     case NADA_PAIR: {
-        // Recursively copy car and cdr
-        NadaValue *new_car = nada_deep_copy(val->data.pair.car);
-        NadaValue *new_cdr = nada_deep_copy(val->data.pair.cdr);
-        return nada_cons(new_car, new_cdr);
+        // Create a new pair directly without using nada_cons
+        // to avoid the double-deep-copy problem
+        NadaValue *pair = malloc(sizeof(NadaValue));
+        pair->type = NADA_PAIR;
+        pair->data.pair.car = nada_deep_copy(val->data.pair.car);
+        pair->data.pair.cdr = nada_deep_copy(val->data.pair.cdr);
+        nada_increment_allocations();
+        return pair;
     }
 
     case NADA_FUNC: {

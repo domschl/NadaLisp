@@ -111,20 +111,28 @@ NadaValue *parse_expr(Tokenizer *t) {
     if (strcmp(t->token, "'") == 0) {
         // Get the next token
         if (!get_next_token(t)) {
-            fprintf(stderr, "Error: quote (') without an expression\n");
+            fprintf(stderr, "Error: unexpected end of input after quote\n");
             return nada_create_nil();
         }
 
         // Parse the quoted expression
         NadaValue *quoted_expr = parse_expr(t);
-
-        // Create a symbol for 'quote'
+        
+        // Create the quote symbol
         NadaValue *quote_sym = nada_create_symbol("quote");
-
-        // Create the list (quote expr)
-        NadaValue *quote_list = nada_cons(quote_sym, nada_cons(quoted_expr, nada_create_nil()));
-
-        return quote_list;
+        
+        // Create the resulting expression: (quote <quoted_expr>)
+        NadaValue *nil = nada_create_nil();
+        NadaValue *inner = nada_cons(quoted_expr, nil);
+        NadaValue *result = nada_cons(quote_sym, inner);
+        
+        // Free intermediate values that were deep-copied by nada_cons
+        nada_free(quoted_expr);
+        nada_free(quote_sym);
+        nada_free(nil);
+        nada_free(inner);
+        
+        return result;
     }
 
     // Handle regular expressions
@@ -160,17 +168,15 @@ static NadaValue *parse_list(Tokenizer *t) {
     // Parse the first element
     NadaValue *head = parse_expr(t);
 
-    // Check for end of input after the first element (this is the key fix)
+    // Check for end of input after the first element
     if (t->token[0] == '\0') {
         fprintf(stderr, "Error: unterminated list, missing closing parenthesis\n");
         nada_free(head);
         return nada_create_nil();
     }
 
-    // In your parser function that handles lists
+    // Handle dotted pairs
     if (strcmp(t->token, ".") == 0) {
-        // Special handling for dotted pairs
-        // Properly parse the cdr expression after the dot
         get_next_token(t);  // Consume the dot
         NadaValue *cdr = parse_expr(t);
 
@@ -183,14 +189,24 @@ static NadaValue *parse_list(Tokenizer *t) {
         }
 
         get_next_token(t);  // Consume closing parenthesis
-        return nada_cons(head, cdr);
+        NadaValue *result = nada_cons(head, cdr);
+        
+        // Free the original values since nada_cons makes deep copies
+        nada_free(head);
+        nada_free(cdr);
+        
+        return result;
     }
 
     // Parse the rest of the list
     NadaValue *tail = parse_list(t);
 
-    // Return a new pair
-    return nada_cons(head, tail);
+    // Create cons cell and free the originals
+    NadaValue *result = nada_cons(head, tail);
+    nada_free(head);
+    nada_free(tail);
+    
+    return result;
 }
 
 // Parse from a string

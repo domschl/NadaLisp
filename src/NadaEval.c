@@ -1409,7 +1409,7 @@ NadaEnv *nada_create_standard_env(void) {
     for (int i = 0; builtins[i].name != NULL; i++) {
         NadaValue *func = nada_create_builtin_function(builtins[i].func);
         nada_env_set(env, builtins[i].name, func);
-        // Each of these creates values that should be tracked
+        nada_free(func);  // Free the original after nada_env_set has made its copy
     }
 
     return env;
@@ -1524,11 +1524,11 @@ void nada_init(void) {
 // Add to NadaEval.c
 NadaValue *nada_create_builtin_function(NadaValue *(*func)(NadaValue *, NadaEnv *)) {
     NadaValue *val = malloc(sizeof(NadaValue));
-    nada_increment_allocations();  // Use the function instead of direct access
     val->type = NADA_FUNC;
     val->data.function.params = NULL;   // No explicit parameters for builtins
     val->data.function.body = NULL;     // No body for builtins
     val->data.function.env = NULL;      // No closure environment
     val->data.function.builtin = func;  // Store the function pointer
+    nada_increment_allocations();  // Move this AFTER initialization
     return val;
 }
