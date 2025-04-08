@@ -564,7 +564,7 @@ static NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env)
 
         // Bind parameter to argument value
         nada_env_set(func_env, param_name->data.symbol, arg_val);
-        
+
         // Free the evaluated argument value after it's been copied
         nada_free(arg_val);
 
@@ -955,7 +955,7 @@ static NadaValue *builtin_list_p(NadaValue *args, NadaEnv *env) {
     return nada_create_bool(result);
 }
 
-// Atom predicate (atom?) - anything that's not a pair
+// Atom predicate (atom?) - anything that's not a pair or nil
 static NadaValue *builtin_atom_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
         fprintf(stderr, "Error: atom? requires exactly 1 argument\n");
@@ -963,7 +963,7 @@ static NadaValue *builtin_atom_p(NadaValue *args, NadaEnv *env) {
     }
 
     NadaValue *val = nada_eval(nada_car(args), env);
-    int result = (val->type != NADA_PAIR);
+    int result = (val->type != NADA_PAIR && val->type != NADA_NIL);
     nada_free(val);
     return nada_create_bool(result);
 }
@@ -1339,16 +1339,16 @@ static NadaValue *builtin_if(NadaValue *args, NadaEnv *env) {
         fprintf(stderr, "Error: if requires at least 2 arguments\n");
         return nada_create_nil();
     }
-    
+
     // Evaluate the condition
     NadaValue *condition = nada_eval(nada_car(args), env);
-    
+
     // Check if condition is true (anything other than #f or nil)
-    int is_true = !(condition->type == NADA_BOOL && condition->data.boolean == 0) && 
-                 !(condition->type == NADA_NIL);
-    
+    int is_true = !(condition->type == NADA_BOOL && condition->data.boolean == 0) &&
+                  !(condition->type == NADA_NIL);
+
     nada_free(condition);
-    
+
     if (is_true) {
         // Evaluate the then-expression
         return nada_eval(nada_car(nada_cdr(args)), env);
@@ -1356,7 +1356,7 @@ static NadaValue *builtin_if(NadaValue *args, NadaEnv *env) {
         // Check if we have an else expression
         NadaValue *else_part = nada_cdr(nada_cdr(args));
         if (nada_is_nil(else_part)) {
-            return nada_create_nil(); // No else clause, return nil
+            return nada_create_nil();  // No else clause, return nil
         }
         // Evaluate the else-expression
         return nada_eval(nada_car(else_part), env);
@@ -1577,6 +1577,6 @@ NadaValue *nada_create_builtin_function(NadaValue *(*func)(NadaValue *, NadaEnv 
     val->data.function.body = NULL;     // No body for builtins
     val->data.function.env = NULL;      // No closure environment
     val->data.function.builtin = func;  // Store the function pointer
-    nada_increment_allocations();  // Move this AFTER initialization
+    nada_increment_allocations();       // Move this AFTER initialization
     return val;
 }
