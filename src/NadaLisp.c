@@ -121,12 +121,9 @@ void run_repl(void) {
 void nada_cleanup() {
     // Free the global environment (which will free all values in it)
     if (global_env != NULL) {
-        nada_env_free(global_env);
+        nada_env_release(global_env);  // Use release instead of free
         global_env = NULL;
     }
-
-    // Print final memory report
-    // nada_memory_report();
 }
 
 // Fix the path composition in load_libraries

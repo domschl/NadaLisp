@@ -836,160 +836,107 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
         NadaValue *bindings = nada_car(nada_cdr(args));
         NadaValue *body = nada_cdr(nada_cdr(args));
         
-        // Create a new environment for the loop with the parent environment
         NadaEnv *loop_env = nada_env_create(env);
         
-        // ---------- EVALUATE INITIAL VALUES ----------
-        // Process each binding to evaluate initial values in original environment
+        // Evaluate initial binding values in the original environment
         NadaValue *current_binding = bindings;
         while (!nada_is_nil(current_binding)) {
             NadaValue *binding = nada_car(current_binding);
-            
-            // Validate binding structure
             if (binding->type != NADA_PAIR ||
                 nada_car(binding)->type != NADA_SYMBOL) {
-                nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "named let binding must be a (variable value) pair");
-                nada_env_release(loop_env); // Use release instead of free
+                nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
+                                  "named let binding must be (var value)");
+                nada_env_release(loop_env);
                 return nada_create_nil();
             }
-            
-            // Get the variable name and initial value
             const char *var_name = nada_car(binding)->data.symbol;
             NadaValue *val_expr = nada_car(nada_cdr(binding));
-            
-            // Evaluate the initial value
             NadaValue *val = nada_eval(val_expr, env);
-            
-            // Bind the value in the loop environment
             nada_env_set(loop_env, var_name, val);
-            nada_free(val); // Free the evaluated value after binding
-            
+            nada_free(val);
             current_binding = nada_cdr(current_binding);
         }
         
-        // ---------- CREATE PARAMETER LIST ----------
-        // Build parameter list for the function definition
+        // Build parameter list
         NadaValue *params = nada_create_nil();
         current_binding = bindings;
-        
         while (!nada_is_nil(current_binding)) {
             NadaValue *binding = nada_car(current_binding);
             NadaValue *param_symbol = nada_car(binding);
-            
-            // Make parameter list in reverse order (we'll reverse it later)
             NadaValue *param_copy = nada_deep_copy(param_symbol);
             NadaValue *new_params = nada_cons(param_copy, params);
             nada_free(param_copy);
             nada_free(params);
             params = new_params;
-            
             current_binding = nada_cdr(current_binding);
         }
-        
-        // Reverse to get parameters in original order
         NadaValue *reversed_params = nada_reverse(params);
-        nada_free(params); // Free the original params list
-        
-        // ---------- CREATE AND BIND FUNCTION ----------
-        // Make a deep copy of the body for use in the function
+        nada_free(params);
         NadaValue *body_copy = nada_deep_copy(body);
-        
-        // Create the recursive function
+
+        // Create recursive function
         NadaValue *loop_func = nada_create_function(reversed_params, body_copy, loop_env);
-        
-        // Bind the function to its name in the loop environment
         nada_env_set(loop_env, loop_name, loop_func);
-        
-        // We're done with these copies now - FREE ONLY ONCE!
         nada_free(loop_func);
-        // IMPORTANT: We no longer free reversed_params here - it's owned by loop_func
-        // Don't free body_copy - it's owned by the function now
-        
-        // ---------- EVALUATE BODY ----------
-        // Evaluate each expression in the body sequentially
+
+        // Evaluate body
         NadaValue *result = nada_create_nil();
         NadaValue *current_expr = body;
-        
         while (!nada_is_nil(current_expr)) {
             nada_free(result);
-            
             if (nada_is_nil(nada_cdr(current_expr))) {
-                // Last expression - get a deep copy before releasing environment
+                // Last expression; return a copy
                 result = nada_eval(nada_car(current_expr), loop_env);
                 NadaValue *result_copy = nada_deep_copy(result);
                 nada_free(result);
-                nada_env_free(loop_env);
+
+                // Use nada_env_release instead of nada_env_free
+                nada_env_release(loop_env);
                 return result_copy;
             } else {
                 result = nada_eval(nada_car(current_expr), loop_env);
             }
-            
             current_expr = nada_cdr(current_expr);
         }
-        
-        // Clean up the environment
-        nada_env_free(loop_env);
-        
+
+        // Clean up
+        nada_env_release(loop_env);
         return result;
     } else {
-        // Regular let: (let ((var1 val1)...) body...)
+        // Regular let
         NadaValue *bindings = first_arg;
-
-        // Bindings must be a list
         if (!nada_is_nil(bindings) && bindings->type != NADA_PAIR) {
             nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let bindings must be a list");
             return nada_create_nil();
         }
 
-        // Create a new environment with the parent as the current environment
         NadaEnv *let_env = nada_env_create(env);
 
-        // Process each binding
+        // Evaluate binding expressions in the original env
         NadaValue *binding_list = bindings;
-        
-        // First, collect all bindings to determine if we have a definition cycle
         while (!nada_is_nil(binding_list)) {
             NadaValue *binding = nada_car(binding_list);
-
-            // Each binding must be a pair (var val)
             if (binding->type != NADA_PAIR ||
                 nada_car(binding)->type != NADA_SYMBOL ||
                 nada_is_nil(nada_cdr(binding)) ||
                 !nada_is_nil(nada_cdr(nada_cdr(binding)))) {
-                nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let binding must be a (variable value) pair");
-                nada_env_release(let_env); // Use release instead of free
+                nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
+                                  "let binding must be (variable value)");
+                nada_env_release(let_env);
                 return nada_create_nil();
             }
-
-            binding_list = nada_cdr(binding_list);
-        }
-        
-        // Reset to process the actual bindings
-        binding_list = bindings;
-        
-        // Step 1: Evaluate all binding values in the original environment
-        while (!nada_is_nil(binding_list)) {
-            NadaValue *binding = nada_car(binding_list);
-
-            // Get the variable name and value expression
-            char *var_name = nada_car(binding)->data.symbol;
+            const char *var_name = nada_car(binding)->data.symbol;
             NadaValue *val_expr = nada_car(nada_cdr(binding));
-
-            // Evaluate the value in the original environment
             NadaValue *val = nada_eval(val_expr, env);
 
-            // Bind it in the new environment
             nada_env_set(let_env, var_name, val);
             nada_free(val);
-
             binding_list = nada_cdr(binding_list);
         }
 
-        // Step 2: Evaluate the body in the new environment
+        // Evaluate body in the new env
         NadaValue *body = nada_cdr(args);
         NadaValue *result = nada_create_nil();
-
-        // Evaluate each form in the body, returning the last result
         while (!nada_is_nil(body)) {
             nada_free(result);
             NadaValue *expr = nada_car(body);
@@ -997,7 +944,8 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             body = nada_cdr(body);
         }
 
-        nada_env_free(let_env);
+        // Use nada_env_release instead of nada_env_free
+        nada_env_release(let_env);
         return result;
     }
 }

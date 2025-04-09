@@ -144,9 +144,8 @@ static void init_test_env() {
 // Cleanup the test environment
 static void cleanup_test_env() {
     if (test_env) {
-        // Don't call env_free directly - use release for safer handling
         nada_env_release(test_env);
-        test_env = NULL;
+        test_env = NULL;  // This null check prevents double-free
     }
 }
 
