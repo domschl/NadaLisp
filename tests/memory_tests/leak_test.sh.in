@@ -22,14 +22,14 @@ run_leaks_test() {
 # Make sure the TEST_SCRIPTS_DIR exists
 if [ ! -d "$TEST_SCRIPTS_DIR" ]; then
     mkdir -p "$TEST_SCRIPTS_DIR"
-    echo "; Basic memory test script" > "$TEST_SCRIPTS_DIR/basic.lisp"
-    echo "(define a 10)" >> "$TEST_SCRIPTS_DIR/basic.lisp"
-    echo "(define b 20)" >> "$TEST_SCRIPTS_DIR/basic.lisp"
-    echo "(+ a b)" >> "$TEST_SCRIPTS_DIR/basic.lisp"
+    echo "; Basic memory test script" > "$TEST_SCRIPTS_DIR/basic.scm"
+    echo "(define a 10)" >> "$TEST_SCRIPTS_DIR/basic.scm"
+    echo "(define b 20)" >> "$TEST_SCRIPTS_DIR/basic.scm"
+    echo "(+ a b)" >> "$TEST_SCRIPTS_DIR/basic.scm"
 fi
 
 # Process each test script
-for script in "$TEST_SCRIPTS_DIR"/*.lisp; do
+for script in "$TEST_SCRIPTS_DIR"/*.scm; do
     if [ "$TEST_METHOD" = "valgrind" ]; then
         run_valgrind_test "$script"
     elif [ "$TEST_METHOD" = "leaks" ]; then

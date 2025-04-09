@@ -64,4 +64,4 @@ add_subdirectory(tests)
 # Install library files
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/nadalib/
         DESTINATION ${CMAKE_INSTALL_PREFIX}/share/nada/lib
-        FILES_MATCHING PATTERN "*.lisp")
+        FILES_MATCHING PATTERN "*.scm")

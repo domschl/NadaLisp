@@ -172,7 +172,7 @@ void load_libraries(NadaEnv *env) {
 
     if (found_index < 0) {
         printf("Note: No library directory found. Libraries not loaded.\n");
-        printf("Create the directory 'src/nadalib' and add .lisp files there.\n");
+        printf("Create the directory 'src/nadalib' and add .scm files there.\n");
         return;
     }
 
@@ -182,18 +182,18 @@ void load_libraries(NadaEnv *env) {
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        // Skip directories and non-.lisp files
+        // Skip directories and non-.scm files
         if (entry->d_type == DT_DIR) continue;
 
         const char *filename = entry->d_name;
         size_t len = strlen(filename);
 
-        // Check for .lisp extension
-        if (len > 5 && strcmp(filename + len - 5, ".lisp") == 0) {
+        // Check for .scm extension
+        if (len > 4 && strcmp(filename + len - 4, ".scm") == 0) {
             // Use the CORRECT found directory path
             char full_path[1024];
             snprintf(full_path, sizeof(full_path), "%s/%s", found_dir, filename);
-
+ß
             printf("  Loading %s\n", filename);
             NadaValue *result = nada_load_file(full_path, global_env);
             nada_free(result);

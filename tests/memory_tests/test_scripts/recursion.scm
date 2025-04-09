@@ -1,4 +1,4 @@
-;; tests/memory_tests/test_scripts/recursion.lisp
+;; tests/memory_tests/test_scripts/recursion.scm
 (define factorial (lambda (n) (if (= n 0) 1 (* n (factorial (- n 1))))))
 (factorial 5)
 (factorial 10)

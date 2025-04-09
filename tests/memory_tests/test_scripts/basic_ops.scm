@@ -1,4 +1,4 @@
-;; tests/memory_tests/test_scripts/basic.lisp
+;; tests/memory_tests/test_scripts/basic_ops.scm
 (define a 10)
 (define b 20)
 (+ a b)

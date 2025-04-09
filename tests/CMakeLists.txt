@@ -29,7 +29,7 @@ target_link_libraries(run_lisp_tests PRIVATE test_runner nada_lib)
 
 # Copy Lisp test files to build directory
 file(GLOB LISP_TEST_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/lisp_tests/*.lisp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lisp_tests/*.scm"
 )
 
 # Create lisp_tests directory in build directory

@@ -97,14 +97,14 @@ static void load_test_libraries() {
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        // Skip directories and non-.lisp files
+        // Skip directories and non-.scm files
         if (entry->d_type == DT_DIR) continue;
 
         const char *filename = entry->d_name;
         size_t len = strlen(filename);
 
-        // Check for .lisp extension
-        if (len > 5 && strcmp(filename + len - 5, ".lisp") == 0) {
+        // Check for .scm extension
+        if (len > 4 && strcmp(filename + len - 4, ".scm") == 0) {
             // Use the correct found directory path
             char full_path[1024];
             snprintf(full_path, sizeof(full_path), "%s/%s", found_dir, filename);
@@ -276,10 +276,10 @@ static void report_test_coverage(const char *dir_path) {
 
     printf("\n===== TEST COVERAGE REPORT =====\n");
 
-    // Process each .lisp file to count
+    // Process each .scm file to count
     while ((entry = readdir(dir)) != NULL) {
         // Skip non-lisp files
-        if (!strstr(entry->d_name, ".lisp")) continue;
+        if (!strstr(entry->d_name, ".scm")) continue;
 
         total_files++;
         // Check if file was executed (you'd need to track this)
@@ -349,10 +349,10 @@ int run_lisp_tests(const char *dir_path) {
         return 0;
     }
 
-    // Process each .lisp file
+    // Process each .scm file
     while ((entry = readdir(dir)) != NULL) {
         // Skip non-lisp files
-        if (!strstr(entry->d_name, ".lisp")) continue;
+        if (!strstr(entry->d_name, ".scm")) continue;
 
         // Build full path
         char full_path[1024];
