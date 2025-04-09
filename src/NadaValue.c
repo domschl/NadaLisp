@@ -160,16 +160,29 @@ void nada_free(NadaValue *val) {
         free(val->data.symbol);
         break;
     case NADA_PAIR:
-        nada_free(val->data.pair.car);
-        nada_free(val->data.pair.cdr);
+        if (val->data.pair.car) {
+            nada_free(val->data.pair.car);
+            val->data.pair.car = NULL; // Prevent double-free
+        }
+        if (val->data.pair.cdr) {
+            nada_free(val->data.pair.cdr);
+            val->data.pair.cdr = NULL; // Prevent double-free
+        }
         break;
     case NADA_FUNC:
-        if (val->data.function.params) nada_free(val->data.function.params);
-        if (val->data.function.body) nada_free(val->data.function.body);
+        if (val->data.function.params) {
+            nada_free(val->data.function.params);
+            val->data.function.params = NULL; // Prevent double-free
+        }
+        if (val->data.function.body) {
+            nada_free(val->data.function.body);
+            val->data.function.body = NULL; // Prevent double-free
+        }
         
         // Release the environment (will only free if ref_count drops to 0)
         if (val->data.function.env) {
             nada_env_release(val->data.function.env);
+            val->data.function.env = NULL; // Prevent double-free
         }
         break;
     default:
@@ -267,6 +280,11 @@ NadaValue *nada_deep_copy(NadaValue *val) {
         result->data.function.body = nada_deep_copy(val->data.function.body);
         result->data.function.env = val->data.function.env;          // Share environment
         result->data.function.builtin = val->data.function.builtin;  // Copy the built-in function pointer
+        
+        // Add reference to shared environment
+        if (result->data.function.env) {
+            nada_env_add_ref(result->data.function.env);
+        }
         break;
 
     case NADA_BOOL:
