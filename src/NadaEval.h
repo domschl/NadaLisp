@@ -6,15 +6,22 @@
 // Environment type
 typedef struct NadaEnv NadaEnv;
 
-// Environment functions
+// Environment lifecycle management functions
 NadaEnv *nada_env_create(NadaEnv *parent);
 void nada_env_free(NadaEnv *env);
+
+// Environment reference management functions
+void nada_env_add_ref(NadaEnv *env);
+void nada_env_release(NadaEnv *env);
+void nada_cleanup_env();
+
+// Environment functions
 void nada_env_set(NadaEnv *env, const char *name, NadaValue *value);
 NadaValue *nada_env_get(NadaEnv *env, const char *name, int silent);
 // Look up a symbol in the environment without printing error messages
 NadaValue *nada_env_lookup_symbol(NadaEnv *env, const char *name);
 
-// Control silent symbol lookup
+// Symbol lookup silent mode control
 void nada_set_silent_symbol_lookup(int silent);
 
 // Create a standard environment with all built-in functions

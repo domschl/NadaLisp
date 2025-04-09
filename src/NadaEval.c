@@ -6,17 +6,25 @@
 #include <stdio.h>
 #include "NadaError.h"
 
-// Add near the top of the file, after includes
-extern void mark_evaluation_error();  // From run_lisp_tests.c
+// Add this to track global environments
+static NadaEnv *global_env = NULL;
 
-// Add near the top of the file, with other global variables:
+// Initialize the environment
+NadaEnv *nada_init_env() {
+    if (global_env) {
+        nada_env_release(global_env);
+    }
+    
+    global_env = nada_env_create(NULL);
+    return global_env;
+}
 
-// Flag to control symbol error reporting
-static int g_silent_symbol_lookup = 0;
-
-// Function to enable/disable silent symbol lookup
-void nada_set_silent_symbol_lookup(int silent) {
-    g_silent_symbol_lookup = silent;
+// Clean up at program exit
+void nada_cleanup_env() {
+    if (global_env) {
+        nada_env_release(global_env);
+        global_env = NULL;
+    }
 }
 
 // Environment structure
@@ -29,6 +37,7 @@ struct NadaBinding {
 struct NadaEnv {
     struct NadaBinding *bindings;
     struct NadaEnv *parent;
+    int ref_count;  // Replace shared_mark with reference count
 };
 
 // Type to represent a built-in function
@@ -44,27 +53,68 @@ typedef struct {
 static BuiltinFuncInfo builtins[];
 
 
+// Add near the top of the file, after includes
+extern void mark_evaluation_error();  // From run_lisp_tests.c
+
+// Add near the top of the file, with other global variables:
+
+// Flag to control symbol error reporting
+static int g_silent_symbol_lookup = 0;
+
+// Function to enable/disable silent symbol lookup
+void nada_set_silent_symbol_lookup(int silent) {
+    g_silent_symbol_lookup = silent;
+}
+
+// Increment the reference count for an environment
+void nada_env_add_ref(NadaEnv *env) {
+    if (!env) return;
+    env->ref_count++;
+}
+
+// Decrement the reference count and free if zero
+void nada_env_release(NadaEnv *env) {
+    if (!env) return;
+    env->ref_count--;
+    if (env->ref_count <= 0) {
+        nada_env_free(env);
+    }
+}
+
 // Create a new environment
 NadaEnv *nada_env_create(NadaEnv *parent) {
     NadaEnv *env = malloc(sizeof(NadaEnv));
     env->bindings = NULL;
     env->parent = parent;
+    env->ref_count = 1;  // Start with ref count of 1
+    
+    // Add a reference to the parent if it exists
+    if (parent) {
+        nada_env_add_ref(parent);
+    }
+    
     return env;
 }
 
 // Free an environment and all its bindings
 void nada_env_free(NadaEnv *env) {
-    if (env == NULL) return;
-
+    if (!env) return;
+    
+    // Free all bindings
     struct NadaBinding *current = env->bindings;
     while (current != NULL) {
         struct NadaBinding *next = current->next;
-        free(current->name);
         nada_free(current->value);
+        free(current->name);
         free(current);
         current = next;
     }
-
+    
+    // Release parent
+    if (env->parent) {
+        nada_env_release(env->parent);
+    }
+    
     free(env);
 }
 
@@ -925,7 +975,7 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
 }
 
 // Apply a function to arguments
-NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
+NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) {
     if (func->type != NADA_FUNC) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "attempt to apply non-function");
         return nada_create_nil();
@@ -944,7 +994,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
         // Evaluate each argument
         while (!nada_is_nil(current_arg)) {
             // Evaluate the current argument
-            NadaValue *arg_val = nada_eval(nada_car(current_arg), env);
+            NadaValue *arg_val = nada_eval(nada_car(current_arg), outer_env);
 
             // Prepend to our list (we'll reverse it later)
             NadaValue *new_eval_args = nada_cons(arg_val, eval_args);
@@ -963,7 +1013,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
         nada_free(eval_args);
 
         // Call the built-in function with evaluated arguments
-        NadaValue *result = func->data.function.builtin(reversed_args, env);
+        NadaValue *result = func->data.function.builtin(reversed_args, outer_env);
 
         // Free our intermediate lists
         nada_free(reversed_args);
@@ -971,7 +1021,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
         return result;
     }
 
-    // Create a new environment with the function's environment as parent
+    // Create the function environment with the function's closure env as parent
     NadaEnv *func_env = nada_env_create(func->data.function.env);
 
     // Evaluate and bind arguments to parameters
@@ -983,7 +1033,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
         NadaValue *param_name = nada_car(param);
 
         // Evaluate argument
-        NadaValue *arg_val = nada_eval(nada_car(arg), env);
+        NadaValue *arg_val = nada_eval(nada_car(arg), outer_env);
 
         // Bind parameter to argument value
         nada_env_set(func_env, param_name->data.symbol, arg_val);
@@ -999,48 +1049,37 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
     // Check for argument count mismatches
     if (!nada_is_nil(param)) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
-        nada_env_free(func_env);
+        nada_env_release(func_env);
         return nada_create_nil();
     }
 
     if (!nada_is_nil(arg)) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too many arguments");
-        nada_env_free(func_env);
+        nada_env_release(func_env);
         return nada_create_nil();
     }
 
     // Evaluate body expressions in sequence, returning the last result
     NadaValue *result = nada_create_nil();
-    NadaValue *body = func->data.function.body;
+    NadaValue *body_expr = func->data.function.body;
 
-    if (nada_is_nil(body)) {
+    if (nada_is_nil(body_expr)) {
         // If body is empty, return the initial nil result
-        nada_env_free(func_env);
+        nada_env_release(func_env);
         return result;
     }
 
     // Process body expressions
-    while (!nada_is_nil(body)) {
+    while (!nada_is_nil(body_expr)) {
         // Free the previous result before replacing it
         nada_free(result);
 
         // Evaluate the next expression in the body
-        result = nada_eval(nada_car(body), func_env);
-        body = nada_cdr(body);
+        result = nada_eval(nada_car(body_expr), func_env);
+        body_expr = nada_cdr(body_expr);
     }
 
-    // CHANGED: Don't immediately free the function environment!
-    // Instead check if the result is a function that might reference this environment
-
-    if (result->type == NADA_FUNC) {
-        // Don't free func_env here - it's now owned by the function
-    } else {
-        // For non-function results, free the environment after we make a deep copy
-        NadaValue *result_copy = nada_deep_copy(result);
-        nada_env_free(func_env);
-        nada_free(result);
-        result = result_copy;
-    }
+    nada_env_release(func_env);
 
     return result;
 }

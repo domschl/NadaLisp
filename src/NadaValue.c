@@ -1,4 +1,5 @@
 #include "NadaValue.h"
+#include "NadaEval.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -112,8 +113,11 @@ NadaValue *nada_create_function(NadaValue *params, NadaValue *body, NadaEnv *env
     val->data.function.params = params;
     val->data.function.body = body;
     val->data.function.env = env;
-    val->data.function.builtin = NULL;  // Initialize to NULL for user-defined functions
-
+    val->data.function.builtin = NULL;
+    
+    // Add a reference to the environment
+    nada_env_add_ref(env);
+    
     nada_increment_allocations();
     return val;
 }
@@ -162,9 +166,11 @@ void nada_free(NadaValue *val) {
     case NADA_FUNC:
         if (val->data.function.params) nada_free(val->data.function.params);
         if (val->data.function.body) nada_free(val->data.function.body);
-        // CHANGED: Don't free the environment here!
-        // Environments have complex ownership semantics
-        // val->data.function.env is shared and managed separately
+        
+        // Release the environment (will only free if ref_count drops to 0)
+        if (val->data.function.env) {
+            nada_env_release(val->data.function.env);
+        }
         break;
     default:
         // No special cleanup needed
