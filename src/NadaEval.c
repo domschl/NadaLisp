@@ -1515,7 +1515,7 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
     // Get the function (first argument)
     NadaValue *func_arg = nada_eval(nada_car(args), env);
 
-    // Check that it's a function or a symbol that refers to a function
+    // Check that it's a function
     if (func_arg->type != NADA_FUNC) {
         // If it's a symbol, try looking it up
         if (func_arg->type == NADA_SYMBOL) {
@@ -1526,8 +1526,7 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
             // Check again if it's a function
             if (func_arg->type != NADA_FUNC) {
                 nada_report_error(NADA_ERROR_TYPE_ERROR, 
-                                 "map requires a function as first argument, got: %s", 
-                                 func_arg->data.symbol);
+                                 "map requires a function as first argument");
                 nada_free(func_arg);
                 return nada_create_nil();
             }
@@ -1562,14 +1561,11 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
     NadaValue *mapped_items = nada_create_nil();
 
     while (current->type == NADA_PAIR) {
-        // Get the current element - DO NOT EVALUATE IT YET!
+        // Get the current element
         NadaValue *element = nada_car(current);
         NadaValue *mapped_value = NULL;
 
         if (func_arg->data.function.builtin) {
-            // For built-in functions like 'car', we pass the element directly 
-            // without evaluating it first
-            
             // Check if the function is car, cdr, or similar list operations
             int is_list_op = 0;
             const char *func_name = NULL;
@@ -1589,53 +1585,39 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
             }
             
             if (is_list_op) {
-                // For list operations, create args without evaluating
+                // For list operations, construct a quoted version of the element
+                NadaValue *quote_sym = nada_create_symbol("quote");
                 NadaValue *element_copy = nada_deep_copy(element);
-                NadaValue *nil_value = nada_create_nil();
-                NadaValue *func_args = nada_cons(element_copy, nil_value);
+                NadaValue *nil_value1 = nada_create_nil();
+                NadaValue *quote_tail = nada_cons(element_copy, nil_value1);
+                NadaValue *quoted_elem = nada_cons(quote_sym, quote_tail);
+                NadaValue *nil_value2 = nada_create_nil();
+                NadaValue *func_args = nada_cons(quoted_elem, nil_value2);
                 
-                // Free temporary values that have been copied
-                nada_free(element_copy);
-                nada_free(nil_value);
-                
-                // Apply the function directly
+                // Apply the function
                 mapped_value = func_arg->data.function.builtin(func_args, env);
                 
-                // Clean up
+                // Free all temporary values in reverse order of creation
                 nada_free(func_args);
-                
-                // Handle error conditions
-                if (mapped_value == NULL) {
-                    // If function call failed, clean up and return nil
-                    nada_free(mapped_items);
-                    nada_free(func_arg);
-                    nada_free(list_arg);
-                    return nada_create_nil();
-                }
+                nada_free(nil_value2);
+                nada_free(quoted_elem);
+                nada_free(quote_tail);
+                nada_free(nil_value1);
+                nada_free(element_copy);
+                nada_free(quote_sym);
             } else {
                 // For other built-in functions, evaluate the element first
                 NadaValue *eval_element = nada_eval(element, env);
                 NadaValue *nil_value = nada_create_nil();
                 NadaValue *func_args = nada_cons(eval_element, nil_value);
                 
-                // Free temporary values
-                nada_free(eval_element);
-                nada_free(nil_value);
-                
                 // Apply the function
                 mapped_value = func_arg->data.function.builtin(func_args, env);
                 
-                // Clean up
+                // Free all temporary values
                 nada_free(func_args);
-                
-                // Handle error conditions
-                if (mapped_value == NULL) {
-                    // If function call failed, clean up and return nil
-                    nada_free(mapped_items);
-                    nada_free(func_arg);
-                    nada_free(list_arg);
-                    return nada_create_nil();
-                }
+                nada_free(nil_value);
+                nada_free(eval_element);
             }
         } else {
             // For user-defined functions
@@ -1643,21 +1625,21 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
             NadaValue *nil_value = nada_create_nil();
             NadaValue *func_call = nada_cons(element_copy, nil_value);
             
-            // Free temporary values
-            nada_free(element_copy);
-            nada_free(nil_value);
-            
+            // Apply the function
             mapped_value = apply_function(func_arg, func_call, env);
-            nada_free(func_call);
             
-            // Handle error conditions
-            if (mapped_value == NULL) {
-                // If function call failed, clean up and return nil
-                nada_free(mapped_items);
-                nada_free(func_arg);
-                nada_free(list_arg);
-                return nada_create_nil();
-            }
+            // Free all temporary values
+            nada_free(func_call);
+            nada_free(nil_value);
+            nada_free(element_copy);
+        }
+        
+        // Handle error conditions
+        if (mapped_value == NULL) {
+            nada_free(mapped_items);
+            nada_free(func_arg);
+            nada_free(list_arg);
+            return nada_create_nil();
         }
 
         // Add the result to our collected items (in reverse order for now)
