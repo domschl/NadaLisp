@@ -100,7 +100,7 @@ NadaEnv *nada_env_create(NadaEnv *parent) {
 void nada_env_free(NadaEnv *env) {
     if (!env) return;
     
-    // Set ref_count to 0 to prevent circular freeing
+    // Set ref_count to zero to prevent circular freeing
     env->ref_count = 0;
     
     // Free all bindings
@@ -108,24 +108,20 @@ void nada_env_free(NadaEnv *env) {
     while (current != NULL) {
         struct NadaBinding *next = current->next;
         
-        // Free the value if it exists
-        if (current->value) {
-            // Temporarily set the environment to NULL in any function values
-            // that might reference this environment to break cycles
-            if (current->value->type == NADA_FUNC && 
-                current->value->data.function.env == env) {
-                current->value->data.function.env = NULL;
-            }
-            
-            nada_free(current->value);
+        // Null out environment references in any function values
+        // to break potential circular references
+        if (current->value && current->value->type == NADA_FUNC && 
+            current->value->data.function.env == env) {
+            current->value->data.function.env = NULL;
         }
         
+        nada_free(current->value);
         free(current->name);
         free(current);
         current = next;
     }
     
-    // Release parent
+    // Release parent instead of directly freeing
     if (env->parent) {
         nada_env_release(env->parent);
         env->parent = NULL;
@@ -764,7 +760,9 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
 
                 // Evaluate next expression
                 result = nada_eval(nada_car(body), env);
-                body = nada_cdr(body);
+                NadaValue *result_copy = nada_deep_copy(result);
+                nada_free(result);
+                return result_copy;
             }
 
             return result;
@@ -798,7 +796,9 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
 
                 // Evaluate next expression
                 result = nada_eval(nada_car(body), env);
-                body = nada_cdr(body);
+                NadaValue *result_copy = nada_deep_copy(result);
+                nada_free(result);
+                return result_copy;
             }
 
             return result;
@@ -843,7 +843,7 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             if (binding->type != NADA_PAIR ||
                 nada_car(binding)->type != NADA_SYMBOL) {
                 nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "named let binding must be a (variable value) pair");
-                nada_env_free(loop_env);
+                nada_env_release(loop_env); // Use release instead of free
                 return nada_create_nil();
             }
             
@@ -945,7 +945,7 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
                 nada_is_nil(nada_cdr(binding)) ||
                 !nada_is_nil(nada_cdr(nada_cdr(binding)))) {
                 nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let binding must be a (variable value) pair");
-                nada_env_free(let_env);
+                nada_env_release(let_env); // Use release instead of free
                 return nada_create_nil();
             }
 
@@ -1040,6 +1040,9 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
     // Create the function environment with the function's closure env as parent
     NadaEnv *func_env = nada_env_create(func->data.function.env);
 
+    // Track if we've had errors during argument binding
+    int had_errors = 0;
+
     // Evaluate and bind arguments to parameters
     NadaValue *param = func->data.function.params;
     NadaValue *arg = args;
@@ -1065,13 +1068,17 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
     // Check for argument count mismatches
     if (!nada_is_nil(param)) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
-        nada_env_release(func_env);
-        return nada_create_nil();
+        had_errors = 1;
     }
 
     if (!nada_is_nil(arg)) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too many arguments");
-        nada_env_release(func_env);
+        had_errors = 1;
+    }
+
+    // If we had argument errors, clean up and return nil
+    if (had_errors) {
+        nada_env_release(func_env);  // CRITICAL FIX: Release environment on error paths
         return nada_create_nil();
     }
 
@@ -1081,7 +1088,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
 
     if (nada_is_nil(body_expr)) {
         // If body is empty, return the initial nil result
-        nada_env_release(func_env);
+        nada_env_release(func_env);  // Release environment before returning
         return result;
     }
 
@@ -1095,9 +1102,15 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
         body_expr = nada_cdr(body_expr);
     }
 
+    // CRITICAL FIX: Make a deep copy of the result before releasing the environment
+    // This ensures we don't return values that reference the environment we're about to free
+    NadaValue *result_copy = nada_deep_copy(result);
+    nada_free(result);
+
+    // Always release the function environment when we're done with it
     nada_env_release(func_env);
 
-    return result;
+    return result_copy;
 }
 
 // Less than (<)
