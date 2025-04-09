@@ -5,10 +5,11 @@
   (assert-equal (let ((a 1) (b 2)) 
                   (+ a b)) 
                 3)
+  (define a 5)
   (assert-equal (let ((a 1) 
                       (b (+ a 2)))  ; a refers to outer scope's a
                   (+ a b))
-                4))
+                8))
 
 (define-test "let-named-form"
   (assert-equal (let loop ((i 0) (acc 0))

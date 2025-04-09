@@ -18,6 +18,9 @@ typedef enum {
 // Error handler callback type
 typedef void (*NadaErrorHandler)(NadaErrorType type, const char *message, void *user_data);
 
+// Get the current error handler
+NadaErrorHandler nada_get_error_handler();
+
 // Set the error handler
 void nada_set_error_handler(NadaErrorHandler handler, void *user_data);
 

@@ -28,6 +28,11 @@ void nada_clear_error_handler() {
     current_user_data = NULL;
 }
 
+// Get the current error handler
+NadaErrorHandler nada_get_error_handler() {
+    return current_handler;
+}
+
 // Get the current error code
 NadaErrorType nada_get_error_code() {
     return current_error_type;
