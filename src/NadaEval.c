@@ -426,9 +426,10 @@ static NadaValue *builtin_divide(NadaValue *args, NadaEnv *env) {
         return nada_create_num_from_int(0);
     }
 
+    // Start with first argument
     NadaValue *first = nada_eval(nada_car(args), env);
     if (first->type != NADA_NUM) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'/' requires number arguments");
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "'/' requires number arguments");
         nada_free(first);
         return nada_create_num_from_int(0);
     }
@@ -440,7 +441,7 @@ static NadaValue *builtin_divide(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(rest)) {
         // Unary division (1/x)
         if (nada_num_is_zero(result)) {
-            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "division by zero");
+            nada_report_error(NADA_ERROR_DIVISION_BY_ZERO, "division by zero");
             nada_num_free(result);
             return nada_create_num_from_int(0);
         }
@@ -459,14 +460,14 @@ static NadaValue *builtin_divide(NadaValue *args, NadaEnv *env) {
     while (!nada_is_nil(rest)) {
         NadaValue *arg = nada_eval(nada_car(rest), env);
         if (arg->type != NADA_NUM) {
-            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'/' requires number arguments");
+            nada_report_error(NADA_ERROR_TYPE_ERROR, "'/' requires number arguments");
             nada_num_free(result);
             nada_free(arg);
             return nada_create_num_from_int(0);
         }
 
         if (nada_num_is_zero(arg->data.number)) {
-            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "division by zero");
+            nada_report_error(NADA_ERROR_DIVISION_BY_ZERO, "division by zero");
             nada_num_free(result);
             nada_free(arg);
             return nada_create_num_from_int(0);
@@ -497,7 +498,7 @@ static NadaValue *builtin_modulo(NadaValue *args, NadaEnv *env) {
     NadaValue *b = nada_eval(nada_car(nada_cdr(args)), env);
 
     if (a->type != NADA_NUM || b->type != NADA_NUM) {
-        nada_report_error(NADA_ERROR_TYPE_ERROR, "modulo arguments must be numbers");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "modulo arguments must be numbers");
         nada_free(a);
         nada_free(b);
         return nada_create_nil();
@@ -505,7 +506,7 @@ static NadaValue *builtin_modulo(NadaValue *args, NadaEnv *env) {
 
     // Check for division by zero
     if (nada_num_is_zero(b->data.number)) {
-        nada_report_error(NADA_ERROR_DIVISION_BY_ZERO, "division by zero in modulo");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "division by zero");
         nada_free(a);
         nada_free(b);
         return nada_create_nil();
@@ -514,10 +515,13 @@ static NadaValue *builtin_modulo(NadaValue *args, NadaEnv *env) {
     // Perform modulo operation
     NadaNum *result_num = nada_num_modulo(a->data.number, b->data.number);
     
-    // Create result value
+    // Create result
     NadaValue *result = nada_create_num(result_num);
     
-    // Free intermediates
+    // Free temporary value - this is crucial
+    nada_num_free(result_num);
+    
+    // Free arguments
     nada_free(a);
     nada_free(b);
     

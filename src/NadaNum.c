@@ -37,64 +37,57 @@ NadaNum *nada_num_from_int(int value) {
     return num;
 }
 
-// Create a rational number from a fraction
-NadaNum *nada_num_from_fraction(const char *numerator_str, const char *denominator_str) {
-    if (!numerator_str || !denominator_str) {
-        return NULL;
+// Create a rational number from numerator and denominator strings
+NadaNum *nada_num_from_fraction(const char *numerator, const char *denominator) {
+    if (!numerator || !denominator) return NULL;
+
+    // Check if denominator is zero
+    bool denom_is_zero = true;
+    for (const char *p = denominator; *p; p++) {
+        if (*p != '0') {
+            denom_is_zero = false;
+            break;
+        }
     }
 
-    // Check for zero denominator
-    if (strcmp(denominator_str, "0") == 0) {
-        fprintf(stderr, "Error: Division by zero in fraction creation\n");
-        return nada_num_from_int(0); // Return 0 on error
+    if (denom_is_zero) {
+        fprintf(stderr, "Error: Division by zero\n");
+        return nada_num_from_int(0);  // Return 0 instead of failing
     }
 
-    // Allocate memory for the new number
-    NadaNum *num = (NadaNum *)malloc(sizeof(NadaNum));
-    if (!num) {
-        return NULL;
-    }
+    NadaNum *num = malloc(sizeof(NadaNum));
+    if (!num) return NULL;
 
-    // Determine sign
+    // Determine sign based on numerator (ignoring denominator sign)
     num->sign = 1;
-    
-    // Strip leading zeros
-    const char *num_start = numerator_str;
-    while (*num_start == '0' && *(num_start + 1) != '\0') {
-        num_start++;
+    if (numerator[0] == '-') {
+        num->sign = -1;
+        numerator++;  // Skip the sign
     }
-    
-    const char *den_start = denominator_str;
-    while (*den_start == '0' && *(den_start + 1) != '\0') {
-        den_start++;
+
+    // Skip denominator sign if present
+    if (denominator[0] == '-') {
+        num->sign *= -1;  // Flip sign
+        denominator++;
     }
-    
-    // Check for negative numbers
-    if (*num_start == '-') {
-        num->sign *= -1;
-        num_start++;
-    }
-    
-    if (*den_start == '-') {
-        num->sign *= -1;
-        den_start++;
-    }
-    
-    // Special case: numerator is 0
-    if (*num_start == '0' && *(num_start + 1) == '\0') {
+
+    // Copy values, skipping leading zeros
+    num->numerator = strip_leading_zeros(numerator);
+    if (!num->numerator || strcmp(num->numerator, "") == 0) {
+        free(num->numerator);  // Add this to free any allocated memory
         num->numerator = strdup("0");
-        num->denominator = strdup("1");
-        num->sign = 1; // Zero is always positive
-        return num;
+        num->sign = 1;  // Zero is always positive
     }
-    
-    // Make copies of numerator and denominator
-    num->numerator = strdup(num_start);
-    num->denominator = strdup(den_start);
-    
-    // Reduce the fraction
+
+    num->denominator = strip_leading_zeros(denominator);
+    if (!num->denominator || strcmp(num->denominator, "") == 0) {
+        free(num->denominator);          // Add this to free any allocated memory
+        num->denominator = strdup("1");  // Default denominator
+    }
+
+    // Normalize the fraction (reduce to lowest terms)
     normalize(num);
-    
+
     return num;
 }
 
@@ -197,11 +190,11 @@ NadaNum *nada_num_copy(const NadaNum *num) {
 
 // Free a rational number
 void nada_num_free(NadaNum *num) {
-    if (num) {
-        free(num->numerator);
-        free(num->denominator);
-        free(num);
-    }
+    if (!num) return;
+
+    free(num->numerator);
+    free(num->denominator);
+    free(num);
 }
 
 // Add two rational numbers
@@ -358,11 +351,9 @@ NadaNum *nada_num_divide(const NadaNum *a, const NadaNum *b) {
     return result;
 }
 
-// Modulo operation
+// Calculate modulo of two rational numbers
 NadaNum *nada_num_modulo(const NadaNum *a, const NadaNum *b) {
-    if (!a || !b) {
-        return NULL;
-    }
+    if (!a || !b) return NULL;
 
     // Check for modulo by zero
     if (strcmp(b->numerator, "0") == 0) {
@@ -371,30 +362,24 @@ NadaNum *nada_num_modulo(const NadaNum *a, const NadaNum *b) {
     }
 
     // Only defined for integers
-    if (strcmp(a->denominator, "1") != 0 || strcmp(b->denominator, "1") != 0) {
+    if (!nada_num_is_integer(a) || !nada_num_is_integer(b)) {
         fprintf(stderr, "Error: Modulo only defined for integers\n");
         return nada_num_from_int(0);
     }
 
-    // Calculate modulo
     char *remainder = NULL;
     divide_integers(a->numerator, b->numerator, &remainder);
-    
-    // Create result from remainder
-    NadaNum *result = nada_num_from_fraction(remainder ? remainder : "0", "1");
-    
-    // Free temporary string
-    free(remainder);
-    
-    // Preserve sign from dividend (modulo follows dividend's sign)
+
+    NadaNum *result = nada_num_from_fraction(remainder, "1");
     if (result) {
         result->sign = a->sign;
-        // Ensure zero is always positive
         if (strcmp(result->numerator, "0") == 0) {
-            result->sign = 1;
+            result->sign = 1;  // Zero is always positive
         }
     }
-    
+
+    free(remainder);
+
     return result;
 }
 
@@ -735,57 +720,117 @@ static char *multiply_integers(const char *a, const char *b) {
     return result_str;
 }
 
-// Integer division with remainder
+// Divide two arbitrary precision integers (long division algorithm)
 static char *divide_integers(const char *a, const char *b, char **remainder) {
-    // Check for division by zero
-    if (!b || strcmp(b, "0") == 0) {
+    if (!a || !b) {
         if (remainder) *remainder = strdup("0");
-        return strdup("0");  // Error case
+        return NULL;
     }
 
-    // Simple cases
-    int cmp = compare_integers(a, b);
-    if (cmp < 0) {
-        // a < b, quotient is 0, remainder is a
+    // Check for division by zero
+    if (strcmp(b, "0") == 0) {
+        fprintf(stderr, "Error: Division by zero\n");
+        if (remainder) *remainder = strdup("0");
+        return strdup("0");
+    }
+
+    // If a < b, quotient is 0, remainder is a
+    if (compare_integers(a, b) < 0) {
         if (remainder) *remainder = strdup(a);
         return strdup("0");
-    } else if (cmp == 0) {
-        // a == b, quotient is 1, remainder is 0
+    }
+
+    // If a == b, quotient is 1, remainder is 0
+    if (compare_integers(a, b) == 0) {
         if (remainder) *remainder = strdup("0");
         return strdup("1");
     }
 
-    // Long division
-    size_t a_len = strlen(a);
-    size_t b_len = strlen(b);
-    size_t q_len = a_len + 1;  // Add 1 for safety
+    // Long division algorithm
+    size_t len_a = strlen(a);
+    size_t len_b = strlen(b);
+    size_t len_q = len_a - len_b + 1;  // Maximum possible quotient length
 
-    // Allocate memory for quotient and working copy
-    char *quotient = malloc(q_len);
-    char *working = malloc(a_len + b_len + 1);  // Extra space for calculations
-    
-    if (!quotient || !working) {
-        free(quotient);  // Safe to free NULL
-        free(working);
+    char *quotient = malloc(len_q + 1);
+    if (!quotient) {
         if (remainder) *remainder = strdup("0");
-        return strdup("0");  // Return 0 on allocation failure
+        return NULL;
     }
 
-    // Perform long division (algorithm details)
-    // ...
+    // Initialize quotient with zeros
+    memset(quotient, '0', len_q);
+    quotient[len_q] = '\0';
 
-    // Calculate final remainder
-    if (remainder) {
-        // Convert working value to remainder
-        *remainder = strdup(working);
-        if (!*remainder) {
-            *remainder = strdup("0");  // Default if allocation fails
+    // Working copy of the dividend
+    char *working = malloc(len_a + 1);
+    if (!working) {
+        free(quotient);
+        if (remainder) *remainder = strdup("0");
+        return NULL;
+    }
+    strcpy(working, a);
+
+    // Process each digit of the quotient
+    for (size_t i = 0; i < len_q; i++) {
+        // Current divisor position
+        size_t pos = i;
+
+        // Try each digit (9 to 1)
+        for (int digit = 9; digit >= 0; digit--) {
+            // Set current quotient digit
+            quotient[pos] = digit + '0';
+
+            // Calculate product of partial quotient and divisor
+            char partial_quotient[len_q + 1];
+            memset(partial_quotient, '0', len_q);
+            partial_quotient[pos] = digit + '0';
+            partial_quotient[len_q] = '\0';
+
+            char *product = multiply_integers(partial_quotient, b);
+
+            // If product <= working substring, we found the digit
+            if (product && compare_integers(product, working) <= 0) {
+                // Subtract product from working
+                char *new_working = subtract_integers(working, product);
+                free(working);
+                if (new_working) {
+                    working = new_working;
+                } else {
+                    working = strdup("0");
+                }
+
+                free(product);
+                break;
+            }
+
+            free(product);
         }
     }
 
-    // Clean up and return
+    // Create remainder string without leading zeros
+    if (remainder) {
+        if (working[0] == '\0') {
+            *remainder = strdup("0");
+        } else {
+            // Manually remove leading zeros to avoid leaks
+            const char *p = working;
+            while (*p == '0' && *(p + 1) != '\0')
+                p++;
+            *remainder = strdup(p);
+        }
+    }
+
+    // Clean up quotient - manually remove leading zeros
+    char *cleaned_quotient = NULL;
+    const char *q = quotient;
+    while (*q == '0' && *(q + 1) != '\0')
+        q++;
+    cleaned_quotient = strdup(q);
+
+    free(quotient);
     free(working);
-    return quotient;
+
+    return cleaned_quotient ? cleaned_quotient : strdup("0");
 }
 
 // Compare two arbitrary precision integers
