@@ -184,54 +184,73 @@ static int values_equal(NadaValue *a, NadaValue *b) {
 
 // Setup test environment with testing functions that work with your implementation
 static void setup_test_env(NadaEnv *env) {
-    // Register assert-equal with better error reporting
-    NadaValue *expr = nada_parse(
-        "(define assert-equal "
-        "  (lambda (actual expected) "
-        "    (if (equal? actual expected) "
-        "        #t "
-        "        (lambda () "
-        "          (display \"  ASSERTION FAILED\\n\") "
-        "          (display \"  Expected: \") "
-        "          (write expected) "
-        "          (display \"\\n  Got:      \") "
-        "          (write actual) "
-        "          (display \"\\n\") "
-        "          #f))))");
-    NadaValue *result = nada_eval(expr, env);
-    nada_free(expr);
-    nada_free(result);
+    // Instead of defining the test functions directly,
+    // load them from the testing library
+    char *lib_path = NULL;
+    
+    // Try to find the testing library
+    const char *lib_dirs[] = {
+        "src/nadalib/testing.scm",
+        "../src/nadalib/testing.scm",
+        "../../src/nadalib/testing.scm",
+        "../../../src/nadalib/testing.scm",
+        "./nadalib/testing.scm",
+        "/usr/local/share/nada/lib/testing.scm",
+        NULL  // End marker
+    };
+    
+    for (int i = 0; lib_dirs[i] != NULL; i++) {
+        FILE *file = fopen(lib_dirs[i], "r");
+        if (file) {
+            lib_path = strdup(lib_dirs[i]);
+            fclose(file);
+            break;
+        }
+    }
+    
+    if (lib_path) {
+        printf("Loading testing library from %s\n", lib_path);
+        NadaValue *result = nada_load_file(lib_path, env);
+        nada_free(result);
+        free(lib_path);
+    } else {
+        printf("Warning: Could not find testing library. Defining test functions inline.\n");
+        
+        // Fallback to inline definitions if library not found
+        NadaValue *expr = nada_parse(
+            "(define assert-equal "
+            "  (lambda (actual expected) "
+            "    (if (equal? actual expected) "
+            "        #t "
+            "        (lambda () "
+            "          (display \"  ASSERTION FAILED\\n\") "
+            "          (display \"  Expected: \") "
+            "          (write expected) "
+            "          (display \"\\n  Got:      \") "
+            "          (write actual) "
+            "          (display \"\\n\") "
+            "          #f))))");
+        NadaValue *result = nada_eval(expr, env);
+        nada_free(expr);
+        nada_free(result);
 
-    // Register a more robust define-test function
-    expr = nada_parse(
-        "(define define-test "
-        "  (lambda (name body) "
-        "    (display \"Test: \") "
-        "    (display name) "
-        "    (let ((result body)) "
-        "      (display \"... \") "
-        "      (if (equal? result #t) "  // Strictly check for #t
-        "          (display \"PASSED\\n\") "
-        "          (display \"FAILED\\n\")) "
-        "      result)))");
-
-    // If 'let' is not implemented, use a simpler version
-    if (nada_parse("(let ((x 1)) x)") == NULL) {
+        // Define the test function
         expr = nada_parse(
             "(define define-test "
             "  (lambda (name body) "
             "    (display \"Test: \") "
             "    (display name) "
-            "    (display \"... \") "
-            "    (if (equal? body #t) "
-            "        (display \"PASSED\\n\") "
-            "        (display \"FAILED\\n\")) "
-            "    body))");
-    }
+            "    (let ((result body)) "
+            "      (display \"... \") "
+            "      (if (equal? result #t) "
+            "          (display \"PASSED\\n\") "
+            "          (display \"FAILED\\n\")) "
+            "      result)))");
 
-    result = nada_eval(expr, env);
-    nada_free(expr);
-    nada_free(result);
+        result = nada_eval(expr, env);
+        nada_free(expr);
+        nada_free(result);
+    }
 }
 
 // Run a single test file
