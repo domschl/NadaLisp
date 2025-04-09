@@ -143,7 +143,11 @@ static void init_test_env() {
 
 // Cleanup the test environment
 static void cleanup_test_env() {
-    nada_env_free(test_env);
+    if (test_env) {
+        // Don't call env_free directly - use release for safer handling
+        nada_env_release(test_env);
+        test_env = NULL;
+    }
 }
 
 static void report_results() {
@@ -263,18 +267,23 @@ static int run_test_file(const char *filename, NadaEnv *env) {
     // Store current test count
     int tests_before = tests_run;
 
-    // Load and evaluate the file
-    NadaValue *result = nada_load_file(filename, env);
-
+    // Load and evaluate the file with additional error handling
+    NadaValue *result = NULL;
+    
+    // Set up a signal handler or use setjmp/longjmp for crash protection if needed
+    
+    // Load and evaluate with careful error handling
+    result = nada_load_file(filename, env);
+    
     // Check for errors
-    int success = !had_evaluation_error;
+    int success = !had_evaluation_error && result != NULL;
 
     // Calculate tests run in this file
     int file_tests = tests_run - tests_before;
     printf("Ran %d tests from %s\n", file_tests, filename);
 
     // Clean up
-    nada_free(result);
+    if (result) nada_free(result);
 
     return success;
 }
@@ -404,6 +413,9 @@ int run_lisp_tests(const char *dir_path) {
 int main(int argc, char *argv[]) {
     printf("=== NadaLisp Test Runner (Debug Version) ===\n");
 
+    // Register an atexit handler to ensure cleanup happens even on crashes
+    atexit(cleanup_test_env);
+
     // Default test directory paths to try
     const char *test_paths[] = {
         // User-provided path
@@ -455,6 +467,8 @@ int main(int argc, char *argv[]) {
 
     // Generate coverage report
     report_test_coverage(test_dir);
+
+    // We don't need to call cleanup_test_env here - it'll be called by atexit
 
     return result ? 0 : 1;
 }

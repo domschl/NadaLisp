@@ -1045,11 +1045,12 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
         return result;
     }
 
-    // Rest of the function for handling user-defined functions...
+    // CRITICAL FIX: For user-defined functions
+    // Create environment
     NadaEnv *func_env = nada_env_create(func->data.function.env);
     NadaValue *result = nada_create_nil();
     
-    // Parameter binding
+    // Parameter binding and error checking
     NadaValue *param = func->data.function.params;
     NadaValue *arg = args;
     int had_error = 0;
@@ -1087,47 +1088,33 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
         return nada_create_nil();
     }
 
-    // Body evaluation
+    // Evaluate body with careful error handling
     NadaValue *body_expr = func->data.function.body;
     
-    // Empty body case
-    if (nada_is_nil(body_expr)) {
-        nada_env_release(func_env);
-        return result;
-    }
-    
-    // Process body expressions
+    // Guard against NULL returns from eval
     while (!nada_is_nil(body_expr)) {
         nada_free(result);
         
-        // Special handling for the last expression in the body
-        if (nada_is_nil(nada_cdr(body_expr))) {
-            // For the last expression, evaluate and deep copy the result before cleaning up
-            result = nada_eval(nada_car(body_expr), func_env);
-            if (result != NULL) {
-                NadaValue *result_copy = nada_deep_copy(result);
-                nada_free(result);
-                result = result_copy;
-            } else {
-                result = nada_create_nil();
-            }
-            break;  // Exit the loop after handling the last expression
-        } else {
-            // For intermediate expressions, just evaluate
-            result = nada_eval(nada_car(body_expr), func_env);
-            if (result == NULL) {
-                result = nada_create_nil();
-                break;
-            }
+        // Evaluate with NULL protection
+        NadaValue *expr_result = nada_eval(nada_car(body_expr), func_env);
+        if (expr_result == NULL) {
+            // Handle evaluation error - don't leak the environment
+            nada_env_release(func_env);
+            return nada_create_nil();
         }
         
+        result = expr_result;
         body_expr = nada_cdr(body_expr);
     }
     
-    // CRITICAL: Always release the environment before returning
+    // Make a completely independent copy of the result
+    NadaValue *result_copy = nada_deep_copy(result);
+    nada_free(result);
+    
+    // ALWAYS release the environment before returning
     nada_env_release(func_env);
     
-    return result;
+    return result_copy;
 }
 
 // Less than (<)
