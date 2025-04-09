@@ -11,6 +11,8 @@ NadaEnv *nada_env_create(NadaEnv *parent);
 void nada_env_free(NadaEnv *env);
 void nada_env_set(NadaEnv *env, const char *name, NadaValue *value);
 NadaValue *nada_env_get(NadaEnv *env, const char *name);
+// Look up a symbol in the environment without printing error messages
+NadaValue *nada_env_lookup_symbol(NadaEnv *env, const char *name);
 
 // Create a standard environment with all built-in functions
 NadaEnv *nada_create_standard_env(void);
@@ -20,6 +22,9 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env);
 
 // Function to create a built-in function
 NadaValue *nada_create_builtin_function(NadaValue *(*func)(NadaValue *, NadaEnv *));
+
+// Apply a function to arguments
+NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env);
 
 // Add to public API:
 NadaValue *nada_load_file(const char *filename, NadaEnv *env);

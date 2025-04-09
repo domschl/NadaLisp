@@ -30,4 +30,13 @@ void nada_report_error(NadaErrorType type, const char *format, ...);
 // Add this prototype:
 void nada_report_syntax_error(const char *filename, int line_number, const char *line_content, int position, const char *format, ...);
 
+// Get the current error code
+NadaErrorType nada_get_error_code();
+
+// Get the current error message
+const char *nada_get_error_message();
+
+// Clear the current error state
+void nada_clear_error();
+
 #endif  // NADA_ERROR_H

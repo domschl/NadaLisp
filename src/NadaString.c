@@ -761,19 +761,88 @@ NadaValue *builtin_read_line(NadaValue *args, NadaEnv *env) {
 
 // eval: Evaluate a quoted expression
 NadaValue *builtin_eval(NadaValue *args, NadaEnv *env) {
-    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "eval requires exactly one argument");
+    // Check argument count
+    if (nada_is_nil(args)) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "eval requires at least one argument");
         return nada_create_nil();
     }
 
-    // First evaluate the argument (to get the expression to evaluate)
+    // Get the expression to evaluate
     NadaValue *expr = nada_eval(nada_car(args), env);
+    NadaValue *rest_args = nada_cdr(args);
     
-    // Then evaluate the resulting expression
-    NadaValue *result = nada_eval(expr, env);
+    // Standard 1-argument eval
+    if (nada_is_nil(rest_args)) {
+        NadaValue *result = nada_eval(expr, env);
+        nada_free(expr);
+        return result;
+    }
     
-    // Free the intermediate expression value
+    // Extended 3-argument eval with error handling
+    // (eval expr error-handler success-handler)
+    if (!nada_is_nil(nada_cdr(rest_args)) && nada_is_nil(nada_cdr(nada_cdr(rest_args)))) {
+        NadaValue *error_handler = nada_eval(nada_car(rest_args), env);
+        NadaValue *success_handler = nada_eval(nada_car(nada_cdr(rest_args)), env);
+        
+        // Validate handlers are functions
+        if (error_handler->type != NADA_FUNC || success_handler->type != NADA_FUNC) {
+            nada_report_error(NADA_ERROR_TYPE_ERROR, "eval handlers must be functions");
+            nada_free(expr);
+            nada_free(error_handler);
+            nada_free(success_handler);
+            return nada_create_nil();
+        }
+        
+        // Special case for undefined symbols
+        if (expr->type == NADA_SYMBOL) {
+            // Directly check if symbol exists in environment
+            // If it doesn't exist, call error handler
+            NadaValue *symbol_val = nada_env_get(env, expr->data.symbol);
+            
+            // Check for error - if symbol is nil and an error was reported
+            if (symbol_val->type == NADA_NIL && nada_get_error_code() == NADA_ERROR_UNDEFINED_SYMBOL) {
+                // Symbol not found, free the nil result
+                nada_free(symbol_val);
+                
+                // Call error handler with no arguments
+                NadaValue *nil_args = nada_create_nil();
+                NadaValue *result = apply_function(error_handler, nil_args, env);
+                nada_free(nil_args);
+                
+                // Clean up
+                nada_free(expr);
+                nada_free(error_handler);
+                nada_free(success_handler);
+                
+                return result;
+            }
+            
+            // Symbol exists, proceed with normal evaluation
+            nada_free(symbol_val);
+        }
+        
+        // Normal evaluation
+        NadaValue *eval_result = nada_eval(expr, env);
+        
+        // Call success handler with the result
+        NadaValue *nil_value = nada_create_nil();
+        NadaValue *handler_args = nada_cons(eval_result, nil_value);
+        nada_free(nil_value);
+        
+        NadaValue *handler_result = apply_function(success_handler, handler_args, env);
+        
+        // Clean up
+        nada_free(eval_result);
+        nada_free(handler_args);
+        nada_free(expr);
+        nada_free(error_handler);
+        nada_free(success_handler);
+        
+        return handler_result;
+    }
+    
+    // Invalid argument count
+    nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "eval takes 1 or 3 arguments");
     nada_free(expr);
-    
-    return result;
+    return nada_create_nil();
 }

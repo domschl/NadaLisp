@@ -136,6 +136,29 @@ void nada_env_remove(NadaEnv *env, const char *name) {
     }
 }
 
+// Add this function to NadaEval.c to expose a way to look up symbols
+// without reporting errors
+NadaValue *nada_env_lookup_symbol(NadaEnv *env, const char *name) {
+    // Search in current environment
+    struct NadaBinding *current = env->bindings;
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            // Return a deep copy of the value, not the original!
+            return nada_deep_copy(current->value);
+        }
+        current = current->next;
+    }
+
+    // If not found and we have a parent, search there
+    if (env->parent != NULL) {
+        return nada_env_lookup_symbol(env->parent, name);
+    }
+
+    // Not found - return nil without reporting an error
+    nada_report_error(NADA_ERROR_UNDEFINED_SYMBOL, "symbol '%s' not found in environment", name);
+    return nada_create_nil();
+}
+
 // Built-in function: quote
 static NadaValue *builtin_quote(NadaValue *args, NadaEnv *env) {
     // Check for exactly 1 argument
@@ -858,7 +881,7 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
 }
 
 // Apply a function to arguments
-static NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
+NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
     if (func->type != NADA_FUNC) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "attempt to apply non-function");
         return nada_create_nil();
