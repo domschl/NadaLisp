@@ -816,7 +816,7 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
         
         // Reverse to get parameters in original order
         NadaValue *reversed_params = nada_reverse(params);
-        nada_free(params);
+        nada_free(params); // Free the original params list
         
         // ---------- CREATE AND BIND FUNCTION ----------
         // Make a deep copy of the body for use in the function
@@ -828,9 +828,9 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
         // Bind the function to its name in the loop environment
         nada_env_set(loop_env, loop_name, loop_func);
         
-        // We're done with these copies now
+        // We're done with these copies now - FREE ONLY ONCE!
         nada_free(loop_func);
-        nada_free(reversed_params);
+        // IMPORTANT: We no longer free reversed_params here - it's owned by loop_func
         // Don't free body_copy - it's owned by the function now
         
         // ---------- EVALUATE BODY ----------
