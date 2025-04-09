@@ -27,7 +27,7 @@ NadaEnv *nada_init_env() {
     if (global_env) {
         nada_env_release(global_env);
     }
-    
+
     global_env = nada_env_create(NULL);
     return global_env;
 }
@@ -38,13 +38,15 @@ void nada_cleanup_env() {
         // Break circular references before releasing
         struct NadaBinding *binding = global_env->bindings;
         while (binding != NULL) {
-            if (binding->value && binding->value->type == NADA_FUNC) {
-                // Break circular reference - null out the environment reference
+            if (binding->value && binding->value->type == NADA_FUNC &&
+                binding->value->data.function.env == global_env) {
+                // Release the reference count before nulling the pointer
+                nada_env_release(binding->value->data.function.env);
                 binding->value->data.function.env = NULL;
             }
             binding = binding->next;
         }
-        
+
         // Now release the environment
         printf("Releasing global environment with ref count: %d\n", global_env->ref_count);
         nada_env_release(global_env);
@@ -96,46 +98,46 @@ NadaEnv *nada_env_create(NadaEnv *parent) {
     env->bindings = NULL;
     env->parent = parent;
     env->ref_count = 1;  // Start with ref count of 1
-    
+
     // Add a reference to the parent if it exists
     if (parent) {
         nada_env_add_ref(parent);
     }
-    
+
     return env;
 }
 
 // Free an environment and all its bindings
 void nada_env_free(NadaEnv *env) {
     if (!env) return;
-    
+
     // Set ref_count to zero to prevent circular freeing
     env->ref_count = 0;
-    
+
     // Free all bindings
     struct NadaBinding *current = env->bindings;
     while (current != NULL) {
         struct NadaBinding *next = current->next;
-        
+
         // Null out environment references in any function values
         // to break potential circular references
-        if (current->value && current->value->type == NADA_FUNC && 
+        if (current->value && current->value->type == NADA_FUNC &&
             current->value->data.function.env == env) {
             current->value->data.function.env = NULL;
         }
-        
+
         nada_free(current->value);
         free(current->name);
         free(current);
         current = next;
     }
-    
+
     // Release parent instead of directly freeing
     if (env->parent) {
         nada_env_release(env->parent);
         env->parent = NULL;
     }
-    
+
     free(env);
 }
 
@@ -146,10 +148,27 @@ void nada_env_set(NadaEnv *env, const char *name, NadaValue *value) {
     while (current != NULL) {
         if (strcmp(current->name, name) == 0) {
             // Free the old value before replacing it
+
+            // Break circular references if the old value is a function
+            // that refers to this environment
+            if (current->value && current->value->type == NADA_FUNC &&
+                current->value->data.function.env == env) {
+                current->value->data.function.env = NULL;  // Break cycle before freeing
+            }
+
             nada_free(current->value);
 
             // Store a copy of the value (so caller can free original)
             current->value = nada_deep_copy(value);
+
+            // Special case for functions defined in this environment:
+            // If we're storing a function that references this same environment,
+            // decrement the reference count to avoid cycles
+            if (current->value->type == NADA_FUNC &&
+                current->value->data.function.env == env) {
+                env->ref_count--;  // Cancel out the extra reference
+            }
+
             return;
         }
         current = current->next;
@@ -182,8 +201,8 @@ NadaValue *nada_env_get(NadaEnv *env, const char *name, int silent) {
 
     // Not found
     if (!silent && !g_silent_symbol_lookup) {
-        nada_report_error(NADA_ERROR_UNDEFINED_SYMBOL, 
-                         "symbol '%s' not found in environment", name);
+        nada_report_error(NADA_ERROR_UNDEFINED_SYMBOL,
+                          "symbol '%s' not found in environment", name);
     }
     return nada_create_nil();  // Return nil for undefined symbols
 }
@@ -595,7 +614,7 @@ static NadaValue *builtin_divide(NadaValue *args, NadaEnv *env) {
 
 // Built-in function: modulo
 static NadaValue *builtin_modulo(NadaValue *args, NadaEnv *env) {
-    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) || 
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "modulo requires exactly 2 arguments");
         return nada_create_nil();
@@ -621,17 +640,17 @@ static NadaValue *builtin_modulo(NadaValue *args, NadaEnv *env) {
 
     // Perform modulo operation
     NadaNum *result_num = nada_num_modulo(a->data.number, b->data.number);
-    
+
     // Create result
     NadaValue *result = nada_create_num(result_num);
-    
+
     // Free temporary value - this is crucial
     nada_num_free(result_num);
-    
+
     // Free arguments
     nada_free(a);
     nada_free(b);
-    
+
     return result;
 }
 
@@ -674,7 +693,7 @@ static NadaValue *builtin_define(NadaValue *args, NadaEnv *env) {
 
         // Bind function to name
         nada_env_set(env, func_name->data.symbol, func);
-        
+
         // Free the function value after it's been stored in the environment
         nada_free(func);
 
@@ -765,7 +784,7 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
 
             while (!nada_is_nil(body)) {
                 nada_free(result);
-                
+
                 // Get a deep copy of the evaluated expression
                 result = nada_eval(nada_car(body), env);
                 if (nada_is_nil(nada_cdr(body))) {
@@ -804,7 +823,7 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
 
             while (!nada_is_nil(body)) {
                 nada_free(result);
-                
+
                 // Get a deep copy of the evaluated expression
                 result = nada_eval(nada_car(body), env);
                 if (nada_is_nil(nada_cdr(body))) {
@@ -844,9 +863,9 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
         const char *loop_name = first_arg->data.symbol;
         NadaValue *bindings = nada_car(nada_cdr(args));
         NadaValue *body = nada_cdr(nada_cdr(args));
-        
+
         NadaEnv *loop_env = nada_env_create(env);
-        
+
         // Evaluate initial binding values in the original environment
         NadaValue *current_binding = bindings;
         while (!nada_is_nil(current_binding)) {
@@ -865,7 +884,7 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             nada_free(val);
             current_binding = nada_cdr(current_binding);
         }
-        
+
         // Build parameter list
         NadaValue *params = nada_create_nil();
         current_binding = bindings;
@@ -989,7 +1008,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
 
         // Reverse the list to get arguments in the correct order
         NadaValue *reversed_args = nada_reverse(eval_args);
-        
+
         // Free the intermediate list
         nada_free(eval_args);
 
@@ -1003,36 +1022,36 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
     }
 
     // For user-defined functions:
-    
+
     // First, create a new environment with the closure as parent
     NadaEnv *func_env = nada_env_create(func->data.function.env);
-    
+
     // Bind arguments to parameters
     NadaValue *param = func->data.function.params;
     NadaValue *arg = args;
-    
+
     while (!nada_is_nil(param) && !nada_is_nil(arg)) {
         // Get parameter name
         NadaValue *param_name = nada_car(param);
-        
+
         // Evaluate argument
         NadaValue *arg_val = nada_eval(nada_car(arg), outer_env);
-        
+
         // Check for evaluation errors
         if (!arg_val) {
             nada_env_release(func_env);  // Clean up on error path
             return nada_create_nil();
         }
-        
+
         // Bind parameter to argument value
         nada_env_set(func_env, param_name->data.symbol, arg_val);
         nada_free(arg_val);
-        
+
         // Move to next parameter and argument
         param = nada_cdr(param);
         arg = nada_cdr(arg);
     }
-    
+
     // Parameter count error checking
     if (!nada_is_nil(param) || !nada_is_nil(arg)) {
         if (!nada_is_nil(param)) {
@@ -1043,29 +1062,29 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
         nada_env_release(func_env);  // Clean up on error path
         return nada_create_nil();
     }
-    
+
     // Evaluate the body expressions
     NadaValue *result = nada_create_nil();
     NadaValue *body_expr = func->data.function.body;
-    
+
     while (!nada_is_nil(body_expr)) {
         // Free previous result before getting new one
         nada_free(result);
-        
+
         // Evaluate current expression
         result = nada_eval(nada_car(body_expr), func_env);
-        
+
         // Move to next expression
         body_expr = nada_cdr(body_expr);
     }
-    
+
     // CRITICAL: Make a deep copy of the result before releasing the environment
     NadaValue *final_result = nada_deep_copy(result);
     nada_free(result);
-    
+
     // ALWAYS release the function environment
     nada_env_release(func_env);
-    
+
     return final_result;
 }
 
@@ -1521,24 +1540,24 @@ static NadaValue *builtin_sublist(NadaValue *args, NadaEnv *env) {
     while (pos < end && !nada_is_nil(current) && current->type == NADA_PAIR) {
         // Get the current element and make a deep copy
         NadaValue *element = nada_deep_copy(nada_car(current));
-        
+
         // Create a new list with this element
         NadaValue *new_items = nada_cons(element, items);
-        
+
         // Free temporary values
         nada_free(element);
         nada_free(items);
-        
+
         // Update our items pointer
         items = new_items;
-        
+
         current = nada_cdr(current);
         pos++;
     }
 
     // Reverse to get correct order
     NadaValue *result = nada_reverse(items);
-    
+
     // Clean up
     nada_free(items);
     nada_free(list_arg);
@@ -1622,17 +1641,17 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
             NadaValue *func_val = nada_env_get(env, func_arg->data.symbol, 0);
             nada_free(func_arg);
             func_arg = func_val;
-            
+
             // Check again if it's a function
             if (func_arg->type != NADA_FUNC) {
-                nada_report_error(NADA_ERROR_TYPE_ERROR, 
-                                 "map requires a function as first argument");
+                nada_report_error(NADA_ERROR_TYPE_ERROR,
+                                  "map requires a function as first argument");
                 nada_free(func_arg);
                 return nada_create_nil();
             }
         } else {
-            nada_report_error(NADA_ERROR_TYPE_ERROR, 
-                             "map requires a function as first argument");
+            nada_report_error(NADA_ERROR_TYPE_ERROR,
+                              "map requires a function as first argument");
             nada_free(func_arg);
             return nada_create_nil();
         }
@@ -1669,11 +1688,11 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
             // Check if the function is car, cdr, or similar list operations
             int is_list_op = 0;
             const char *func_name = NULL;
-            
+
             for (int i = 0; builtins[i].name != NULL; i++) {
                 if (builtins[i].func == func_arg->data.function.builtin) {
                     func_name = builtins[i].name;
-                    if (strcmp(func_name, "car") == 0 || 
+                    if (strcmp(func_name, "car") == 0 ||
                         strcmp(func_name, "cdr") == 0 ||
                         strcmp(func_name, "cadr") == 0 ||
                         strcmp(func_name, "caddr") == 0 ||
@@ -1683,7 +1702,7 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
                     }
                 }
             }
-            
+
             if (is_list_op) {
                 // For list operations, construct a quoted version of the element
                 NadaValue *quote_sym = nada_create_symbol("quote");
@@ -1693,10 +1712,10 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
                 NadaValue *quoted_elem = nada_cons(quote_sym, quote_tail);
                 NadaValue *nil_value2 = nada_create_nil();
                 NadaValue *func_args = nada_cons(quoted_elem, nil_value2);
-                
+
                 // Apply the function
                 mapped_value = func_arg->data.function.builtin(func_args, env);
-                
+
                 // Free all temporary values in reverse order of creation
                 nada_free(func_args);
                 nada_free(nil_value2);
@@ -1710,10 +1729,10 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
                 NadaValue *eval_element = nada_eval(element, env);
                 NadaValue *nil_value = nada_create_nil();
                 NadaValue *func_args = nada_cons(eval_element, nil_value);
-                
+
                 // Apply the function
                 mapped_value = func_arg->data.function.builtin(func_args, env);
-                
+
                 // Free all temporary values
                 nada_free(func_args);
                 nada_free(nil_value);
@@ -1724,16 +1743,16 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
             NadaValue *element_copy = nada_deep_copy(element);
             NadaValue *nil_value = nada_create_nil();
             NadaValue *func_call = nada_cons(element_copy, nil_value);
-            
+
             // Apply the function
             mapped_value = apply_function(func_arg, func_call, env);
-            
+
             // Free all temporary values
             nada_free(func_call);
             nada_free(nil_value);
             nada_free(element_copy);
         }
-        
+
         // Handle error conditions
         if (mapped_value == NULL) {
             nada_free(mapped_items);
@@ -1754,7 +1773,7 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
 
     // Reverse the list to get correct order
     NadaValue *result = nada_reverse(mapped_items);
-    
+
     // Free intermediate values
     nada_free(mapped_items);
     nada_free(func_arg);
@@ -1807,17 +1826,17 @@ void collect_symbols(NadaEnv *current_env, NadaValue **list) {
     while (binding != NULL) {
         // Create the symbol value
         NadaValue *symbol = nada_create_symbol(binding->name);
-        
+
         // Add symbol to the front of our list
         NadaValue *new_list = nada_cons(symbol, *list);
-        
+
         // Free the temporary symbol and previous list
         nada_free(symbol);
         nada_free(*list);
-        
+
         // Update the list pointer
         *list = new_list;
-        
+
         binding = binding->next;
     }
 
@@ -2146,7 +2165,7 @@ static NadaValue *builtin_undef(NadaValue *args, NadaEnv *env) {
 
     // Only free if we allocated a new value
     if (to_free) nada_free(to_free);
-    
+
     return nada_create_bool(1);  // Return true for success
 }
 
@@ -2433,26 +2452,26 @@ static NadaValue *builtin_and(NadaValue *args, NadaEnv *env) {
 // Built-in special form: set!
 static NadaValue *builtin_set(NadaValue *args, NadaEnv *env) {
     // Check that we have exactly two arguments: variable and value
-    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) || 
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "set! requires exactly 2 arguments");
         return nada_create_nil();
     }
-    
+
     // Get the symbol to modify
     NadaValue *var = nada_car(args);
     if (var->type != NADA_SYMBOL) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "set! first argument must be a symbol");
         return nada_create_nil();
     }
-    
+
     // Evaluate the value expression
     NadaValue *val = nada_eval(nada_car(nada_cdr(args)), env);
-    
+
     // Find the binding in the environment (could be in parent environments)
     NadaEnv *current_env = env;
     int found = 0;
-    
+
     while (current_env != NULL) {
         // Check if the variable exists in this environment
         struct NadaBinding *binding = current_env->bindings;
@@ -2466,17 +2485,17 @@ static NadaValue *builtin_set(NadaValue *args, NadaEnv *env) {
             }
             binding = binding->next;
         }
-        
+
         if (found) break;
         current_env = current_env->parent;
     }
-    
+
     if (!found) {
         nada_report_error(NADA_ERROR_UNDEFINED_SYMBOL, "set! variable '%s' not found", var->data.symbol);
         nada_free(val);
         return nada_create_nil();
     }
-    
+
     // Return the new value
     return val;
 }
@@ -2763,7 +2782,7 @@ NadaValue *nada_load_file(const char *filename, NadaEnv *env) {
     NadaValue *string_arg = nada_create_string(filename);
     NadaValue *nil_arg = nada_create_nil();
     NadaValue *args = nada_cons(string_arg, nil_arg);
-    
+
     // Free the intermediate values that have been copied by nada_cons
     nada_free(string_arg);
     nada_free(nil_arg);
