@@ -11,6 +11,7 @@ typedef enum {
     NADA_ERROR_TYPE_ERROR,        // Type error
     NADA_ERROR_UNDEFINED_SYMBOL,  // Undefined symbol
     NADA_ERROR_MEMORY,            // Memory allocation error
+    NADA_ERROR_DIVISION_BY_ZERO,  // Division by zero
     // Add more error types as needed
 } NadaErrorType;
 

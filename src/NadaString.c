@@ -531,28 +531,34 @@ NadaValue *builtin_tokenize_expr(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
-// read-from-string: Parse a string as a Lisp expression
+// Built-in function: read-from-string
 NadaValue *builtin_read_from_string(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: read-from-string requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "read-from-string requires exactly one string argument");
         return nada_create_nil();
     }
 
-    NadaValue *str_val = nada_eval(nada_car(args), env);
-    if (str_val->type != NADA_STRING) {
-        fprintf(stderr, "Error: read-from-string requires a string argument\n");
-        nada_free(str_val);
+    // Evaluate the argument
+    NadaValue *str_arg = nada_eval(nada_car(args), env);
+    if (str_arg->type != NADA_STRING) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "read-from-string requires a string argument");
+        nada_free(str_arg);
         return nada_create_nil();
     }
 
-    NadaValue *expr = nada_parse(str_val->data.string);
-    nada_free(str_val);
-
-    // Wrap the result in a quote to prevent immediate evaluation
-    NadaValue *quote_sym = nada_create_symbol("quote");
-    NadaValue *quoted = nada_cons(quote_sym, nada_cons(expr, nada_create_nil()));
-
-    return quoted;
+    // Parse the string content
+    NadaValue *parsed = nada_parse(str_arg->data.string);
+    
+    // Free the evaluated argument
+    nada_free(str_arg);
+    
+    // If parsing failed, return nil
+    if (!parsed) {
+        nada_report_error(NADA_ERROR_SYNTAX, "failed to parse string");
+        return nada_create_nil();
+    }
+    
+    return parsed;
 }
 
 // write-to-string: Convert a Lisp expression to a string
@@ -731,16 +737,18 @@ NadaValue *builtin_read_line(NadaValue *args, NadaEnv *env) {
 // eval: Evaluate a quoted expression
 NadaValue *builtin_eval(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: eval requires exactly 1 argument\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "eval requires exactly one argument");
         return nada_create_nil();
     }
 
-    // First, evaluate to get the quoted expression
-    NadaValue *quoted = nada_eval(nada_car(args), env);
-
+    // First evaluate the argument (to get the expression to evaluate)
+    NadaValue *expr = nada_eval(nada_car(args), env);
+    
     // Then evaluate the resulting expression
-    NadaValue *result = nada_eval(quoted, env);
-
-    nada_free(quoted);
+    NadaValue *result = nada_eval(expr, env);
+    
+    // Free the intermediate expression value
+    nada_free(expr);
+    
     return result;
 }

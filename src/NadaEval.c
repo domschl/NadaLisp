@@ -485,39 +485,43 @@ static NadaValue *builtin_divide(NadaValue *args, NadaEnv *env) {
     return val;
 }
 
-// Modulo (%)
+// Built-in function: modulo
 static NadaValue *builtin_modulo(NadaValue *args, NadaEnv *env) {
-    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) || 
         !nada_is_nil(nada_cdr(nada_cdr(args)))) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "modulo requires exactly 2 arguments");
-        return nada_create_num_from_int(0);
+        return nada_create_nil();
     }
 
-    NadaValue *first = nada_eval(nada_car(args), env);
-    NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
+    NadaValue *a = nada_eval(nada_car(args), env);
+    NadaValue *b = nada_eval(nada_car(nada_cdr(args)), env);
 
-    if (first->type != NADA_NUM || second->type != NADA_NUM) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "modulo requires number arguments");
-        nada_free(first);
-        nada_free(second);
-        return nada_create_num_from_int(0);
+    if (a->type != NADA_NUM || b->type != NADA_NUM) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "modulo arguments must be numbers");
+        nada_free(a);
+        nada_free(b);
+        return nada_create_nil();
     }
 
-    if (nada_num_is_zero(second->data.number)) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "modulo by zero");
-        nada_free(first);
-        nada_free(second);
-        return nada_create_num_from_int(0);
+    // Check for division by zero
+    if (nada_num_is_zero(b->data.number)) {
+        nada_report_error(NADA_ERROR_DIVISION_BY_ZERO, "division by zero in modulo");
+        nada_free(a);
+        nada_free(b);
+        return nada_create_nil();
     }
 
-    NadaNum *result = nada_num_modulo(first->data.number, second->data.number);
-
-    nada_free(first);
-    nada_free(second);
-
-    NadaValue *val = nada_create_num(result);
-    nada_num_free(result);
-    return val;
+    // Perform modulo operation
+    NadaNum *result_num = nada_num_modulo(a->data.number, b->data.number);
+    
+    // Create result value
+    NadaValue *result = nada_create_num(result_num);
+    
+    // Free intermediates
+    nada_free(a);
+    nada_free(b);
+    
+    return result;
 }
 
 // Built-in special form: define
