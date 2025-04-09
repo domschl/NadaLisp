@@ -162,8 +162,9 @@ void nada_free(NadaValue *val) {
     case NADA_FUNC:
         if (val->data.function.params) nada_free(val->data.function.params);
         if (val->data.function.body) nada_free(val->data.function.body);
-        // Don't free env - it's just a reference
-        // Don't free builtin - it's a function pointer
+        // CHANGED: Don't free the environment here!
+        // Environments have complex ownership semantics
+        // val->data.function.env is shared and managed separately
         break;
     default:
         // No special cleanup needed

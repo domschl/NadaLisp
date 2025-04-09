@@ -1029,8 +1029,18 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
         body = nada_cdr(body);
     }
 
-    // Clean up the function environment
-    nada_env_free(func_env);
+    // CHANGED: Don't immediately free the function environment!
+    // Instead check if the result is a function that might reference this environment
+
+    if (result->type == NADA_FUNC) {
+        // Don't free func_env here - it's now owned by the function
+    } else {
+        // For non-function results, free the environment after we make a deep copy
+        NadaValue *result_copy = nada_deep_copy(result);
+        nada_env_free(func_env);
+        nada_free(result);
+        result = result_copy;
+    }
 
     return result;
 }
