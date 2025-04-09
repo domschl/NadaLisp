@@ -275,6 +275,7 @@ NadaValue *nada_deep_copy(NadaValue *val) {
     return result;
 }
 
+/*
 // Reverse a list in-place
 NadaValue *nada_reverse(NadaValue *list) {
     NadaValue *result = nada_create_nil();
@@ -285,6 +286,23 @@ NadaValue *nada_reverse(NadaValue *list) {
 
         result = nada_cons(head, result);
         list = tail;
+    }
+
+    return result;
+}
+*/
+
+// Fix for nada_reverse function
+NadaValue *nada_reverse(NadaValue *list) {
+    // Create a temporary variable for the nil value instead of passing directly
+    NadaValue *result = nada_create_nil();
+    NadaValue *current = list;
+
+    while (current->type == NADA_PAIR) {
+        NadaValue *new_result = nada_cons(nada_car(current), result);
+        nada_free(result);  // Free the old result
+        result = new_result;
+        current = nada_cdr(current);
     }
 
     return result;

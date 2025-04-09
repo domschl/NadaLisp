@@ -480,8 +480,10 @@ NadaValue *builtin_tokenize_expr(NadaValue *args, NadaEnv *env) {
             if (token_pos > 0) {
                 token_buf[token_pos] = '\0';
                 NadaValue *token = nada_create_string(token_buf);
-                tokens = nada_cons(token, tokens);
-                nada_free(token);
+                NadaValue *new_tokens = nada_cons(token, tokens); // Create new list with token
+                nada_free(token);  // Free the token after it's been copied
+                nada_free(tokens); // Free the old list
+                tokens = new_tokens; // Update our list pointer
                 token_pos = 0;
             }
 
@@ -489,8 +491,10 @@ NadaValue *builtin_tokenize_expr(NadaValue *args, NadaEnv *env) {
             token_buf[0] = c;
             token_buf[1] = '\0';
             NadaValue *op_token = nada_create_string(token_buf);
-            tokens = nada_cons(op_token, tokens);
-            nada_free(op_token);
+            NadaValue *new_tokens = nada_cons(op_token, tokens); // Create new list with op_token
+            nada_free(op_token); // Free the token after it's been copied
+            nada_free(tokens);   // Free the old list
+            tokens = new_tokens; // Update our list pointer
 
         } else if (isdigit(c) || isalpha(c) || c == '.') {
             // Build number or variable tokens
@@ -500,8 +504,10 @@ NadaValue *builtin_tokenize_expr(NadaValue *args, NadaEnv *env) {
             if (token_pos > 0) {
                 token_buf[token_pos] = '\0';
                 NadaValue *token = nada_create_string(token_buf);
-                tokens = nada_cons(token, tokens);
-                nada_free(token);
+                NadaValue *new_tokens = nada_cons(token, tokens); // Create new list with token
+                nada_free(token);  // Free the token after it's been copied
+                nada_free(tokens); // Free the old list 
+                tokens = new_tokens; // Update our list pointer
                 token_pos = 0;
             }
         }
@@ -511,14 +517,17 @@ NadaValue *builtin_tokenize_expr(NadaValue *args, NadaEnv *env) {
     if (token_pos > 0) {
         token_buf[token_pos] = '\0';
         NadaValue *token = nada_create_string(token_buf);
-        tokens = nada_cons(token, tokens);
-        nada_free(token);
+        NadaValue *new_tokens = nada_cons(token, tokens); // Create new list with token
+        nada_free(token);  // Free the token after it's been copied
+        nada_free(tokens); // Free the old list
+        tokens = new_tokens; // Update our list pointer
     }
 
     // Reverse the tokens list to get them in the original order
     NadaValue *result = nada_reverse(tokens);
-    nada_free(tokens);
-    nada_free(str_arg);
+    nada_free(tokens); // Free the intermediate list
+    nada_free(str_arg); // Free the evaluated input string
+    
     return result;
 }
 

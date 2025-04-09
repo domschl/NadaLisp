@@ -21,6 +21,19 @@ struct NadaEnv {
     struct NadaEnv *parent;
 };
 
+// Type to represent a built-in function
+typedef NadaValue *(*BuiltinFunc)(NadaValue *, NadaEnv *);
+
+// Structure to hold built-in function info
+typedef struct {
+    const char *name;
+    BuiltinFunc func;
+} BuiltinFuncInfo;
+
+// Forward declaration of the builtins array
+static BuiltinFuncInfo builtins[];
+
+
 // Create a new environment
 NadaEnv *nada_env_create(NadaEnv *parent) {
     NadaEnv *env = malloc(sizeof(NadaEnv));
@@ -598,7 +611,6 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
 
     // Process each clause
     NadaValue *clauses = args;
-    NadaValue *prev_clauses = NULL;
 
     while (!nada_is_nil(clauses)) {
         // Get current clause
@@ -638,9 +650,7 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
 
             while (!nada_is_nil(body)) {
                 // Free previous intermediate result
-                if (result->type != NADA_NIL) {
-                    nada_free(result);
-                }
+                nada_free(result);
 
                 // Evaluate next expression
                 result = nada_eval(nada_car(body), env);
@@ -673,10 +683,8 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
             NadaValue *result = nada_create_nil();
 
             while (!nada_is_nil(body)) {
-                // Free previous intermediate result
-                if (result->type != NADA_NIL) {
-                    nada_free(result);
-                }
+                // Always free previous intermediate result
+                nada_free(result);
 
                 // Evaluate next expression
                 result = nada_eval(nada_car(body), env);
@@ -687,11 +695,10 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
         }
 
         // Move to next clause
-        prev_clauses = clauses;
         clauses = next_clauses;
     }
 
-    // No condition matched
+    // No condition matched - return nil
     return nada_create_nil();
 }
 
@@ -1376,8 +1383,23 @@ static NadaValue *builtin_sublist(NadaValue *args, NadaEnv *env) {
         start = 0;  // Handle negative start gracefully
     }
 
+    // Free the arguments once we've extracted the values we need
+    nada_free(start_arg);
+    nada_free(end_arg);
+
+    // Handle empty list case
+    if (nada_is_nil(list_arg)) {
+        nada_free(list_arg);
+        return nada_create_nil();
+    }
+
+    // Handle case where list isn't a proper list
+    if (list_arg->type != NADA_PAIR) {
+        nada_free(list_arg);
+        return nada_create_nil();
+    }
+
     // Extract the sublist
-    NadaValue *result = nada_create_nil();
     NadaValue *current = list_arg;
     int pos = 0;
 
@@ -1387,22 +1409,35 @@ static NadaValue *builtin_sublist(NadaValue *args, NadaEnv *env) {
         pos++;
     }
 
-    // Collect elements from start to end
+    // Initialize result list
     NadaValue *items = nada_create_nil();
+
+    // Collect elements from start to end
     while (pos < end && !nada_is_nil(current) && current->type == NADA_PAIR) {
-        items = nada_cons(nada_car(current), items);
+        // Get the current element and make a deep copy
+        NadaValue *element = nada_deep_copy(nada_car(current));
+        
+        // Create a new list with this element
+        NadaValue *new_items = nada_cons(element, items);
+        
+        // Free temporary values
+        nada_free(element);
+        nada_free(items);
+        
+        // Update our items pointer
+        items = new_items;
+        
+        // Move to next element
         current = nada_cdr(current);
         pos++;
     }
 
     // Reverse to get correct order
-    result = nada_reverse(items);
-
+    NadaValue *result = nada_reverse(items);
+    
     // Clean up
     nada_free(items);
     nada_free(list_arg);
-    nada_free(start_arg);
-    nada_free(end_arg);
 
     return result;
 }
@@ -1473,14 +1508,31 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
         return nada_create_nil();
     }
 
-    // Evaluate the function argument
+    // Get the function (first argument)
     NadaValue *func_arg = nada_eval(nada_car(args), env);
 
-    // Check that it's a function
+    // Check that it's a function or a symbol that refers to a function
     if (func_arg->type != NADA_FUNC) {
-        nada_report_error(NADA_ERROR_TYPE_ERROR, "map requires a function as first argument");
-        nada_free(func_arg);
-        return nada_create_nil();
+        // If it's a symbol, try looking it up
+        if (func_arg->type == NADA_SYMBOL) {
+            NadaValue *func_val = nada_env_get(env, func_arg->data.symbol);
+            nada_free(func_arg);
+            func_arg = func_val;
+            
+            // Check again if it's a function
+            if (func_arg->type != NADA_FUNC) {
+                nada_report_error(NADA_ERROR_TYPE_ERROR, 
+                                 "map requires a function as first argument, got: %s", 
+                                 func_arg->data.symbol);
+                nada_free(func_arg);
+                return nada_create_nil();
+            }
+        } else {
+            nada_report_error(NADA_ERROR_TYPE_ERROR, 
+                             "map requires a function as first argument");
+            nada_free(func_arg);
+            return nada_create_nil();
+        }
     }
 
     // Evaluate the list argument
@@ -1502,32 +1554,75 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
     }
 
     // Map the function over the list
-    NadaValue *result = nada_create_nil();
     NadaValue *current = list_arg;
     NadaValue *mapped_items = nada_create_nil();
 
     while (current->type == NADA_PAIR) {
-        // Get the current element
+        // Get the current element - DO NOT EVALUATE IT YET!
         NadaValue *element = nada_car(current);
+        NadaValue *mapped_value = NULL;
 
-        // Apply the function to the element
-        NadaValue *func_call = nada_cons(element, nada_create_nil());
-        NadaValue *mapped_value = apply_function(func_arg, func_call, env);
+        if (func_arg->data.function.builtin) {
+            // For built-in functions like 'car', we pass the element directly 
+            // without evaluating it first
+            
+            // Check if the function is car, cdr, or similar list operations
+            int is_list_op = 0;
+            for (int i = 0; builtins[i].name != NULL; i++) {
+                if (builtins[i].func == func_arg->data.function.builtin) {
+                    const char *name = builtins[i].name;
+                    if (strcmp(name, "car") == 0 || 
+                        strcmp(name, "cdr") == 0 ||
+                        strcmp(name, "cadr") == 0 ||
+                        strcmp(name, "caddr") == 0 ||
+                        strcmp(name, "list-ref") == 0) {
+                        is_list_op = 1;
+                        break;
+                    }
+                }
+            }
+            
+            if (is_list_op) {
+                // For list operations, create args without evaluating
+                NadaValue *func_args = nada_cons(nada_deep_copy(element), nada_create_nil());
+                
+                // Apply the function directly
+                mapped_value = func_arg->data.function.builtin(func_args, env);
+                
+                // Clean up
+                nada_free(func_args);
+            } else {
+                // For other built-in functions, evaluate the element first
+                NadaValue *eval_element = nada_eval(element, env);
+                NadaValue *func_args = nada_cons(eval_element, nada_create_nil());
+                
+                // Apply the function
+                mapped_value = func_arg->data.function.builtin(func_args, env);
+                
+                // Clean up
+                nada_free(eval_element);
+                nada_free(func_args);
+            }
+        } else {
+            // For user-defined functions
+            NadaValue *func_call = nada_cons(nada_deep_copy(element), nada_create_nil());
+            mapped_value = apply_function(func_arg, func_call, env);
+            nada_free(func_call);
+        }
 
         // Add the result to our collected items (in reverse order for now)
-        mapped_items = nada_cons(mapped_value, mapped_items);
-
-        // Free temporary values
-        nada_free(func_call);
+        NadaValue *new_mapped_items = nada_cons(mapped_value, mapped_items);
         nada_free(mapped_value);
+        nada_free(mapped_items);
+        mapped_items = new_mapped_items;
 
         // Move to next element
         current = nada_cdr(current);
     }
 
     // Reverse the list to get correct order
-    result = nada_reverse(mapped_items);
-
+    NadaValue *result = nada_reverse(mapped_items);
+    
     // Free intermediate values
     nada_free(mapped_items);
     nada_free(func_arg);
@@ -1535,18 +1630,6 @@ static NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
 
     return result;
 }
-
-// Type to represent a built-in function
-typedef NadaValue *(*BuiltinFunc)(NadaValue *, NadaEnv *);
-
-// Structure to hold built-in function info
-typedef struct {
-    const char *name;
-    BuiltinFunc func;
-} BuiltinFuncInfo;
-
-// Forward declaration of the builtins array
-static BuiltinFuncInfo builtins[];
 
 // Helper to check if a name is a built-in function
 static int is_builtin(const char *name) {
@@ -1590,8 +1673,19 @@ static NadaValue *builtin_builtin_p(NadaValue *args, NadaEnv *env) {
 void collect_symbols(NadaEnv *current_env, NadaValue **list) {
     struct NadaBinding *binding = current_env->bindings;
     while (binding != NULL) {
+        // Create the symbol value
+        NadaValue *symbol = nada_create_symbol(binding->name);
+        
         // Add symbol to the front of our list
-        *list = nada_cons(nada_create_symbol(binding->name), *list);
+        NadaValue *new_list = nada_cons(symbol, *list);
+        
+        // Free the temporary symbol and previous list
+        nada_free(symbol);
+        nada_free(*list);
+        
+        // Update the list pointer
+        *list = new_list;
+        
         binding = binding->next;
     }
 
