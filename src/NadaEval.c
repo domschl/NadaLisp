@@ -755,14 +755,17 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
             NadaValue *result = nada_create_nil();
 
             while (!nada_is_nil(body)) {
-                // Free previous intermediate result
                 nada_free(result);
-
-                // Evaluate next expression
+                
+                // Get a deep copy of the evaluated expression
                 result = nada_eval(nada_car(body), env);
-                NadaValue *result_copy = nada_deep_copy(result);
-                nada_free(result);
-                return result_copy;
+                if (nada_is_nil(nada_cdr(body))) {
+                    // If this is the last body expression, return a deep copy
+                    NadaValue *result_copy = nada_deep_copy(result);
+                    nada_free(result);
+                    return result_copy;
+                }
+                body = nada_cdr(body);
             }
 
             return result;
@@ -791,14 +794,17 @@ static NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
             NadaValue *result = nada_create_nil();
 
             while (!nada_is_nil(body)) {
-                // Always free previous intermediate result
                 nada_free(result);
-
-                // Evaluate next expression
+                
+                // Get a deep copy of the evaluated expression
                 result = nada_eval(nada_car(body), env);
-                NadaValue *result_copy = nada_deep_copy(result);
-                nada_free(result);
-                return result_copy;
+                if (nada_is_nil(nada_cdr(body))) {
+                    // If this is the last body expression, return a deep copy
+                    NadaValue *result_copy = nada_deep_copy(result);
+                    nada_free(result);
+                    return result_copy;
+                }
+                body = nada_cdr(body);
             }
 
             return result;
@@ -905,13 +911,19 @@ static NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
         NadaValue *current_expr = body;
         
         while (!nada_is_nil(current_expr)) {
-            // Free previous result before getting new one
             nada_free(result);
             
-            // Evaluate the current expression
-            result = nada_eval(nada_car(current_expr), loop_env);
+            if (nada_is_nil(nada_cdr(current_expr))) {
+                // Last expression - get a deep copy before releasing environment
+                result = nada_eval(nada_car(current_expr), loop_env);
+                NadaValue *result_copy = nada_deep_copy(result);
+                nada_free(result);
+                nada_env_release(loop_env);
+                return result_copy;
+            } else {
+                result = nada_eval(nada_car(current_expr), loop_env);
+            }
             
-            // Move to next expression
             current_expr = nada_cdr(current_expr);
         }
         
@@ -999,8 +1011,6 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
 
     // Handle built-in functions
     if (func->data.function.builtin != NULL) {
-        // Existing built-in function logic remains unchanged...
-        // For a built-in function, we don't need an environment, so this is fine
         // Create a list to hold evaluated arguments
         NadaValue *eval_args = nada_create_nil();
         NadaValue *current_arg = args;
@@ -1029,115 +1039,95 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
         // Call the built-in function with evaluated arguments
         NadaValue *result = func->data.function.builtin(reversed_args, outer_env);
 
-        // Free our intermediate lists
+        // Free our intermediate arguments list
         nada_free(reversed_args);
 
         return result;
     }
 
-    // Create the function environment with the function's closure env as parent
+    // Rest of the function for handling user-defined functions...
     NadaEnv *func_env = nada_env_create(func->data.function.env);
+    NadaValue *result = nada_create_nil();
     
-    // Keep track of whether we've successfully set up the environment
-    int env_setup_complete = 0;
-
-    // Bind arguments to parameters
+    // Parameter binding
     NadaValue *param = func->data.function.params;
     NadaValue *arg = args;
+    int had_error = 0;
 
-    // Track errors during parameter binding
-    int had_binding_error = 0;
-    
     while (!nada_is_nil(param) && !nada_is_nil(arg)) {
-        // Get parameter name
         NadaValue *param_name = nada_car(param);
-
-        // Evaluate argument
-        NadaValue *arg_val = NULL;
+        NadaValue *arg_val = nada_eval(nada_car(arg), outer_env);
         
-        // Handle potential evaluation errors
-        if (!(arg_val = nada_eval(nada_car(arg), outer_env))) {
-            had_binding_error = 1;
+        if (arg_val == NULL) {
+            had_error = 1;
             break;
         }
-
-        // Bind parameter to argument value
+        
         nada_env_set(func_env, param_name->data.symbol, arg_val);
-
-        // Free the evaluated argument value after it's been copied
         nada_free(arg_val);
-
-        // Move to next parameter and argument
+        
         param = nada_cdr(param);
         arg = nada_cdr(arg);
     }
 
-    // Handle parameter count mismatches
+    // Error checks for parameter mismatches
     if (!nada_is_nil(param)) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
-        had_binding_error = 1;
-    }
-
-    if (!nada_is_nil(arg)) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too many arguments");
-        had_binding_error = 1;
+        had_error = 1;
     }
     
-    // Check for binding errors before proceeding
-    if (had_binding_error) {
+    if (!nada_is_nil(arg)) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too many arguments");
+        had_error = 1;
+    }
+    
+    if (had_error) {
+        nada_free(result);
         nada_env_release(func_env);
         return nada_create_nil();
     }
-    
-    // Environment is now fully set up with all arguments bound
-    env_setup_complete = 1;
 
-    // Initialize result before entering evaluation loop
-    NadaValue *result = nada_create_nil();
+    // Body evaluation
     NadaValue *body_expr = func->data.function.body;
-    int evaluation_completed = 0;
-
-    // Handle empty body case separately to avoid unnecessary processing
+    
+    // Empty body case
     if (nada_is_nil(body_expr)) {
-        // Clean up the environment we created
         nada_env_release(func_env);
-        return result; // Return nil for empty body
+        return result;
     }
     
-    // Process each body expression
+    // Process body expressions
     while (!nada_is_nil(body_expr)) {
-        // Free the previous result
         nada_free(result);
         
-        // Evaluate the current expression
-        result = nada_eval(nada_car(body_expr), func_env);
-        
-        // If we've reached the last expression, we'll keep the final result
-        body_expr = nada_cdr(body_expr);
-        
-        // If this is the last expression, mark evaluation as complete
-        if (nada_is_nil(body_expr)) {
-            evaluation_completed = 1;
+        // Special handling for the last expression in the body
+        if (nada_is_nil(nada_cdr(body_expr))) {
+            // For the last expression, evaluate and deep copy the result before cleaning up
+            result = nada_eval(nada_car(body_expr), func_env);
+            if (result != NULL) {
+                NadaValue *result_copy = nada_deep_copy(result);
+                nada_free(result);
+                result = result_copy;
+            } else {
+                result = nada_create_nil();
+            }
+            break;  // Exit the loop after handling the last expression
+        } else {
+            // For intermediate expressions, just evaluate
+            result = nada_eval(nada_car(body_expr), func_env);
+            if (result == NULL) {
+                result = nada_create_nil();
+                break;
+            }
         }
+        
+        body_expr = nada_cdr(body_expr);
     }
     
-    // We've completed evaluation without errors
-    if (evaluation_completed) {
-        // Make a deep copy of the result before releasing the environment
-        NadaValue *result_copy = nada_deep_copy(result);
-        nada_free(result);
-        
-        // Now that we have a copy, we can safely release the environment
-        nada_env_release(func_env);
-        
-        return result_copy;
-    }
-    
-    // If we get here, something went wrong during evaluation
-    // Clean up the environment and return nil
-    nada_free(result);
+    // CRITICAL: Always release the environment before returning
     nada_env_release(func_env);
-    return nada_create_nil();
+    
+    return result;
 }
 
 // Less than (<)
@@ -2305,8 +2295,11 @@ static NadaValue *builtin_if(NadaValue *args, NadaEnv *env) {
     nada_free(condition);
 
     if (is_true) {
-        // Evaluate the then-expression
-        return nada_eval(nada_car(nada_cdr(args)), env);
+        // Evaluate and return a deep copy of the then-expression
+        NadaValue *then_result = nada_eval(nada_car(nada_cdr(args)), env);
+        NadaValue *result_copy = nada_deep_copy(then_result);
+        nada_free(then_result);
+        return result_copy;
     } else {
         // Check if we have an else expression
         NadaValue *else_part = nada_cdr(nada_cdr(args));
@@ -2314,7 +2307,10 @@ static NadaValue *builtin_if(NadaValue *args, NadaEnv *env) {
             return nada_create_nil();  // No else clause, return nil
         }
         // Evaluate the else-expression
-        return nada_eval(nada_car(else_part), env);
+        NadaValue *else_result = nada_eval(nada_car(else_part), env);
+        NadaValue *result_copy = nada_deep_copy(else_result);
+        nada_free(else_result);
+        return result_copy;
     }
 }
 
@@ -2444,7 +2440,9 @@ static NadaValue *builtin_or(NadaValue *args, NadaEnv *env) {
         // If truthy (anything except #f or nil), short-circuit and return it
         if (!(result->type == NADA_BOOL && result->data.boolean == 0) &&
             !(result->type == NADA_NIL)) {
-            return result;
+            NadaValue *result_copy = nada_deep_copy(result);
+            nada_free(result);
+            return result_copy;
         }
 
         // Otherwise, move to next argument
@@ -2452,7 +2450,9 @@ static NadaValue *builtin_or(NadaValue *args, NadaEnv *env) {
     }
 
     // All arguments were falsy, return the last result (which is falsy)
-    return result;
+    NadaValue *result_copy = nada_deep_copy(result);
+    nada_free(result);
+    return result_copy;
 }
 
 // Built-in special form: and
@@ -2476,7 +2476,9 @@ static NadaValue *builtin_and(NadaValue *args, NadaEnv *env) {
         // If falsy (#f or nil), short-circuit and return it
         if ((result->type == NADA_BOOL && result->data.boolean == 0) ||
             (result->type == NADA_NIL)) {
-            return result;
+            NadaValue *result_copy = nada_deep_copy(result);
+            nada_free(result);
+            return result_copy;
         }
 
         // Otherwise, move to next argument
@@ -2484,7 +2486,9 @@ static NadaValue *builtin_and(NadaValue *args, NadaEnv *env) {
     }
 
     // All arguments were truthy, return the last result (which is truthy)
-    return result;
+    NadaValue *result_copy = nada_deep_copy(result);
+    nada_free(result);
+    return result_copy;
 }
 
 // Built-in special form: set!
