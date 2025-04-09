@@ -546,6 +546,9 @@ static NadaValue *builtin_define(NadaValue *args, NadaEnv *env) {
 
         // Bind function to name
         nada_env_set(env, func_name->data.symbol, func);
+        
+        // Free the function value after it's been stored in the environment
+        nada_free(func);
 
         // Return the function name
         return nada_create_symbol(func_name->data.symbol);
@@ -2454,9 +2457,13 @@ NadaValue *nada_create_builtin_function(NadaValue *(*func)(NadaValue *, NadaEnv 
 // Public helper to load a file
 NadaValue *nada_load_file(const char *filename, NadaEnv *env) {
     // Create load-file arguments: filename as a string
-    NadaValue *args = nada_cons(
-        nada_create_string(filename),
-        nada_create_nil());
+    NadaValue *string_arg = nada_create_string(filename);
+    NadaValue *nil_arg = nada_create_nil();
+    NadaValue *args = nada_cons(string_arg, nil_arg);
+    
+    // Free the intermediate values that have been copied by nada_cons
+    nada_free(string_arg);
+    nada_free(nil_arg);
 
     // Call the built-in function
     NadaValue *result = builtin_load_file(args, env);

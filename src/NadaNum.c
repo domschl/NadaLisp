@@ -146,9 +146,9 @@ NadaNum *nada_num_from_string(const char *str) {
         denominator[decimal_len + 1] = '\0';
 
         // Combine integer_part + decimal_part / 10^decimal_len
-        char *combined_num = add_integers(
-            multiply_integers(integer_part, denominator),
-            decimal_part);
+        char *temp = multiply_integers(integer_part, denominator);
+        char *combined_num = add_integers(temp, decimal_part);
+        free(temp);  // Free the intermediate result
 
         NadaNum *result = nada_num_from_fraction(combined_num, denominator);
         if (result) {
