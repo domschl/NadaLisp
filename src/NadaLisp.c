@@ -193,7 +193,7 @@ void load_libraries(NadaEnv *env) {
             // Use the CORRECT found directory path
             char full_path[1024];
             snprintf(full_path, sizeof(full_path), "%s/%s", found_dir, filename);
-ß
+
             printf("  Loading %s\n", filename);
             NadaValue *result = nada_load_file(full_path, global_env);
             nada_free(result);
