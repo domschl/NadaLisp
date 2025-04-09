@@ -368,18 +368,25 @@ NadaNum *nada_num_modulo(const NadaNum *a, const NadaNum *b) {
     }
 
     char *remainder = NULL;
-    divide_integers(a->numerator, b->numerator, &remainder);
-
+    
+    // IMPORTANT: Capture and free the quotient returned by divide_integers
+    char *quotient = divide_integers(a->numerator, b->numerator, &remainder);
+    
+    // Create result from remainder
     NadaNum *result = nada_num_from_fraction(remainder, "1");
+    
+    // Free both the quotient and remainder after they've been used
+    free(quotient);
+    free(remainder);
+    
+    // Set the sign on the result
     if (result) {
         result->sign = a->sign;
         if (strcmp(result->numerator, "0") == 0) {
             result->sign = 1;  // Zero is always positive
         }
     }
-
-    free(remainder);
-
+    
     return result;
 }
 
@@ -722,6 +729,7 @@ static char *multiply_integers(const char *a, const char *b) {
 
 // Divide two arbitrary precision integers (long division algorithm)
 static char *divide_integers(const char *a, const char *b, char **remainder) {
+    // Check for null inputs
     if (!a || !b) {
         if (remainder) *remainder = strdup("0");
         return NULL;
@@ -775,7 +783,7 @@ static char *divide_integers(const char *a, const char *b, char **remainder) {
         // Current divisor position
         size_t pos = i;
 
-        // Try each digit (9 to 1)
+        // Try each digit (9 to 0)
         for (int digit = 9; digit >= 0; digit--) {
             // Set current quotient digit
             quotient[pos] = digit + '0';
@@ -787,48 +795,58 @@ static char *divide_integers(const char *a, const char *b, char **remainder) {
             partial_quotient[len_q] = '\0';
 
             char *product = multiply_integers(partial_quotient, b);
+            if (!product) {
+                free(working);
+                free(quotient);
+                if (remainder) *remainder = strdup("0");
+                return strdup("0");
+            }
 
             // If product <= working substring, we found the digit
-            if (product && compare_integers(product, working) <= 0) {
+            if (compare_integers(product, working) <= 0) {
                 // Subtract product from working
                 char *new_working = subtract_integers(working, product);
-                free(working);
-                if (new_working) {
-                    working = new_working;
-                } else {
-                    working = strdup("0");
+                free(product);  // Free product immediately
+
+                if (!new_working) {
+                    // Handle allocation failure
+                    free(working);
+                    free(quotient);
+                    if (remainder) *remainder = strdup("0");
+                    return strdup("0");
                 }
 
-                free(product);
+                // Free old working and replace with new
+                free(working);
+                working = new_working;
                 break;
             }
 
-            free(product);
+            free(product);  // Free product if not used
         }
     }
 
-    // Create remainder string without leading zeros
+    // Handle remainder
     if (remainder) {
-        if (working[0] == '\0') {
-            *remainder = strdup("0");
-        } else {
-            // Manually remove leading zeros to avoid leaks
-            const char *p = working;
-            while (*p == '0' && *(p + 1) != '\0')
-                p++;
-            *remainder = strdup(p);
+        const char *p = working;
+        // Skip leading zeros, but keep last digit if all zeros
+        while (*p == '0' && *(p + 1) != '\0') {
+            p++;
         }
+        *remainder = strdup(p);  // This is where the leak occurs at line 1536
     }
 
-    // Clean up quotient - manually remove leading zeros
+    // Clean up quotient - remove leading zeros
     char *cleaned_quotient = NULL;
     const char *q = quotient;
-    while (*q == '0' && *(q + 1) != '\0')
+    while (*q == '0' && *(q + 1) != '\0') {
         q++;
+    }
     cleaned_quotient = strdup(q);
 
+    // IMPORTANT: Free temporary buffers
     free(quotient);
-    free(working);
+    free(working);  // Free working copy in all cases
 
     return cleaned_quotient ? cleaned_quotient : strdup("0");
 }

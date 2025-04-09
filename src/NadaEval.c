@@ -2330,6 +2330,57 @@ static NadaValue *builtin_and(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
+// Built-in special form: set!
+static NadaValue *builtin_set(NadaValue *args, NadaEnv *env) {
+    // Check that we have exactly two arguments: variable and value
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) || 
+        !nada_is_nil(nada_cdr(nada_cdr(args)))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "set! requires exactly 2 arguments");
+        return nada_create_nil();
+    }
+    
+    // Get the symbol to modify
+    NadaValue *var = nada_car(args);
+    if (var->type != NADA_SYMBOL) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "set! first argument must be a symbol");
+        return nada_create_nil();
+    }
+    
+    // Evaluate the value expression
+    NadaValue *val = nada_eval(nada_car(nada_cdr(args)), env);
+    
+    // Find the binding in the environment (could be in parent environments)
+    NadaEnv *current_env = env;
+    int found = 0;
+    
+    while (current_env != NULL) {
+        // Check if the variable exists in this environment
+        struct NadaBinding *binding = current_env->bindings;
+        while (binding != NULL) {
+            if (strcmp(binding->name, var->data.symbol) == 0) {
+                // Found the binding, update it
+                nada_free(binding->value);
+                binding->value = nada_deep_copy(val);
+                found = 1;
+                break;
+            }
+            binding = binding->next;
+        }
+        
+        if (found) break;
+        current_env = current_env->parent;
+    }
+    
+    if (!found) {
+        nada_report_error(NADA_ERROR_UNDEFINED_SYMBOL, "set! variable '%s' not found", var->data.symbol);
+        nada_free(val);
+        return nada_create_nil();
+    }
+    
+    // Return the new value
+    return val;
+}
+
 // Add to the builtins table (keep all string functions here)
 static BuiltinFuncInfo builtins[] = {
     {"quote", builtin_quote},
@@ -2426,6 +2477,9 @@ static BuiltinFuncInfo builtins[] = {
 
     // Add the new map function
     {"map", builtin_map},
+
+    // Add the new set! function
+    {"set!", builtin_set},
 
     {NULL, NULL}  // Sentinel to mark end of array
 };
@@ -2545,6 +2599,11 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
             // Or special form
             if (strcmp(op->data.symbol, "or") == 0) {
                 return builtin_or(args, env);
+            }
+
+            // Set! special form
+            if (strcmp(op->data.symbol, "set!") == 0) {
+                return builtin_set(args, env);
             }
 
             // Regular function application

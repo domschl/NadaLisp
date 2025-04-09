@@ -209,25 +209,30 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env) {
             strncpy(ch, p, charlen);
             ch[charlen] = '\0';
 
-            // Build list in reverse order
+            // Create string value
             NadaValue *ch_val = nada_create_string(ch);
-            result = nada_cons(ch_val, result);
-
+            
+            // Build list in reverse order
+            NadaValue *new_result = nada_cons(ch_val, result);
+            
+            // Free temporary values
+            nada_free(ch_val);
+            nada_free(result);
+            
+            // Update result pointer
+            result = new_result;
+            
             free(ch);
             p += charlen;
         }
 
         // Reverse the list
-        NadaValue *reversed = nada_create_nil();
-        while (!nada_is_nil(result)) {
-            NadaValue *head = nada_car(result);
-            NadaValue *tail = nada_cdr(result);
-
-            reversed = nada_cons(head, reversed);
-            result = tail;
-        }
-
+        NadaValue *reversed = nada_reverse(result);
+        
+        // Free the intermediate list
+        nada_free(result);
         nada_free(str_val);
+        
         return reversed;
     } else {
         // Split by delimiter
@@ -244,8 +249,16 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env) {
 
         if (delim_len == 0) {
             // Empty delimiter, return the original string as a single element
-            NadaValue *result = nada_cons(str_val, nada_create_nil());
+            NadaValue *str_copy = nada_create_string(str);
+            NadaValue *nil_val = nada_create_nil();
+            NadaValue *result = nada_cons(str_copy, nil_val);
+            
+            // Free temporary values
+            nada_free(str_copy);
+            nada_free(nil_val);
+            nada_free(str_val);
             nada_free(delim_val);
+            
             return result;
         }
 
@@ -260,10 +273,19 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env) {
             strncpy(segment, start, len);
             segment[len] = '\0';
 
-            // Add to result list
+            // Create string value
             NadaValue *seg_val = nada_create_string(segment);
-            result = nada_cons(seg_val, result);
-
+            
+            // Add to result list
+            NadaValue *new_result = nada_cons(seg_val, result);
+            
+            // Free temporary values
+            nada_free(seg_val);
+            nada_free(result);
+            
+            // Update result pointer
+            result = new_result;
+            
             free(segment);
             start = found + delim_len;
         }
@@ -271,21 +293,24 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env) {
         // Add the last segment
         if (*start) {
             NadaValue *seg_val = nada_create_string(start);
-            result = nada_cons(seg_val, result);
+            NadaValue *new_result = nada_cons(seg_val, result);
+            
+            // Free temporary values
+            nada_free(seg_val);
+            nada_free(result);
+            
+            // Update result pointer
+            result = new_result;
         }
 
         // Reverse the list
-        NadaValue *reversed = nada_create_nil();
-        while (!nada_is_nil(result)) {
-            NadaValue *head = nada_car(result);
-            NadaValue *tail = nada_cdr(result);
-
-            reversed = nada_cons(head, reversed);
-            result = tail;
-        }
-
+        NadaValue *reversed = nada_reverse(result);
+        
+        // Free intermediate values
+        nada_free(result);
         nada_free(str_val);
         nada_free(delim_val);
+        
         return reversed;
     }
 }
