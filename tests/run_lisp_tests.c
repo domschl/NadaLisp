@@ -8,6 +8,19 @@
 #include <unistd.h>  // For getcwd()
 #include "../src/NadaError.h"
 
+// Add the structure definitions here
+struct NadaBinding {
+    char *name;
+    NadaValue *value;
+    struct NadaBinding *next;
+};
+
+struct NadaEnv {
+    struct NadaBinding *bindings;
+    struct NadaEnv *parent;
+    int ref_count;
+};
+
 // Define test variables locally instead of importing them
 static NadaEnv *test_env;
 static int tests_run = 0;
@@ -141,11 +154,41 @@ static void init_test_env() {
     load_test_libraries();
 }
 
+// Recursive function to break circular references in environments
+static void break_env_cycles(NadaEnv *env, int depth) {
+    if (!env || depth > 100) return;  // Prevent infinite recursion
+    
+    // Process all bindings in this environment
+    struct NadaBinding *binding = env->bindings;
+    while (binding != NULL) {
+        if (binding->value && binding->value->type == NADA_FUNC) {
+            // Break circular reference by nulling out environment references
+            if (binding->value->data.function.env) {
+                // Process the function's environment first (recursive)
+                break_env_cycles(binding->value->data.function.env, depth + 1);
+                // Then null out the reference
+                binding->value->data.function.env = NULL;
+            }
+        }
+        binding = binding->next;
+    }
+    
+    // Also process parent environment recursively
+    if (env->parent) {
+        break_env_cycles(env->parent, depth + 1);
+    }
+}
+
 // Cleanup the test environment
 static void cleanup_test_env() {
     if (test_env) {
+        // Break all circular references recursively
+        break_env_cycles(test_env, 0);
+        
+        // Now we can release the environment
+        printf("Releasing test environment with ref count: %d\n", test_env->ref_count);
         nada_env_release(test_env);
-        test_env = NULL;  // This null check prevents double-free
+        test_env = NULL;
     }
 }
 
@@ -463,9 +506,6 @@ int main(int argc, char *argv[]) {
     }
 
     int result = run_lisp_tests(test_dir);
-
-    // Generate coverage report
-    report_test_coverage(test_dir);
 
     // We don't need to call cleanup_test_env here - it'll be called by atexit
 

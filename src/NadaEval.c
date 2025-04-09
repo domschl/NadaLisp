@@ -6,6 +6,19 @@
 #include <stdio.h>
 #include "NadaError.h"
 
+// Environment structure - MOVE THESE DEFINITIONS UP
+struct NadaBinding {
+    char *name;
+    NadaValue *value;
+    struct NadaBinding *next;
+};
+
+struct NadaEnv {
+    struct NadaBinding *bindings;
+    struct NadaEnv *parent;
+    int ref_count;  // Replace shared_mark with reference count
+};
+
 // Add this to track global environments
 static NadaEnv *global_env = NULL;
 
@@ -22,23 +35,22 @@ NadaEnv *nada_init_env() {
 // Clean up at program exit
 void nada_cleanup_env() {
     if (global_env) {
+        // Break circular references before releasing
+        struct NadaBinding *binding = global_env->bindings;
+        while (binding != NULL) {
+            if (binding->value && binding->value->type == NADA_FUNC) {
+                // Break circular reference - null out the environment reference
+                binding->value->data.function.env = NULL;
+            }
+            binding = binding->next;
+        }
+        
+        // Now release the environment
+        printf("Releasing global environment with ref count: %d\n", global_env->ref_count);
         nada_env_release(global_env);
         global_env = NULL;
     }
 }
-
-// Environment structure
-struct NadaBinding {
-    char *name;
-    NadaValue *value;
-    struct NadaBinding *next;
-};
-
-struct NadaEnv {
-    struct NadaBinding *bindings;
-    struct NadaEnv *parent;
-    int ref_count;  // Replace shared_mark with reference count
-};
 
 // Type to represent a built-in function
 typedef NadaValue *(*BuiltinFunc)(NadaValue *, NadaEnv *);
@@ -51,12 +63,6 @@ typedef struct {
 
 // Forward declaration of the builtins array
 static BuiltinFuncInfo builtins[];
-
-
-// Add near the top of the file, after includes
-extern void mark_evaluation_error();  // From run_lisp_tests.c
-
-// Add near the top of the file, with other global variables:
 
 // Flag to control symbol error reporting
 static int g_silent_symbol_lookup = 0;
@@ -78,6 +84,9 @@ void nada_env_release(NadaEnv *env) {
     env->ref_count--;
     if (env->ref_count <= 0) {
         nada_env_free(env);
+        printf("Environment freed\n");
+    } else {
+        printf("Environment reference count: %d\n", env->ref_count);
     }
 }
 
