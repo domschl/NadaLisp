@@ -3,11 +3,18 @@
 # Source files for the library
 set(LIB_SOURCES
     NadaValue.c
+    NadaEnv.c
     NadaParser.c
     NadaEval.c
     NadaString.c
     NadaNum.c
     NadaError.c
+    NadaBuiltinLists.c
+    NadaBuiltinMath.c
+    NadaBuiltinCompare.c
+    NadaBuiltinSpecialForms.c
+    NadaBuiltinPredicates.c
+    NadaBuiltinBoolOps.c
 )
 
 # Create the library with all the source code

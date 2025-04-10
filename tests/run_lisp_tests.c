@@ -187,34 +187,6 @@ static void report_results() {
     printf("========================\n");
 }
 
-// A simplified version of values_equal since we're not importing it
-static int values_equal(NadaValue *a, NadaValue *b) {
-    if (a->type != b->type) return 0;
-
-    switch (a->type) {
-    case NADA_NIL:
-        return 1;
-    case NADA_BOOL:
-        return a->data.boolean == b->data.boolean;
-    case NADA_NUM:
-        // This assumes you have a num_equal function
-        return nada_num_equal(a->data.number, b->data.number);
-    case NADA_SYMBOL:
-        return strcmp(a->data.symbol, b->data.symbol) == 0;
-    case NADA_STRING:
-        return strcmp(a->data.string, b->data.string) == 0;
-    case NADA_PAIR:
-        // Recursively check car and cdr
-        return values_equal(a->data.pair.car, b->data.pair.car) &&
-               values_equal(a->data.pair.cdr, b->data.pair.cdr);
-    case NADA_FUNC:
-        // Functions are equal if they're the same object (simplistic)
-        return a == b;
-    default:
-        return 0;
-    }
-}
-
 // Setup test environment with testing functions that work with your implementation
 static void setup_test_env(NadaEnv *env) {
     // Instead of defining the test functions directly,
