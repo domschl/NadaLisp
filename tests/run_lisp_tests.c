@@ -9,7 +9,6 @@
 #include "../src/NadaError.h"
 
 // Define test variables
-static NadaEnv *test_env;
 static int tests_run = 0;
 static int tests_passed = 0;
 
@@ -19,7 +18,7 @@ static int had_evaluation_error = 0;
 // Error handler callback
 static void test_error_handler(NadaErrorType type, const char *message, void *user_data) {
     // Do NOT error out if we are in silent mode, used for testing handling of undefined symbols
-    if (! nada_is_global_silent_symbol_lookup()) {
+    if (!nada_is_global_silent_symbol_lookup()) {
         // Print the error message
         fprintf(stderr, "Test-Handler-Error: %s\n", message);
         // Set the flag to indicate an error occurred
@@ -57,7 +56,7 @@ static const char *nada_type_name(int type) {
 }
 
 // Add a library loading function similar to the one in NadaLisp.c
-static void load_test_libraries() {
+static void load_test_libraries(NadaEnv *env) {
     // Try multiple potential library locations with more options
     const char *lib_dirs[] = {
         "src/nadalib",                // From project root
@@ -114,7 +113,7 @@ static void load_test_libraries() {
             snprintf(full_path, sizeof(full_path), "%s/%s", found_dir, filename);
 
             printf("  Loading %s\n", filename);
-            NadaValue *result = nada_load_file(full_path, test_env);
+            NadaValue *result = nada_load_file(full_path, env);
             nada_free(result);
 
             // Reset error flag after each library load
@@ -129,8 +128,6 @@ static void load_test_libraries() {
 // Initialize test environment
 static void init_test_env() {
     // Use the function from NadaEval.h
-    test_env = nada_create_standard_env();  // Change this to use standard env
-
     // Register our error handler
     nada_set_error_handler(test_error_handler, NULL);
 
@@ -140,15 +137,12 @@ static void init_test_env() {
     // Reset test counters
     tests_run = 0;
     tests_passed = 0;
-
-    // Load library files - similar to what we do in the REPL
-    load_test_libraries();
 }
 
 // Recursive function to break circular references in environments
 static void break_env_cycles(NadaEnv *env, int depth) {
     if (!env || depth > 100) return;  // Prevent infinite recursion
-    
+
     // Process all bindings in this environment
     struct NadaBinding *binding = env->bindings;
     while (binding != NULL) {
@@ -163,23 +157,10 @@ static void break_env_cycles(NadaEnv *env, int depth) {
         }
         binding = binding->next;
     }
-    
+
     // Also process parent environment recursively
     if (env->parent) {
         break_env_cycles(env->parent, depth + 1);
-    }
-}
-
-// Cleanup the test environment
-static void cleanup_test_env() {
-    if (test_env) {
-        // Break all circular references recursively
-        break_env_cycles(test_env, 0);
-        
-        // Now we can release the environment
-        printf("Releasing test environment with ref count: %d\n", test_env->ref_count);
-        nada_env_release(test_env);
-        test_env = NULL;
     }
 }
 
@@ -191,80 +172,13 @@ static void report_results() {
     printf("========================\n");
 }
 
-// Setup test environment with testing functions that work with your implementation
-static void setup_test_env(NadaEnv *env) {
-    // Instead of defining the test functions directly,
-    // load them from the testing library
-    char *lib_path = NULL;
-    
-    // Try to find the testing library
-    const char *lib_dirs[] = {
-        "src/nadalib/testing.scm",
-        "../src/nadalib/testing.scm",
-        "../../src/nadalib/testing.scm",
-        "../../../src/nadalib/testing.scm",
-        "./nadalib/testing.scm",
-        "/usr/local/share/nada/lib/testing.scm",
-        NULL  // End marker
-    };
-    
-    for (int i = 0; lib_dirs[i] != NULL; i++) {
-        FILE *file = fopen(lib_dirs[i], "r");
-        if (file) {
-            lib_path = strdup(lib_dirs[i]);
-            fclose(file);
-            break;
-        }
-    }
-    
-    if (lib_path) {
-        printf("Loading testing library from %s\n", lib_path);
-        NadaValue *result = nada_load_file(lib_path, env);
-        nada_free(result);
-        free(lib_path);
-    } else {
-        printf("Warning: Could not find testing library. Defining test functions inline.\n");
-        
-        // Fallback to inline definitions if library not found
-        NadaValue *expr = nada_parse(
-            "(define assert-equal "
-            "  (lambda (actual expected) "
-            "    (if (equal? actual expected) "
-            "        #t "
-            "        (lambda () "
-            "          (display \"  ASSERTION FAILED\\n\") "
-            "          (display \"  Expected: \") "
-            "          (write expected) "
-            "          (display \"\\n  Got:      \") "
-            "          (write actual) "
-            "          (display \"\\n\") "
-            "          #f))))");
-        NadaValue *result = nada_eval(expr, env);
-        nada_free(expr);
-        nada_free(result);
-
-        // Define the test function
-        expr = nada_parse(
-            "(define define-test "
-            "  (lambda (name body) "
-            "    (display \"Test: \") "
-            "    (display name) "
-            "    (let ((result body)) "
-            "      (display \"... \") "
-            "      (if (equal? result #t) "
-            "          (display \"PASSED\\n\") "
-            "          (display \"FAILED\\n\")) "
-            "      result)))");
-
-        result = nada_eval(expr, env);
-        nada_free(expr);
-        nada_free(result);
-    }
-}
-
 // Run a single test file
-static int run_test_file(const char *filename, NadaEnv *env) {
+static int run_test_file(const char *filename) {
     printf("Running tests from %s\n", filename);
+    // Load library files - similar to what we do in the REPL
+    NadaEnv *env = nada_create_standard_env();  // Change this to use standard env
+
+    load_test_libraries(env);
 
     // Reset error flag
     reset_error_flag();
@@ -274,14 +188,14 @@ static int run_test_file(const char *filename, NadaEnv *env) {
 
     // Load and evaluate the file with additional error handling
     NadaValue *result = NULL;
-    
+
     // Set up a signal handler or use setjmp/longjmp for crash protection if needed
 
-    nada_set_silent_symbol_lookup(1); // Suppress symbol lookup errors
+    nada_set_silent_symbol_lookup(1);  // Suppress symbol lookup errors
     // Load and evaluate with careful error handling
     result = nada_load_file(filename, env);
-    nada_set_silent_symbol_lookup(0); // Suppress symbol lookup errors
-    
+    nada_set_silent_symbol_lookup(0);  // Suppress symbol lookup errors
+
     // Check for errors
     int success = !had_evaluation_error && result != NULL;
 
@@ -291,7 +205,8 @@ static int run_test_file(const char *filename, NadaEnv *env) {
 
     // Clean up
     if (result) nada_free(result);
-
+    nada_cleanup_env(env);  // Use the cleanup function
+    env = NULL;             // Reset the environment
     return success;
 }
 
@@ -374,10 +289,6 @@ int run_lisp_tests(const char *dir_path) {
     // Initialize test environment
     init_test_env();
 
-
-    // Add testing functions to environment
-    setup_test_env(test_env);
-
     // Open the directory
     dir = opendir(dir_path);
     if (!dir) {
@@ -398,7 +309,7 @@ int run_lisp_tests(const char *dir_path) {
         validate_test_file(full_path);
 
         // Run tests in this file
-        if (!run_test_file(full_path, test_env)) {
+        if (!run_test_file(full_path)) {
             all_passed = 0;
         }
     }
@@ -411,9 +322,6 @@ int run_lisp_tests(const char *dir_path) {
     // Report test coverage
     report_test_coverage(dir_path);
 
-    // Cleanup
-    cleanup_test_env();
-
     return all_passed;
 }
 
@@ -422,9 +330,6 @@ int main(int argc, char *argv[]) {
     printf("=== NadaLisp Test Runner (Debug Version) ===\n");
 
     // Register an atexit handler to ensure cleanup happens even on crashes
-    atexit(cleanup_test_env);
-
-    // Default test directory paths to try
     const char *test_paths[] = {
         // User-provided path
         argc > 1 ? argv[1] : NULL,

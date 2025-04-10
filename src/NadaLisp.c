@@ -121,9 +121,10 @@ void run_repl(void) {
 void nada_cleanup() {
     // Free the global environment (which will free all values in it)
     if (global_env != NULL) {
-        nada_env_release(global_env);  // Use release instead of free
-        global_env = NULL;
+        printf("Cleaning up global environment, ref_count=%d...\n", global_env->ref_count);
+        nada_cleanup_env(global_env);
     }
+    printf("Cleanup done.\n");
 }
 
 // Fix the path composition in load_libraries

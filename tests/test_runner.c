@@ -29,14 +29,14 @@ void cleanup_test_env() {
     }
 }
 
-
 // Run a single test with an expected result
 int run_test(const char *name, const char *expr, const char *expected) {
     printf("Test: %s... ", name);
+    printf("Evaluating: %s\n", expr);
     tests_run++;
 
-    nada_set_silent_symbol_lookup(1); // Suppress symbol lookup errors, gives false alerts on edge case-tests
-    
+    nada_set_silent_symbol_lookup(1);  // Suppress symbol lookup errors, gives false alerts on edge case-tests
+
     NadaValue *parsed_expr = nada_parse(expr);
     NadaValue *result = nada_eval(parsed_expr, test_env);
     nada_free(parsed_expr);
@@ -44,7 +44,7 @@ int run_test(const char *name, const char *expr, const char *expected) {
     NadaValue *parsed_expected = nada_parse(expected);
     int success = values_equal(result, parsed_expected);
 
-    nada_set_silent_symbol_lookup(0); // Restore symbol lookup errors
+    nada_set_silent_symbol_lookup(0);  // Restore symbol lookup errors
 
     if (success) {
         printf("PASSED\n");

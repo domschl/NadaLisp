@@ -286,6 +286,7 @@ NadaValue *nada_parse(const char *input) {
     int paren_balance = validate_parentheses(input, &error_pos);
 
     if (paren_balance != 0) {
+        fprintf(stderr, "Input: %s\n", input);
         if (paren_balance > 0) {
             fprintf(stderr, "Error: missing %d closing parentheses\n", paren_balance);
         } else {
@@ -299,6 +300,7 @@ NadaValue *nada_parse(const char *input) {
 
             // Print pointer to error position
             fprintf(stderr, "%*s^\n", error_pos - context_start, "");
+            fprintf(stderr, "Full input:\n%s\n", input);
         }
 
         return nada_create_nil();

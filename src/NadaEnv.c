@@ -41,7 +41,7 @@ NadaEnv *nada_env_create(NadaEnv *parent) {
 // Free an environment and all its bindings
 void nada_env_free(NadaEnv *env) {
     if (!env) return;
-    
+
     // First pass: break circular references in functions
     struct NadaBinding *binding = env->bindings;
     while (binding) {
@@ -51,7 +51,7 @@ void nada_env_free(NadaEnv *env) {
         }
         binding = binding->next;
     }
-    
+
     // Second pass: now free the values
     binding = env->bindings;
     while (binding) {
@@ -64,12 +64,12 @@ void nada_env_free(NadaEnv *env) {
         free(binding);
         binding = next;
     }
-    
+
     // Release parent environment
     if (env->parent) {
         nada_env_release(env->parent);
     }
-    
+
     free(env);
 }
 
@@ -200,8 +200,6 @@ void nada_cleanup_env(NadaEnv *global_env) {
         while (binding != NULL) {
             if (binding->value && binding->value->type == NADA_FUNC &&
                 binding->value->data.function.env == global_env) {
-                // Release the reference count before nulling the pointer
-                nada_env_release(binding->value->data.function.env);
                 binding->value->data.function.env = NULL;
             }
             binding = binding->next;

@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
 
 #include "NadaEval.h"
 #include "NadaParser.h"
@@ -12,7 +13,6 @@
 #include "NadaBuiltinSpecialForms.h"
 #include "NadaBuiltinPredicates.h"
 #include "NadaBuiltinBoolOps.h"
-
 
 // Forward declaration of the builtins array
 static BuiltinFuncInfo builtins[];
@@ -365,11 +365,13 @@ static NadaValue *builtin_save_environment(NadaValue *args, NadaEnv *env) {
 
 // Built-in function: load-file
 static NadaValue *builtin_load_file(NadaValue *args, NadaEnv *env) {
+    // Validate arguments
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "load-file requires exactly one filename argument");
         return nada_create_bool(0);
     }
 
+    // Get and validate filename
     NadaValue *filename_arg = nada_eval(nada_car(args), env);
     if (filename_arg->type != NADA_STRING) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "load-file requires a string filename");
@@ -377,6 +379,7 @@ static NadaValue *builtin_load_file(NadaValue *args, NadaEnv *env) {
         return nada_create_bool(0);
     }
 
+    // Open file
     FILE *file = fopen(filename_arg->data.string, "r");
     if (!file) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "could not open file %s for reading",
@@ -385,111 +388,133 @@ static NadaValue *builtin_load_file(NadaValue *args, NadaEnv *env) {
         return nada_create_bool(0);
     }
 
-    // Use dynamic buffer allocation to handle files of any size
-    size_t buffer_size = 16384;  // Start with a larger initial buffer
-    char *buffer = malloc(buffer_size);
-    if (!buffer) {
-        nada_report_error(NADA_ERROR_MEMORY, "failed to allocate memory for loading file");
+    // Read the entire file content in one go
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    rewind(file);
+
+    // Allocate buffer with extra space for a null terminator
+    char *file_content = malloc(file_size + 1);
+    if (!file_content) {
+        nada_report_error(NADA_ERROR_MEMORY, "failed to allocate memory for file content");
         fclose(file);
         nada_free(filename_arg);
         return nada_create_bool(0);
     }
-    buffer[0] = '\0';
 
-    char line[1024];
-    int paren_balance = 0;
-    int in_string = 0;
-    int prev_char_backslash = 0;  // Track backslashes for escaped quotes
+    // Read the entire file
+    size_t bytes_read = fread(file_content, 1, file_size, file);
+    file_content[bytes_read] = '\0';
+    fclose(file);
+
+    // Now process the file content
+    char *current_pos = file_content;
+    char *buffer = malloc(bytes_read + 1);
+    if (!buffer) {
+        nada_report_error(NADA_ERROR_MEMORY, "failed to allocate memory for parsing buffer");
+        free(file_content);
+        nada_free(filename_arg);
+        return nada_create_bool(0);
+    }
+
     NadaValue *last_result = nada_create_nil();
 
-    while (fgets(line, sizeof(line), file)) {
-        // Skip full-line comments
-        if (line[0] == ';') continue;
-
-        // Check if we need to expand the buffer
-        if (strlen(buffer) + strlen(line) + 1 > buffer_size) {
-            buffer_size *= 2;
-            char *new_buffer = realloc(buffer, buffer_size);
-            if (!new_buffer) {
-                nada_report_error(NADA_ERROR_MEMORY, "failed to expand buffer for loading file");
-                free(buffer);
-                fclose(file);
-                nada_free(filename_arg);
-                nada_free(last_result);
-                return nada_create_bool(0);
+    // Process the file content, one expression at a time
+    while (*current_pos) {
+        // Skip whitespace and comments
+        while (*current_pos && (isspace(*current_pos) || *current_pos == ';')) {
+            if (*current_pos == ';') {
+                // Skip to end of line
+                while (*current_pos && *current_pos != '\n')
+                    current_pos++;
             }
-            buffer = new_buffer;
+            if (*current_pos)
+                current_pos++;
         }
 
-        // Add this line to our buffer
-        strcat(buffer, line);
+        // If we reached the end, we're done
+        if (!*current_pos)
+            break;
 
-        // Count parentheses to ensure we have complete expressions
-        for (char *p = line; *p; p++) {
-            // Check for comments - comments start with semicolon and continue to end of line
-            if (*p == ';' && !in_string) {
-                // Found a comment, ignore rest of line
+        // Extract a single, complete expression
+        int depth = 0;
+        int in_string = 0;
+        int escaped = 0;
+        int pos = 0;
+
+        // Read until we have a complete expression
+        char c;
+        while ((c = *current_pos)) {
+            buffer[pos++] = c;
+            current_pos++;
+
+            if (escaped) {
+                escaped = 0;
+                continue;
+            }
+
+            if (c == '\\' && in_string) {
+                escaped = 1;
+            } else if (c == '"' && !escaped) {
+                in_string = !in_string;
+            } else if (!in_string) {
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')') {
+                    depth--;
+                    // Complete expression found
+                    if (depth == 0 && pos > 0) {
+                        buffer[pos] = '\0';
+
+                        // Parse and evaluate the expression
+                        NadaValue *expr = nada_parse(buffer);
+                        if (expr) {
+                            nada_free(last_result);
+                            last_result = nada_eval(expr, env);
+                            nada_free(expr);
+                        }
+
+                        pos = 0;
+                        break;
+                    }
+                } else if (depth == 0 && !isspace(c) && c != ';') {
+                    // This is an atom outside parentheses (like a number or symbol)
+                    // Read until whitespace or comment
+                    while (*current_pos && !isspace(*current_pos) && *current_pos != ';' &&
+                           *current_pos != '(' && *current_pos != ')') {
+                        buffer[pos++] = *current_pos++;
+                    }
+
+                    buffer[pos] = '\0';
+
+                    // Parse and evaluate the atom
+                    NadaValue *expr = nada_parse(buffer);
+                    if (expr) {
+                        nada_free(last_result);
+                        last_result = nada_eval(expr, env);
+                        nada_free(expr);
+                    }
+
+                    pos = 0;
+                    break;
+                }
+            }
+
+            // Safety check to prevent buffer overflow
+            if (pos >= bytes_read) {
+                nada_report_error(NADA_ERROR_SYNTAX, "expression too large in file %s",
+                                  filename_arg->data.string);
                 break;
             }
-
-            // Handle string delimiters correctly (respect escaping)
-            if (*p == '"' && !prev_char_backslash) {
-                in_string = !in_string;
-            }
-
-            // Track backslash for escaped quotes
-            prev_char_backslash = (*p == '\\' && !prev_char_backslash);
-
-            // Only count parentheses outside of strings
-            if (!in_string) {
-                if (*p == '(')
-                    paren_balance++;
-                else if (*p == ')')
-                    paren_balance--;
-            }
-        }
-
-        // If balanced and buffer isn't empty, evaluate the expression
-        if (paren_balance == 0 && strlen(buffer) > 0) {
-            NadaValue *expr = nada_parse(buffer);
-            if (expr) {
-                // Free previous result
-                nada_free(last_result);
-
-                // Evaluate this expression
-                last_result = nada_eval(expr, env);
-                nada_free(expr);
-            }
-
-            // Clear buffer for next expression
-            buffer[0] = '\0';
-            
-            paren_balance = 0;
-            in_string = 0;
-            prev_char_backslash = 0;  // Reset backslash tracking
         }
     }
 
-    // Process any remaining content in the buffer
-    if (strlen(buffer) > 0) {
-        if (paren_balance != 0) {
-            nada_report_error(NADA_ERROR_SYNTAX, "unbalanced parentheses in file %s",
-                              filename_arg->data.string);
-        } else {
-            NadaValue *expr = nada_parse(buffer);
-            if (expr) {
-                nada_free(last_result);
-                last_result = nada_eval(expr, env);
-                nada_free(expr);
-            }
-        }
-    }
-
+    // Clean up
     free(buffer);
-    fclose(file);
+    free(file_content);
     nada_free(filename_arg);
 
-    return last_result;  // Return the result of the last evaluation
+    return last_result;
 }
 
 // Built-in function: define-test
@@ -800,7 +825,7 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
         }
 
         nada_free(eval_op);
-        if (! nada_is_global_silent_symbol_lookup()) {
+        if (!nada_is_global_silent_symbol_lookup()) {
             nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "not a function");
         }
         return nada_create_nil();
