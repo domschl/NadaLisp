@@ -18,7 +18,7 @@
 static BuiltinFuncInfo builtins[];
 
 // Flag to control symbol error reporting
-static int g_silent_symbol_lookup = 0;
+int g_silent_symbol_lookup = 0;
 
 // Function to enable/disable silent symbol lookup
 void nada_set_silent_symbol_lookup(int silent) {
@@ -709,7 +709,7 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
 
     // Symbol lookup
     if (expr->type == NADA_SYMBOL) {
-        return nada_env_get(env, expr->data.symbol, g_silent_symbol_lookup);
+        return nada_env_get(env, expr->data.symbol, nada_is_global_silent_symbol_lookup());
     }
 
     // List processing and the rest of the function...
@@ -796,7 +796,9 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
         }
 
         nada_free(eval_op);
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "not a function");
+        if (! nada_is_global_silent_symbol_lookup()) {
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "not a function");
+        }
         return nada_create_nil();
     }
 

@@ -51,11 +51,13 @@ if(TARGET LispBasedTests)
 endif()
 
 # Add updated test definition
+message("Adding test")
 add_test(
   NAME LispBasedTests
   COMMAND run_lisp_tests "${CMAKE_CURRENT_SOURCE_DIR}/lisp_tests"
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/tests
 )
+message("End add test")
 
 # Memory leak test
 if(UNIX)

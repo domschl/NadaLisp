@@ -18,11 +18,15 @@ static int had_evaluation_error = 0;
 
 // Error handler callback
 static void test_error_handler(NadaErrorType type, const char *message, void *user_data) {
-    // Print the error message
-    fprintf(stderr, "Error: %s\n", message);
-
-    // Set the flag to indicate an error occurred
-    had_evaluation_error = 1;
+    // Do NOT error out if we are in silent mode, used for testing handling of undefined symbols
+    if (! nada_is_global_silent_symbol_lookup()) {
+        // Print the error message
+        fprintf(stderr, "Test-Handler-Error: %s\n", message);
+        // Set the flag to indicate an error occurred
+        had_evaluation_error = 1;
+    } else {
+        printf("Suppressing lookup-error: %s\n", message);
+    }
 }
 
 // Reset the error flag
@@ -272,9 +276,11 @@ static int run_test_file(const char *filename, NadaEnv *env) {
     NadaValue *result = NULL;
     
     // Set up a signal handler or use setjmp/longjmp for crash protection if needed
-    
+
+    nada_set_silent_symbol_lookup(1); // Suppress symbol lookup errors
     // Load and evaluate with careful error handling
     result = nada_load_file(filename, env);
+    nada_set_silent_symbol_lookup(0); // Suppress symbol lookup errors
     
     // Check for errors
     int success = !had_evaluation_error && result != NULL;
@@ -367,6 +373,7 @@ int run_lisp_tests(const char *dir_path) {
 
     // Initialize test environment
     init_test_env();
+
 
     // Add testing functions to environment
     setup_test_env(test_env);

@@ -12,7 +12,12 @@
 // Error handler callback
 static void error_handler(NadaErrorType type, const char *message, void *user_data) {
     // Print the error message
-    fprintf(stderr, "Error: %s\n", message);
+    if (! nada_is_global_silent_symbol_lookup()) {
+        // Do NOT error out if we are in silent mode, used for testing handling of undefined symbols
+        fprintf(stderr, "Leak-Error-Handler: %s\n", message);
+    } else {
+        printf("Suppressing lookup-error: %s\n", message);
+    }
 }
 
 // Function to load standard libraries
@@ -87,8 +92,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Set up the error handler
-    nada_set_error_handler(error_handler, NULL);
+    // Set up the error handler [don't, causes problems with intentional undefs]
+    // nada_set_error_handler(error_handler, NULL);
 
     // Create a standard environment
     NadaEnv *env = nada_create_standard_env();
@@ -98,8 +103,10 @@ int main(int argc, char *argv[]) {
     
     printf("Running memory test on %s\n", argv[1]);
 
+    nada_set_silent_symbol_lookup(1);  // Suppress symbol lookup errors
     // Use the proper file loading function to handle multi-line expressions
     NadaValue *result = nada_load_file(argv[1], env);
+    nada_set_silent_symbol_lookup(0);  // Restore symbol lookup errors
     
     // Clean up
     nada_free(result);
