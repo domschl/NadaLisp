@@ -3,6 +3,20 @@
 
 #include "NadaValue.h"
 
+// Define the binding structure
+struct NadaBinding {
+    char *name;
+    NadaValue *value;
+    struct NadaBinding *next;
+};
+
+// Environment structure definition (previously forward-declared)
+struct NadaEnv {
+    struct NadaBinding *bindings;
+    struct NadaEnv *parent;
+    int ref_count;
+};
+
 // Environment type
 typedef struct NadaEnv NadaEnv;
 
@@ -38,5 +52,9 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env);
 
 // Add to public API:
 NadaValue *nada_load_file(const char *filename, NadaEnv *env);
+
+// Load standard library files from available paths
+// Returns the number of library files loaded
+int nada_load_libraries(NadaEnv *env, int verbose);
 
 #endif  // NADA_EVAL_H

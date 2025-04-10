@@ -1,23 +1,10 @@
 #include "NadaEval.h"
 #include "NadaParser.h"
-#include "NadaString.h"  // Add this include
+#include "NadaString.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include "NadaError.h"
-
-// Environment structure - MOVE THESE DEFINITIONS UP
-struct NadaBinding {
-    char *name;
-    NadaValue *value;
-    struct NadaBinding *next;
-};
-
-struct NadaEnv {
-    struct NadaBinding *bindings;
-    struct NadaEnv *parent;
-    int ref_count;  // Replace shared_mark with reference count
-};
 
 // Add this to track global environments
 static NadaEnv *global_env = NULL;

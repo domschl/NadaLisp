@@ -185,8 +185,11 @@ void nada_free(NadaValue *val) {
             val->data.function.env = NULL; // Prevent double-free
         }
         break;
-    default:
-        // No special cleanup needed
+    case NADA_NIL:
+        // No special cleanup needed for nil
+        break;
+    case NADA_BOOL:
+        // No special cleanup needed for boolean
         break;
     }
 
@@ -208,7 +211,6 @@ void nada_print(NadaValue *val) {
         free(str);
         break;
     }
-    // Remove the NADA_INT case as it's been replaced by NADA_NUM
     case NADA_STRING:
         printf("\"%s\"", val->data.string);
         break;
@@ -258,23 +260,19 @@ NadaValue *nada_deep_copy(NadaValue *val) {
     case NADA_NUM:
         result->data.number = nada_num_copy(val->data.number);
         break;
-
     case NADA_STRING:
         result->data.string = strdup(val->data.string);
         break;
-
     case NADA_SYMBOL:
         result->data.symbol = strdup(val->data.symbol);
         break;
-
     case NADA_NIL:
+        // No additional initialization needed for nil
         break;
-
     case NADA_PAIR:
         result->data.pair.car = nada_deep_copy(val->data.pair.car);
         result->data.pair.cdr = nada_deep_copy(val->data.pair.cdr);
         break;
-
     case NADA_FUNC:
         result->data.function.params = nada_deep_copy(val->data.function.params);
         result->data.function.body = nada_deep_copy(val->data.function.body);
@@ -286,14 +284,9 @@ NadaValue *nada_deep_copy(NadaValue *val) {
             nada_env_add_ref(result->data.function.env);
         }
         break;
-
     case NADA_BOOL:
         result->data.boolean = val->data.boolean;
         break;
-
-    default:
-        free(result);
-        return nada_create_nil();
     }
 
     nada_increment_allocations();

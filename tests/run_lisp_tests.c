@@ -1,27 +1,14 @@
-#include "../src/NadaEval.h"  // Include this for environment functions
+#include "../src/NadaEval.h"
 #include "../src/NadaParser.h"
 #include "../src/NadaValue.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
-#include <unistd.h>  // For getcwd()
+#include <unistd.h>
 #include "../src/NadaError.h"
 
-// Add the structure definitions here
-struct NadaBinding {
-    char *name;
-    NadaValue *value;
-    struct NadaBinding *next;
-};
-
-struct NadaEnv {
-    struct NadaBinding *bindings;
-    struct NadaEnv *parent;
-    int ref_count;
-};
-
-// Define test variables locally instead of importing them
+// Define test variables
 static NadaEnv *test_env;
 static int tests_run = 0;
 static int tests_passed = 0;
