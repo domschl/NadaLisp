@@ -301,7 +301,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
 
         // Create the loop environment with an extra reference
         NadaEnv *loop_env = nada_env_create(env);
-        nada_env_add_ref(loop_env);  // Add a scope reference to keep it alive
+        nada_env_add_ref(loop_env);  // Add 'extra' scope reference to keep it alive
 
         // Evaluate initial binding values in the original environment
         NadaValue *current_binding = bindings;
@@ -375,7 +375,8 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
                 nada_free(result);
 
                 // Use nada_env_release instead of nada_env_free
-                nada_env_release(loop_env);
+                nada_env_release(loop_env);  // Release our scope reference
+                nada_env_release(loop_env);  // Release the 'extra' scope
                 return result_copy;
             } else {
                 result = nada_eval(nada_car(current_expr), loop_env);
