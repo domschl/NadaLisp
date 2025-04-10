@@ -463,6 +463,7 @@ static NadaValue *builtin_load_file(NadaValue *args, NadaEnv *env) {
 
             // Clear buffer for next expression
             buffer[0] = '\0';
+            
             paren_balance = 0;
             in_string = 0;
             prev_char_backslash = 0;  // Reset backslash tracking
