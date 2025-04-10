@@ -178,9 +178,15 @@ void nada_free(NadaValue *val) {
             nada_free(val->data.function.body);
             val->data.function.body = NULL; // Prevent double-free
         }        
+        // Only release the environment if it's not NULL
+        // This handles functions with broken circular references
         if (val->data.function.env) {
-            nada_env_release(val->data.function.env);
-            val->data.function.env = NULL; // Prevent double-free
+            // First null out the environment pointer to break any potential cycles
+            NadaEnv *temp_env = val->data.function.env;
+            val->data.function.env = NULL; // Break potential cycles BEFORE releasing
+            
+            // Now it's safe to release the environment
+            nada_env_release(temp_env);
         }
         break;
     case NADA_NIL:
