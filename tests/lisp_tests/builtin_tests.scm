@@ -101,10 +101,10 @@
                                (member 'test-var syms)))
   ; Cannot easily test env-describe directly since it outputs to stdout
   (undef 'test-var))
-; CMake;s CTest bails out on this, so this test is manual-only
-;  (assert-equal (eval 'test-var 
-;                     (lambda () 'undefined)
-;                     (lambda (val) val)) 'undefined))
+; CMakes CTest bails out on this without disabling global symbol lookup errors!
+  (assert-equal (eval 'test-var 
+                     (lambda () 'undefined)
+                     (lambda (val) val)) 'undefined))
 
 ; ----- String and I/O Function Tests -----
 (define-test "string-functions"
