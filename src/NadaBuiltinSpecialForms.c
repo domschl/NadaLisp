@@ -312,6 +312,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
                 nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
                                   "named let binding must be (var value)");
                 nada_env_release(loop_env);
+                nada_env_release(loop_env);  // 'extra' scope reference
                 return nada_create_nil();
             }
             const char *var_name = nada_car(binding)->data.symbol;
