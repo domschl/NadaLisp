@@ -300,6 +300,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
         NadaValue *body = nada_cdr(nada_cdr(args));
 
         NadaEnv *loop_env = nada_env_create(env);
+        nada_env_add_ref(loop_env); // scope hold: ensures loop_env remains live
 
         // Evaluate initial binding values in the original environment
         NadaValue *current_binding = bindings;
