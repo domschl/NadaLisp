@@ -41,34 +41,35 @@ NadaEnv *nada_env_create(NadaEnv *parent) {
 // Free an environment and all its bindings
 void nada_env_free(NadaEnv *env) {
     if (!env) return;
-
-    // Set ref_count to zero to prevent circular freeing
-    env->ref_count = 0;
-
-    // Free all bindings
-    struct NadaBinding *current = env->bindings;
-    while (current != NULL) {
-        struct NadaBinding *next = current->next;
-
-        // Null out environment references in any function values
-        // to break potential circular references
-        if (current->value && current->value->type == NADA_FUNC &&
-            current->value->data.function.env == env) {
-            current->value->data.function.env = NULL;
+    
+    // First pass: break circular references in functions
+    struct NadaBinding *binding = env->bindings;
+    while (binding) {
+        if (binding->value && binding->value->type == NADA_FUNC) {
+            // Break the circular reference by nulling out the env pointer
+            binding->value->data.function.env = NULL;
         }
-
-        nada_free(current->value);
-        free(current->name);
-        free(current);
-        current = next;
+        binding = binding->next;
     }
-
-    // Release parent instead of directly freeing
+    
+    // Second pass: now free the values
+    binding = env->bindings;
+    while (binding) {
+        struct NadaBinding *next = binding->next;
+        free(binding->name);
+        if (binding->value) {
+            nada_free(binding->value);
+            binding->value = NULL;
+        }
+        free(binding);
+        binding = next;
+    }
+    
+    // Release parent environment
     if (env->parent) {
         nada_env_release(env->parent);
-        env->parent = NULL;
     }
-
+    
     free(env);
 }
 
