@@ -138,7 +138,7 @@ static void init_test_env() {
     tests_run = 0;
     tests_passed = 0;
 }
-
+/*
 // Recursive function to break circular references in environments
 static void break_env_cycles(NadaEnv *env, int depth) {
     if (!env || depth > 100) return;  // Prevent infinite recursion
@@ -163,6 +163,7 @@ static void break_env_cycles(NadaEnv *env, int depth) {
         break_env_cycles(env->parent, depth + 1);
     }
 }
+    */
 
 static void report_results() {
     printf("\n==== Test Summary ====\n");

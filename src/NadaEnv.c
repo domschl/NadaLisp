@@ -68,6 +68,7 @@ void nada_env_free(NadaEnv *env) {
     // Release parent environment
     if (env->parent) {
         nada_env_release(env->parent);
+        env->parent = NULL;
     }
 
     free(env);
@@ -208,6 +209,7 @@ void nada_cleanup_env(NadaEnv *global_env) {
         // Now release the environment
         printf("Releasing global environment with ref count: %d\n", global_env->ref_count);
         nada_env_release(global_env);
+        // nada_env_free(global_env);
         global_env = NULL;
     }
 }
