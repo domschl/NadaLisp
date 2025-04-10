@@ -339,7 +339,26 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
 
         // Create recursive function
         NadaValue *loop_func = nada_create_function(reversed_params, body_copy, loop_env);
+        
+        // Store the function in the environment
         nada_env_set(loop_env, loop_name, loop_func);
+        
+        // IMPORTANT: Break the circular reference by nulling out the environment 
+        // reference in the function AFTER it's been stored in the environment
+        struct NadaBinding *binding = loop_env->bindings;
+        while (binding != NULL) {
+            if (strcmp(binding->name, loop_name) == 0 && 
+                binding->value && binding->value->type == NADA_FUNC) {
+                nada_env_release(binding->value->data.function.env); 
+                // Break the circular reference
+                binding->value->data.function.env = NULL;
+                break;
+            }
+            binding = binding->next;
+        }
+        
+        // Free our reference to the function
+        // The environment still has its copy
         nada_free(loop_func);
 
         // Evaluate body

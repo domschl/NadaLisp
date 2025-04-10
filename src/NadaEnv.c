@@ -1,4 +1,5 @@
 #include "NadaEnv.h"
+#include "NadaEval.h"
 #include "NadaError.h"
 #include <stdlib.h>
 #include <string.h>
@@ -16,9 +17,9 @@ void nada_env_release(NadaEnv *env) {
     env->ref_count--;
     if (env->ref_count <= 0) {
         nada_env_free(env);
-        printf("Environment freed\n");
+        // printf("Environment freed\n");
     } else {
-        printf("Environment reference count: %d\n", env->ref_count);
+        // printf("Environment reference count: %d\n", env->ref_count);
     }
 }
 
@@ -130,7 +131,7 @@ NadaValue *nada_env_get(NadaEnv *env, const char *name, int silent) {
     }
 
     // Not found
-    if (!silent) {
+    if (!silent && !nada_is_global_silent_symbol_lookup()) {
         nada_report_error(NADA_ERROR_UNDEFINED_SYMBOL,
                           "symbol '%s' not found in environment", name);
     }

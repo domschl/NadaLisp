@@ -32,8 +32,8 @@ typedef struct {
     NadaValue *params;    // Parameter list
     NadaValue *body;      // Function body
     struct NadaEnv *env;  // Captured environment (closure)
-    // Add this new field to store built-in function pointers
     NadaValue *(*builtin)(NadaValue *, struct NadaEnv *);
+    bool ref_managed;
 } NadaFunc;
 
 // Main value structure (tagged union)
@@ -48,6 +48,7 @@ struct NadaValue {
         int boolean;        // For NADA_BOOL (1=true, 0=false)
         // NADA_NIL has no data
     } data;
+    bool ref_managed;
 };
 
 // Constructor functions

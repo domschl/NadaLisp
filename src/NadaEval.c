@@ -25,6 +25,10 @@ void nada_set_silent_symbol_lookup(int silent) {
     g_silent_symbol_lookup = silent;
 }
 
+bool nada_is_global_silent_symbol_lookup() {
+    return g_silent_symbol_lookup;
+}
+
 // Apply a function to arguments
 NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) {
     if (func->type != NADA_FUNC) {

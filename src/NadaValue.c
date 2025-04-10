@@ -114,6 +114,7 @@ NadaValue *nada_create_function(NadaValue *params, NadaValue *body, NadaEnv *env
     val->data.function.body = body;
     val->data.function.env = env;
     val->data.function.builtin = NULL;
+    val->data.function.ref_managed = 0;
     
     // Add a reference to the environment
     nada_env_add_ref(env);
@@ -179,10 +180,19 @@ void nada_free(NadaValue *val) {
             val->data.function.body = NULL; // Prevent double-free
         }
         
-        // Release the environment (will only free if ref_count drops to 0)
+        // Handle environment reference based on ref_managed flag
         if (val->data.function.env) {
             nada_env_release(val->data.function.env);
             val->data.function.env = NULL; // Prevent double-free
+        } else if (val->data.function.ref_managed) {
+            // This is a function with a broken circular reference
+            // We need to clean up the environment it was originally part of
+            
+            // In the named let case, we don't need to do anything here because:
+            // 1. We already null out the env pointer to break circular reference
+            // 2. The environment gets cleaned up separately through nada_env_release
+            // 3. But we do need to reset the flag to prevent potential issues
+            val->data.function.ref_managed = 0;
         }
         break;
     case NADA_NIL:

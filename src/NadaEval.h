@@ -13,7 +13,9 @@ typedef struct {
     BuiltinFunc func;
 } BuiltinFuncInfo;
 
+// Hack to check for validity of a symbol without printing an error
 void nada_set_silent_symbol_lookup(int silent);
+bool nada_is_global_silent_symbol_lookup();
 
 // Create a standard environment with all built-in functions
 NadaEnv *nada_create_standard_env(void);
