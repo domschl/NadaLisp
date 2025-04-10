@@ -2,6 +2,7 @@
 #include "../src/NadaEval.h"
 #include "../src/NadaParser.h"
 #include "../src/NadaValue.h"
+#include "../src/NadaBuiltinCompare.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,36 +29,6 @@ void cleanup_test_env() {
     }
 }
 
-// Helper to check if two values are equal (with improved dotted pair handling)
-int values_equal(NadaValue *a, NadaValue *b) {
-    if (a->type != b->type) {
-        return 0;
-    }
-
-    switch (a->type) {
-    case NADA_NUM:
-        // Use the rational number equality function
-        return nada_num_equal(a->data.number, b->data.number);
-    case NADA_BOOL:
-        return a->data.boolean == b->data.boolean;
-    case NADA_STRING:
-        return strcmp(a->data.string, b->data.string) == 0;
-    case NADA_SYMBOL:
-        return strcmp(a->data.symbol, b->data.symbol) == 0;
-    case NADA_NIL:
-        return 1;  // Both are nil
-    case NADA_PAIR:
-        // First check the car values recursively
-        if (!values_equal(a->data.pair.car, b->data.pair.car)) {
-            return 0;
-        }
-
-        // For dotted pairs, directly compare the cdr values
-        return values_equal(a->data.pair.cdr, b->data.pair.cdr);
-    default:
-        return 0;
-    }
-}
 
 // Run a single test with an expected result
 int run_test(const char *name, const char *expr, const char *expected) {

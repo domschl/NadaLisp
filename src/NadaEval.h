@@ -1,41 +1,18 @@
 #ifndef NADA_EVAL_H
 #define NADA_EVAL_H
 
+#include "NadaEnv.h"
 #include "NadaValue.h"
 
-// Define the binding structure
-struct NadaBinding {
-    char *name;
-    NadaValue *value;
-    struct NadaBinding *next;
-};
+// Type to represent a built-in function
+typedef NadaValue *(*BuiltinFunc)(NadaValue *, NadaEnv *);
 
-// Environment structure definition (previously forward-declared)
-struct NadaEnv {
-    struct NadaBinding *bindings;
-    struct NadaEnv *parent;
-    int ref_count;
-};
+// Structure to hold built-in function info
+typedef struct {
+    const char *name;
+    BuiltinFunc func;
+} BuiltinFuncInfo;
 
-// Environment type
-typedef struct NadaEnv NadaEnv;
-
-// Environment lifecycle management functions
-NadaEnv *nada_env_create(NadaEnv *parent);
-void nada_env_free(NadaEnv *env);
-
-// Environment reference management functions
-void nada_env_add_ref(NadaEnv *env);
-void nada_env_release(NadaEnv *env);
-void nada_cleanup_env();
-
-// Environment functions
-void nada_env_set(NadaEnv *env, const char *name, NadaValue *value);
-NadaValue *nada_env_get(NadaEnv *env, const char *name, int silent);
-// Look up a symbol in the environment without printing error messages
-NadaValue *nada_env_lookup_symbol(NadaEnv *env, const char *name);
-
-// Symbol lookup silent mode control
 void nada_set_silent_symbol_lookup(int silent);
 
 // Create a standard environment with all built-in functions
@@ -52,6 +29,9 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env);
 
 // Add to public API:
 NadaValue *nada_load_file(const char *filename, NadaEnv *env);
+
+// Check if a symbol is a built-in function and get its name
+const char *get_builtin_name(BuiltinFunc func);
 
 // Load standard library files from available paths
 // Returns the number of library files loaded
