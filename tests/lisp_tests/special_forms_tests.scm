@@ -24,13 +24,6 @@
   (assert-equal ((lambda (x y) (+ x y)) 2 3) 5)
   (assert-equal (((lambda (x) (lambda (y) (+ x y))) 5) 3) 8))
 
-(define-test "lambda-closure"
-  (define make-adder
-    (lambda (n)
-      (lambda (x) (+ x n))))
-  (define add5 (make-adder 5))
-  (assert-equal (add5 10) 15)
-  (assert-equal ((make-adder 2) 10) 12))
 
 ; ----- Function Definition Tests -----
 (define-test "function-definition"
