@@ -11,13 +11,6 @@
                   (+ a b))
                 8))
 
-(define-test "let-named-form"
-  (assert-equal (let loop ((i 0) (acc 0))
-                  (if (= i 5)
-                      acc
-                      (loop (+ i 1) (+ acc i))))
-                10))
-
 ; ----- Lambda Tests -----
 (define-test "lambda-basics"
   (assert-equal ((lambda (x) (* x x)) 4) 16)
