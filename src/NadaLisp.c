@@ -1,13 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>  // For getcwd()
 #include <readline/readline.h>
 #include <readline/history.h>
-#include <dirent.h>  // Include for directory handling
+
 #include "NadaValue.h"
 #include "NadaParser.h"
 #include "NadaEval.h"
+#include "NadaConfig.h"
 
 // Global environment
 static NadaEnv *global_env;
@@ -117,101 +117,13 @@ void run_repl(void) {
     printf("\nGoodbye!\n");
 }
 
-// Fix environment handling
-void nada_cleanup() {
-    // Free the global environment (which will free all values in it)
-    if (global_env != NULL) {
-        printf("Cleaning up global environment, ref_count=%d...\n", global_env->ref_count);
-        nada_cleanup_env(global_env);
-    }
-    printf("Cleanup done.\n");
-}
-
-// Fix the path composition in load_libraries
-void load_libraries(NadaEnv *env) {
-    // Try multiple potential library locations
-    const char *lib_dirs[] = {
-        "src/nadalib",                // When run from project root
-        "../src/nadalib",             // When run from build directory
-        "./nadalib",                  // When run from src directory
-        "/usr/local/share/nada/lib",  // System-wide installation
-        NULL                          // End marker
-    };
-
-    DIR *dir = NULL;
-    char cwd_buffer[1024];
-    int found_index = -1;  // Store the index of the found directory
-
-    // Get current working directory for better diagnostics
-    if (getcwd(cwd_buffer, sizeof(cwd_buffer)) == NULL) {
-        strcpy(cwd_buffer, "(unknown)");
-    }
-
-    printf("Searching for libraries from working directory: %s\n", cwd_buffer);
-
-    // Try each potential location
-    for (int i = 0; lib_dirs[i] != NULL; i++) {
-        dir = opendir(lib_dirs[i]);
-        if (dir) {
-            printf("Found library directory: %s\n", lib_dirs[i]);
-            found_index = i;  // Store the index
-            break;
-        }
-
-        // Show the full path we tried
-        if (lib_dirs[i][0] == '/') {
-            // Absolute path
-            printf("Tried library path: %s (not found)\n", lib_dirs[i]);
-        } else {
-            // Relative path
-            printf("Tried library path: %s/%s (not found)\n", cwd_buffer, lib_dirs[i]);
-        }
-    }
-
-    if (found_index < 0) {
-        printf("Note: No library directory found. Libraries not loaded.\n");
-        printf("Create the directory 'src/nadalib' and add .scm files there.\n");
-        return;
-    }
-
-    // Use the actual found directory path for loading
-    const char *found_dir = lib_dirs[found_index];
-    printf("Loading libraries from %s...\n", found_dir);
-
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        // Skip directories and non-.scm files
-        if (entry->d_type == DT_DIR) continue;
-
-        const char *filename = entry->d_name;
-        size_t len = strlen(filename);
-
-        // Check for .scm extension
-        if (len > 4 && strcmp(filename + len - 4, ".scm") == 0) {
-            // Use the CORRECT found directory path
-            char full_path[1024];
-            snprintf(full_path, sizeof(full_path), "%s/%s", found_dir, filename);
-
-            printf("  Loading %s\n", filename);
-            NadaValue *result = nada_load_file(full_path, global_env);
-            nada_free(result);
-        }
-    }
-
-    closedir(dir);
-    printf("Libraries loaded successfully.\n");
-}
-
 // Update the main function to call nada_load_file directly
 int main(int argc, char *argv[]) {
     // Initialize the global environment
     global_env = nada_create_standard_env();
 
-    // Register cleanup
-    atexit(nada_cleanup);
-
     // Load libraries
-    load_libraries(global_env);
+    nada_load_libraries(global_env);
 
     if (argc > 1) {
         // File mode: load the specified file using nada_load_file
@@ -221,6 +133,7 @@ int main(int argc, char *argv[]) {
         // Interactive mode: run the REPL
         run_repl();
     }
+    nada_cleanup_env(global_env);
 
     return 0;
 }

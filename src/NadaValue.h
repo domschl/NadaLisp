@@ -72,6 +72,9 @@ void nada_free(NadaValue *val);
 // Deep copy a value
 NadaValue *nada_deep_copy(NadaValue *val);
 
+// Type to string
+const char *nada_type_name(int type);
+
 // Print function for debugging and REPL output
 void nada_print(NadaValue *val);
 

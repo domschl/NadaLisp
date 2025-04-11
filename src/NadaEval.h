@@ -47,8 +47,4 @@ const char *get_builtin_name(BuiltinFunc func);
 
 void nada_serialize_env(NadaEnv *current_env, FILE *out);
 
-// Load standard library files from available paths
-// Returns the number of library files loaded
-int nada_load_libraries(NadaEnv *env, int verbose);
-
 #endif  // NADA_EVAL_H

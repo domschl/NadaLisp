@@ -9,6 +9,7 @@ set(LIB_SOURCES
     NadaString.c
     NadaNum.c
     NadaError.c
+    NadaConfig.c
     NadaBuiltinLists.c
     NadaBuiltinMath.c
     NadaBuiltinCompare.c

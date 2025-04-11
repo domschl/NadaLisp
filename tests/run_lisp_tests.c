@@ -1,12 +1,14 @@
-#include "../src/NadaEval.h"
-#include "../src/NadaParser.h"
-#include "../src/NadaValue.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 #include <unistd.h>
+
 #include "../src/NadaError.h"
+#include "../src/NadaEval.h"
+#include "../src/NadaParser.h"
+#include "../src/NadaValue.h"
+#include "../src/NadaConfig.h"
 
 // Define test variables
 static int tests_run = 0;
@@ -33,98 +35,6 @@ static void reset_error_flag() {
     had_evaluation_error = 0;
 }
 
-// Function to get type name as string (missing in your headers)
-static const char *nada_type_name(int type) {
-    switch (type) {
-    case NADA_NIL:
-        return "NIL";
-    case NADA_BOOL:
-        return "BOOLEAN";
-    case NADA_NUM:
-        return "NUMBER";
-    case NADA_SYMBOL:
-        return "SYMBOL";
-    case NADA_STRING:
-        return "STRING";
-    case NADA_PAIR:
-        return "PAIR";
-    case NADA_FUNC:
-        return "FUNCTION";
-    default:
-        return "UNKNOWN";
-    }
-}
-
-// Add a library loading function similar to the one in NadaLisp.c
-static void load_test_libraries(NadaEnv *env) {
-    // Try multiple potential library locations with more options
-    const char *lib_dirs[] = {
-        "src/nadalib",                // From project root
-        "../src/nadalib",             // From build directory
-        "../../src/nadalib",          // From build/tests
-        "../../../src/nadalib",       // Deeper nested builds
-        "./nadalib",                  // Local directory
-        "/usr/local/share/nada/lib",  // System-wide
-        NULL                          // End marker
-    };
-
-    DIR *dir = NULL;
-    char cwd_buffer[1024];
-    int found_index = -1;  // Store the index of the found directory
-
-    // Get current working directory for better diagnostics
-    if (getcwd(cwd_buffer, sizeof(cwd_buffer)) == NULL) {
-        strcpy(cwd_buffer, "(unknown)");
-    }
-
-    printf("Searching for libraries from test working directory: %s\n", cwd_buffer);
-
-    // Try each potential location
-    for (int i = 0; lib_dirs[i] != NULL; i++) {
-        dir = opendir(lib_dirs[i]);
-        if (dir) {
-            printf("Found library directory: %s\n", lib_dirs[i]);
-            found_index = i;  // Store the index
-            break;
-        }
-    }
-
-    if (found_index < 0) {
-        printf("Note: No library directory found. Tests may fail if they depend on libraries.\n");
-        return;
-    }
-
-    // Use the actual found directory path for loading
-    const char *found_dir = lib_dirs[found_index];
-    printf("Loading libraries for tests from %s...\n", found_dir);
-
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        // Skip directories and non-.scm files
-        if (entry->d_type == DT_DIR) continue;
-
-        const char *filename = entry->d_name;
-        size_t len = strlen(filename);
-
-        // Check for .scm extension
-        if (len > 4 && strcmp(filename + len - 4, ".scm") == 0) {
-            // Use the correct found directory path
-            char full_path[1024];
-            snprintf(full_path, sizeof(full_path), "%s/%s", found_dir, filename);
-
-            printf("  Loading %s\n", filename);
-            NadaValue *result = nada_load_file(full_path, env);
-            nada_free(result);
-
-            // Reset error flag after each library load
-            reset_error_flag();
-        }
-    }
-
-    closedir(dir);
-    printf("Libraries loaded for tests.\n");
-}
-
 // Initialize test environment
 static void init_test_env() {
     // Use the function from NadaEval.h
@@ -138,32 +48,6 @@ static void init_test_env() {
     tests_run = 0;
     tests_passed = 0;
 }
-/*
-// Recursive function to break circular references in environments
-static void break_env_cycles(NadaEnv *env, int depth) {
-    if (!env || depth > 100) return;  // Prevent infinite recursion
-
-    // Process all bindings in this environment
-    struct NadaBinding *binding = env->bindings;
-    while (binding != NULL) {
-        if (binding->value && binding->value->type == NADA_FUNC) {
-            // Break circular reference by nulling out environment references
-            if (binding->value->data.function.env) {
-                // Process the function's environment first (recursive)
-                break_env_cycles(binding->value->data.function.env, depth + 1);
-                // Then null out the reference
-                binding->value->data.function.env = NULL;
-            }
-        }
-        binding = binding->next;
-    }
-
-    // Also process parent environment recursively
-    if (env->parent) {
-        break_env_cycles(env->parent, depth + 1);
-    }
-}
-    */
 
 static void report_results() {
     printf("\n==== Test Summary ====\n");
@@ -179,8 +63,7 @@ static int run_test_file(const char *filename) {
     // Load library files - similar to what we do in the REPL
     NadaEnv *env = nada_create_standard_env();  // Change this to use standard env
 
-    load_test_libraries(env);
-
+    nada_load_libraries(env);
     // Reset error flag
     reset_error_flag();
 
@@ -378,8 +261,6 @@ int main(int argc, char *argv[]) {
     }
 
     int result = run_lisp_tests(test_dir);
-
-    // We don't need to call cleanup_test_env here - it'll be called by atexit
 
     return result ? 0 : 1;
 }

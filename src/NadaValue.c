@@ -27,6 +27,28 @@ void nada_memory_reset() {
     current_values = 0;
 }
 
+// Function to get type name as string
+const char *nada_type_name(int type) {
+    switch (type) {
+    case NADA_NIL:
+        return "NIL";
+    case NADA_BOOL:
+        return "BOOLEAN";
+    case NADA_NUM:
+        return "NUMBER";
+    case NADA_SYMBOL:
+        return "SYMBOL";
+    case NADA_STRING:
+        return "STRING";
+    case NADA_PAIR:
+        return "PAIR";
+    case NADA_FUNC:
+        return "FUNCTION";
+    default:
+        return "UNKNOWN";
+    }
+}
+
 // Create a new number value
 NadaValue *nada_create_num(NadaNum *num) {
     NadaValue *val = malloc(sizeof(NadaValue));
@@ -114,10 +136,10 @@ NadaValue *nada_create_function(NadaValue *params, NadaValue *body, NadaEnv *env
     val->data.function.body = body;
     val->data.function.env = env;
     val->data.function.builtin = NULL;
-    
+
     // Add a reference to the environment
     nada_env_add_ref(env);
-    
+
     nada_increment_allocations();
     return val;
 }
@@ -162,29 +184,29 @@ void nada_free(NadaValue *val) {
     case NADA_PAIR:
         if (val->data.pair.car) {
             nada_free(val->data.pair.car);
-            val->data.pair.car = NULL; // Prevent double-free
+            val->data.pair.car = NULL;  // Prevent double-free
         }
         if (val->data.pair.cdr) {
             nada_free(val->data.pair.cdr);
-            val->data.pair.cdr = NULL; // Prevent double-free
+            val->data.pair.cdr = NULL;  // Prevent double-free
         }
         break;
     case NADA_FUNC:
         if (val->data.function.params) {
             nada_free(val->data.function.params);
-            val->data.function.params = NULL; // Prevent double-free
+            val->data.function.params = NULL;  // Prevent double-free
         }
         if (val->data.function.body) {
             nada_free(val->data.function.body);
-            val->data.function.body = NULL; // Prevent double-free
-        }        
+            val->data.function.body = NULL;  // Prevent double-free
+        }
         // Only release the environment if it's not NULL
         // This handles functions with broken circular references
         if (val->data.function.env) {
             // First null out the environment pointer to break any potential cycles
             NadaEnv *temp_env = val->data.function.env;
-            val->data.function.env = NULL; // Break potential cycles BEFORE releasing
-            
+            val->data.function.env = NULL;  // Break potential cycles BEFORE releasing
+
             // Now it's safe to release the environment
             nada_env_release(temp_env);
         }
@@ -282,7 +304,7 @@ NadaValue *nada_deep_copy(NadaValue *val) {
         result->data.function.body = nada_deep_copy(val->data.function.body);
         result->data.function.env = val->data.function.env;          // Share environment
         result->data.function.builtin = val->data.function.builtin;  // Copy the built-in function pointer
-        
+
         // Add reference to shared environment
         if (result->data.function.env) {
             nada_env_add_ref(result->data.function.env);
