@@ -67,8 +67,6 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
     }
 
     // For user-defined functions:
-
-    // First, create a new environment with the closure as parent
     NadaEnv *func_env = nada_env_create(func->data.function.env);
 
     // Bind arguments to parameters
@@ -113,22 +111,15 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
     NadaValue *body_expr = func->data.function.body;
 
     while (!nada_is_nil(body_expr)) {
-        // Free previous result before getting new one
         nada_free(result);
-
-        // Evaluate current expression
         result = nada_eval(nada_car(body_expr), func_env);
-
-        // Move to next expression
         body_expr = nada_cdr(body_expr);
     }
 
-    // CRITICAL: Make a deep copy of the result before releasing the environment
+    // Always make a deep copy and release the environment
     NadaValue *final_result = nada_deep_copy(result);
     nada_free(result);
-
-    // ALWAYS release the function environment
-    nada_env_release(func_env);
+    nada_env_release(func_env);  // Balance the initial nada_env_create
 
     return final_result;
 }

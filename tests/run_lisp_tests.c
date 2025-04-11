@@ -17,6 +17,8 @@ static int tests_passed = 0;
 // Replace the old error tracking with the new system
 static int had_evaluation_error = 0;
 
+static NadaEnv *global_env = NULL;
+
 // Error handler callback
 static void test_error_handler(NadaErrorType type, const char *message, void *user_data) {
     // Do NOT error out if we are in silent mode, used for testing handling of undefined symbols
@@ -61,9 +63,9 @@ static void report_results() {
 static int run_test_file(const char *filename) {
     printf("Running tests from %s\n", filename);
     // Load library files - similar to what we do in the REPL
-    NadaEnv *env = nada_create_standard_env();  // Change this to use standard env
+    global_env = nada_create_standard_env();  // Change this to use standard env
 
-    nada_load_libraries(env);
+    nada_load_libraries(global_env);
     // Reset error flag
     reset_error_flag();
 
@@ -77,7 +79,7 @@ static int run_test_file(const char *filename) {
 
     nada_set_silent_symbol_lookup(1);  // Suppress symbol lookup errors
     // Load and evaluate with careful error handling
-    result = nada_load_file(filename, env);
+    result = nada_load_file(filename, global_env);
     nada_set_silent_symbol_lookup(0);  // Suppress symbol lookup errors
 
     // Check for errors
@@ -89,8 +91,11 @@ static int run_test_file(const char *filename) {
 
     // Clean up
     if (result) nada_free(result);
-    nada_cleanup_env(env);  // Use the cleanup function
-    env = NULL;             // Reset the environment
+    // nada_cleanup_env(env);  // Use the cleanup function
+
+    nada_cleanup_env(global_env);
+
+    global_env = NULL;  // Reset the environment
     return success;
 }
 
