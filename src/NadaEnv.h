@@ -23,12 +23,10 @@ typedef struct NadaEnv NadaEnv;
 
 // Environment lifecycle management functions
 NadaEnv *nada_env_create(NadaEnv *parent);
-// void nada_env_free(NadaEnv *env);
+void nada_env_free(NadaEnv *env);
 
 // Environment reference management functions
 void nada_env_add_ref(NadaEnv *env);
-void nada_env_break_all_cycles(NadaEnv *env);
-void nada_env_force_free(NadaEnv *env);
 void nada_env_release(NadaEnv *env);
 void nada_cleanup_env(NadaEnv *global_env);
 void nada_env_remove(NadaEnv *env, const char *name);
