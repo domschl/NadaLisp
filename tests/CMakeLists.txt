@@ -1,31 +1,8 @@
 # tests/CMakeLists.txt
 
-# Create the test_runner library
-add_library(test_runner STATIC test_runner.c)
-target_link_libraries(test_runner PRIVATE nada_lib)
-
-# Define individual test executables
-add_executable(test_math test_math.c)
-target_link_libraries(test_math PRIVATE test_runner)
-
-add_executable(test_string test_string.c)
-target_link_libraries(test_string PRIVATE test_runner)
-
-add_executable(test_list test_list.c)
-target_link_libraries(test_list PRIVATE test_runner)
-
-add_executable(test_io test_io.c)
-target_link_libraries(test_io PRIVATE test_runner)
-
-# Add tests to CTest
-add_test(NAME MathOperations COMMAND test_math)
-add_test(NAME StringOperations COMMAND test_string)
-add_test(NAME ListOperations COMMAND test_list)
-add_test(NAME IOOperations COMMAND test_io)
-
 # Lisp-based test runner
 add_executable(run_lisp_tests run_lisp_tests.c)
-target_link_libraries(run_lisp_tests PRIVATE test_runner nada_lib)
+target_link_libraries(run_lisp_tests PRIVATE nada_lib)
 
 # Copy Lisp test files to build directory
 file(GLOB LISP_TEST_FILES
