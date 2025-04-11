@@ -10,9 +10,9 @@
         (lambda ()
           (display "  ASSERTION FAILED\n")
           (display "  Expected: ")
-          (write expected)
+          (display expected)
           (display "\n  Got:      ")
-          (write actual)
+          (display actual)
           (display "\n")
           #f))))
 

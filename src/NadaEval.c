@@ -667,6 +667,14 @@ NadaValue *builtin_eval(NadaValue *args, NadaEnv *env) {
     // Standard 1-argument eval
     if (nada_is_nil(rest_args)) {
         NadaValue *expr_val = nada_eval(expr, env);
+
+        // If the result is a list, evaluate it again
+        if (expr_val->type == NADA_PAIR) {
+            NadaValue *result = nada_eval(expr_val, env);
+            nada_free(expr_val);
+            return result;
+        }
+
         return expr_val;
     }
 
