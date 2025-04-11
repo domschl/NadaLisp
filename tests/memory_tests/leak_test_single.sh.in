@@ -1,0 +1,28 @@
+#!/bin/bash
+# tests/memory_tests/leak_test_single.sh.in
+
+TEST_PROGRAM="@CMAKE_BINARY_DIR@/tests/memory_test"
+TEST_METHOD="$1"
+TEST_FILE="$2"
+
+# Extract just the filename part for display
+FILENAME=$(basename "$TEST_FILE")
+
+if [ "$TEST_METHOD" = "valgrind" ]; then
+    echo "Running memory check with valgrind on $FILENAME"
+    valgrind --leak-check=full --error-exitcode=1 "$TEST_PROGRAM" "$TEST_FILE"
+elif [ "$TEST_METHOD" = "leaks" ]; then
+    echo "Running memory check with leaks on $FILENAME"
+    leaks -quiet -atExit -- "$TEST_PROGRAM" "$TEST_FILE"
+else
+    echo "Unknown test method: $TEST_METHOD"
+    exit 1
+fi
+
+if [ $? -ne 0 ]; then
+    echo "Memory leak test failed for $FILENAME"
+    exit 1
+else
+    echo "Memory leak test passed for $FILENAME"
+    exit 0
+fi

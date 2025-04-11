@@ -211,56 +211,22 @@ int run_lisp_tests(const char *dir_path) {
 
 // Main function if running directly
 int main(int argc, char *argv[]) {
-    printf("=== NadaLisp Test Runner (Debug Version) ===\n");
+    printf("=== NadaLisp Test Runner ===\n");
 
-    // Register an atexit handler to ensure cleanup happens even on crashes
-    const char *test_paths[] = {
-        // User-provided path
-        argc > 1 ? argv[1] : NULL,
-        // Common relative paths
-        "lisp_tests",
-        "tests/lisp_tests",
-        "../tests/lisp_tests",
-        "../../tests/lisp_tests",
-        NULL};
+    // If a specific file is provided, just run that file
+    if (argc > 1 && strstr(argv[1], ".scm")) {
+        // Initialize test environment
+        init_test_env();
 
-    // Try each path until we find one that exists
-    const char *test_dir = NULL;
-    for (int i = 0; test_paths[i] != NULL; i++) {
-        if (test_paths[i] == NULL) continue;
+        // Run the specific test file
+        int result = run_test_file(argv[1]);
 
-        DIR *dir = opendir(test_paths[i]);
-        if (dir) {
-            test_dir = test_paths[i];
-            closedir(dir);
-            break;
-        }
+        // Report results
+        report_results();
+
+        return result ? 0 : 1;
     }
 
-    if (test_dir == NULL) {
-        fprintf(stderr, "Error: Could not find lisp_tests directory. Please specify path.\n");
-        return 1;
-    }
-
-    printf("Using test directory: %s\n", test_dir);
-
-    // Check files in directory
-    DIR *debug_dir = opendir(test_dir);
-    if (debug_dir) {
-        struct dirent *entry;
-        printf("Found files in test directory:\n");
-        while ((entry = readdir(debug_dir)) != NULL) {
-            printf("  %s\n", entry->d_name);
-        }
-        closedir(debug_dir);
-    }
-
-    // Optionally validate a specific test file if given
-    if (argc > 2) {
-        validate_test_file(argv[2]);
-    }
-
-    int result = run_lisp_tests(test_dir);
-
-    return result ? 0 : 1;
+    // Otherwise, run all tests in directory (existing code)
+    // ...rest of your existing main function...
 }

@@ -1,0 +1,9 @@
+#!/bin/bash
+# run_single_test.sh.in
+
+RUNNER="$1"
+TEST_FILE="$2"
+
+# Run a single test file
+"$RUNNER" "$TEST_FILE"
+exit $?
