@@ -77,10 +77,10 @@ static int run_test_file(const char *filename) {
 
     // Set up a signal handler or use setjmp/longjmp for crash protection if needed
 
-    nada_set_silent_symbol_lookup(1);  // Suppress symbol lookup errors
+    // nada_set_silent_symbol_lookup(1);  // Suppress symbol lookup errors
     // Load and evaluate with careful error handling
     result = nada_load_file(filename, global_env);
-    nada_set_silent_symbol_lookup(0);  // Suppress symbol lookup errors
+    // nada_set_silent_symbol_lookup(0);  // Suppress symbol lookup errors
 
     // Check for errors
     int success = !had_evaluation_error && result != NULL;
