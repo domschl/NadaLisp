@@ -348,15 +348,14 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
         // Store the function in the environment
         nada_env_set(loop_env, loop_name, loop_func);
 
-        // IMPORTANT: Break the circular reference by nulling out the environment
-        // reference in the function AFTER it's been stored in the environment
+        // IMPORTANT: Don't completely break the circular reference
+        // Instead, decrement the ref count but keep the environment pointer
         struct NadaBinding *binding = loop_env->bindings;
         while (binding != NULL) {
             if (strcmp(binding->name, loop_name) == 0 &&
                 binding->value && binding->value->type == NADA_FUNC) {
+                // Decrement ref count but DON'T NULL OUT the env pointer
                 nada_env_release(binding->value->data.function.env);
-                // Break the circular reference
-                binding->value->data.function.env = NULL;
                 break;
             }
             binding = binding->next;
