@@ -2,7 +2,7 @@
 #define NADA_BUILTIN_BOOL_OPS_H
 
 #include "NadaValue.h"
-#include "NadaError.h"
+#include "NadaEnv.h"
 
 // Logical negation (not)
 NadaValue *builtin_not(NadaValue *args, NadaEnv *env);

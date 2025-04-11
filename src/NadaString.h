@@ -18,13 +18,6 @@ NadaValue *builtin_string_to_number(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_number_to_string(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_read_from_string(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_write_to_string(NadaValue *args, NadaEnv *env);
-NadaValue *builtin_read_file(NadaValue *args, NadaEnv *env);
-NadaValue *builtin_write_file(NadaValue *args, NadaEnv *env);
-NadaValue *builtin_display(NadaValue *args, NadaEnv *env);
-NadaValue *builtin_read_line(NadaValue *args, NadaEnv *env);
-NadaValue *builtin_eval(NadaValue *args, NadaEnv *env);
-NadaValue *builtin_tokenize_expr(NadaValue *args, NadaEnv *env);
-NadaValue *builtin_string_to_symbol(NadaValue *args, NadaEnv *env);
 
 // Function to register all string functions
 void register_string_functions(void);

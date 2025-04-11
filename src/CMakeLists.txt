@@ -15,6 +15,7 @@ set(LIB_SOURCES
     NadaBuiltinSpecialForms.c
     NadaBuiltinPredicates.c
     NadaBuiltinBoolOps.c
+    NadaBuiltinIO.c
 )
 
 # Create the library with all the source code

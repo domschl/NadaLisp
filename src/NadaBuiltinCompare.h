@@ -1,11 +1,8 @@
 #ifndef NADA_BUILTIN_COMPARE_H
 #define NADA_BUILTIN_COMPARE_H
 
-#include <string.h>
-
 #include "NadaValue.h"
-#include "NadaEval.h"
-#include "NadaError.h"
+#include "NadaEnv.h"
 
 // Less than (<)
 NadaValue *builtin_less_than(NadaValue *args, NadaEnv *env);

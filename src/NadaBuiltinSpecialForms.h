@@ -2,7 +2,7 @@
 #define NADABUILTINSPECIALFORMS_H
 
 #include "NadaValue.h"
-#include "NadaError.h"
+#include "NadaEnv.h"
 
 // Built-in function: quote
 NadaValue *builtin_quote(NadaValue *args, NadaEnv *env);

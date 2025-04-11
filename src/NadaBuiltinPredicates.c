@@ -1,5 +1,6 @@
-#include "NadaBuiltinPredicates.h"
 #include "NadaEval.h"
+#include "NadaError.h"
+#include "NadaBuiltinPredicates.h"
 
 // Empty list test (null?)
 NadaValue *builtin_null(NadaValue *args, NadaEnv *env) {

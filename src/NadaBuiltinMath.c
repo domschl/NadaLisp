@@ -1,4 +1,7 @@
 #include <stdlib.h>
+
+#include "NadaEval.h"
+#include "NadaError.h"
 #include "NadaBuiltinMath.h"
 
 // Addition (+)

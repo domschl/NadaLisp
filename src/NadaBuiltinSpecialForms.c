@@ -1,6 +1,9 @@
-#include "NadaBuiltinSpecialForms.h"
-#include "NadaEval.h"
+#include <stdio.h>
 #include <string.h>
+
+#include "NadaEval.h"
+#include "NadaError.h"
+#include "NadaBuiltinSpecialForms.h"
 
 // Built-in function: quote
 NadaValue *builtin_quote(NadaValue *args, NadaEnv *env) {
@@ -13,7 +16,6 @@ NadaValue *builtin_quote(NadaValue *args, NadaEnv *env) {
     // Return unevaluated argument (make a deep copy to prevent modification)
     return nada_deep_copy(nada_car(args));
 }
-
 
 // Built-in special form: define
 NadaValue *builtin_define(NadaValue *args, NadaEnv *env) {
@@ -342,24 +344,24 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
 
         // Create recursive function
         NadaValue *loop_func = nada_create_function(reversed_params, body_copy, loop_env);
-        
+
         // Store the function in the environment
         nada_env_set(loop_env, loop_name, loop_func);
-        
-        // IMPORTANT: Break the circular reference by nulling out the environment 
+
+        // IMPORTANT: Break the circular reference by nulling out the environment
         // reference in the function AFTER it's been stored in the environment
         struct NadaBinding *binding = loop_env->bindings;
         while (binding != NULL) {
-            if (strcmp(binding->name, loop_name) == 0 && 
+            if (strcmp(binding->name, loop_name) == 0 &&
                 binding->value && binding->value->type == NADA_FUNC) {
-                nada_env_release(binding->value->data.function.env); 
+                nada_env_release(binding->value->data.function.env);
                 // Break the circular reference
                 binding->value->data.function.env = NULL;
                 break;
             }
             binding = binding->next;
         }
-        
+
         // Free our reference to the function
         // The environment still has its copy
         nada_free(loop_func);

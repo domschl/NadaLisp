@@ -1,3 +1,7 @@
+#include <string.h>
+
+#include "NadaEval.h"
+#include "NadaError.h"
 #include "NadaBuiltinCompare.h"
 
 // Less than (<)

@@ -1,8 +1,18 @@
 #ifndef NADA_EVAL_H
 #define NADA_EVAL_H
 
+#include <stdio.h>
+
 #include "NadaEnv.h"
 #include "NadaValue.h"
+
+#include "NadaBuiltinLists.h"
+#include "NadaBuiltinMath.h"
+#include "NadaBuiltinCompare.h"
+#include "NadaBuiltinSpecialForms.h"
+#include "NadaBuiltinPredicates.h"
+#include "NadaBuiltinBoolOps.h"
+#include "NadaBuiltinIO.h"
 
 // Type to represent a built-in function
 typedef NadaValue *(*BuiltinFunc)(NadaValue *, NadaEnv *);
@@ -28,12 +38,14 @@ NadaValue *nada_create_builtin_function(NadaValue *(*func)(NadaValue *, NadaEnv 
 
 // Apply a function to arguments
 NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env);
-
-// Add to public API:
-NadaValue *nada_load_file(const char *filename, NadaEnv *env);
+NadaValue *builtin_eval(NadaValue *args, NadaEnv *env);
+NadaValue *builtin_tokenize_expr(NadaValue *args, NadaEnv *env);
+NadaValue *builtin_string_to_symbol(NadaValue *args, NadaEnv *env);
 
 // Check if a symbol is a built-in function and get its name
 const char *get_builtin_name(BuiltinFunc func);
+
+void nada_serialize_env(NadaEnv *current_env, FILE *out);
 
 // Load standard library files from available paths
 // Returns the number of library files loaded

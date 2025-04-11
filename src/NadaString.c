@@ -211,28 +211,28 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env) {
 
             // Create string value
             NadaValue *ch_val = nada_create_string(ch);
-            
+
             // Build list in reverse order
             NadaValue *new_result = nada_cons(ch_val, result);
-            
+
             // Free temporary values
             nada_free(ch_val);
             nada_free(result);
-            
+
             // Update result pointer
             result = new_result;
-            
+
             free(ch);
             p += charlen;
         }
 
         // Reverse the list
         NadaValue *reversed = nada_reverse(result);
-        
+
         // Free the intermediate list
         nada_free(result);
         nada_free(str_val);
-        
+
         return reversed;
     } else {
         // Split by delimiter
@@ -252,13 +252,13 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env) {
             NadaValue *str_copy = nada_create_string(str);
             NadaValue *nil_val = nada_create_nil();
             NadaValue *result = nada_cons(str_copy, nil_val);
-            
+
             // Free temporary values
             nada_free(str_copy);
             nada_free(nil_val);
             nada_free(str_val);
             nada_free(delim_val);
-            
+
             return result;
         }
 
@@ -275,17 +275,17 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env) {
 
             // Create string value
             NadaValue *seg_val = nada_create_string(segment);
-            
+
             // Add to result list
             NadaValue *new_result = nada_cons(seg_val, result);
-            
+
             // Free temporary values
             nada_free(seg_val);
             nada_free(result);
-            
+
             // Update result pointer
             result = new_result;
-            
+
             free(segment);
             start = found + delim_len;
         }
@@ -294,23 +294,23 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env) {
         if (*start) {
             NadaValue *seg_val = nada_create_string(start);
             NadaValue *new_result = nada_cons(seg_val, result);
-            
+
             // Free temporary values
             nada_free(seg_val);
             nada_free(result);
-            
+
             // Update result pointer
             result = new_result;
         }
 
         // Reverse the list
         NadaValue *reversed = nada_reverse(result);
-        
+
         // Free intermediate values
         nada_free(result);
         nada_free(str_val);
         nada_free(delim_val);
-        
+
         return reversed;
     }
 }
@@ -442,120 +442,6 @@ NadaValue *builtin_number_to_string(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
-// string->symbol: Convert string to symbol
-NadaValue *builtin_string_to_symbol(NadaValue *args, NadaEnv *env) {
-    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
-                          "string->symbol requires exactly one string argument");
-        return nada_create_nil();
-    }
-
-    NadaValue *str_arg = nada_eval(nada_car(args), env);
-    if (str_arg->type != NADA_STRING) {
-        nada_report_error(NADA_ERROR_TYPE_ERROR,
-                          "string->symbol requires a string argument");
-        nada_free(str_arg);
-        return nada_create_nil();
-    }
-
-    // Create a symbol from the string
-    NadaValue *result = nada_create_symbol(str_arg->data.string);
-    nada_free(str_arg);
-    return result;
-}
-
-// Updated tokenize-expr function
-NadaValue *builtin_tokenize_expr(NadaValue *args, NadaEnv *env) {
-    // Check args
-    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
-                          "tokenize-expr requires exactly one string argument");
-        return nada_create_nil();
-    }
-
-    // Evaluate the argument
-    NadaValue *str_arg = nada_eval(nada_car(args), env);
-    if (str_arg->type != NADA_STRING) {
-        nada_report_error(NADA_ERROR_TYPE_ERROR,
-                          "tokenize-expr requires a string argument");
-        nada_free(str_arg);
-        return nada_create_nil();
-    }
-
-    // Implement tokenization logic here
-    // Split the string into tokens (numbers, operators, parentheses)
-    // Return a list of string tokens
-
-    // Example implementation outline:
-    const char *input = str_arg->data.string;
-    NadaValue *tokens = nada_create_nil();
-
-    // Simple tokenizer for algebraic expressions
-    char token_buf[256];
-    int token_pos = 0;
-
-    for (int i = 0; input[i] != '\0'; i++) {
-        char c = input[i];
-
-        // Handle operators and parentheses as single-character tokens
-        if (c == '+' || c == '-' || c == '*' || c == '/' ||
-            c == '^' || c == '(' || c == ')') {
-
-            // If we have a pending token, add it first
-            if (token_pos > 0) {
-                token_buf[token_pos] = '\0';
-                NadaValue *token = nada_create_string(token_buf);
-                NadaValue *new_tokens = nada_cons(token, tokens); // Create new list with token
-                nada_free(token);  // Free the token after it's been copied
-                nada_free(tokens); // Free the old list
-                tokens = new_tokens; // Update our list pointer
-                token_pos = 0;
-            }
-
-            // Add the operator token
-            token_buf[0] = c;
-            token_buf[1] = '\0';
-            NadaValue *op_token = nada_create_string(token_buf);
-            NadaValue *new_tokens = nada_cons(op_token, tokens); // Create new list with op_token
-            nada_free(op_token); // Free the token after it's been copied
-            nada_free(tokens);   // Free the old list
-            tokens = new_tokens; // Update our list pointer
-
-        } else if (isdigit(c) || isalpha(c) || c == '.') {
-            // Build number or variable tokens
-            token_buf[token_pos++] = c;
-        } else if (isspace(c)) {
-            // Finish current token if any
-            if (token_pos > 0) {
-                token_buf[token_pos] = '\0';
-                NadaValue *token = nada_create_string(token_buf);
-                NadaValue *new_tokens = nada_cons(token, tokens); // Create new list with token
-                nada_free(token);  // Free the token after it's been copied
-                nada_free(tokens); // Free the old list 
-                tokens = new_tokens; // Update our list pointer
-                token_pos = 0;
-            }
-        }
-    }
-
-    // Add any final token
-    if (token_pos > 0) {
-        token_buf[token_pos] = '\0';
-        NadaValue *token = nada_create_string(token_buf);
-        NadaValue *new_tokens = nada_cons(token, tokens); // Create new list with token
-        nada_free(token);  // Free the token after it's been copied
-        nada_free(tokens); // Free the old list
-        tokens = new_tokens; // Update our list pointer
-    }
-
-    // Reverse the tokens list to get them in the original order
-    NadaValue *result = nada_reverse(tokens);
-    nada_free(tokens); // Free the intermediate list
-    nada_free(str_arg); // Free the evaluated input string
-    
-    return result;
-}
-
 // Built-in function: read-from-string
 NadaValue *builtin_read_from_string(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
@@ -573,16 +459,16 @@ NadaValue *builtin_read_from_string(NadaValue *args, NadaEnv *env) {
 
     // Parse the string content
     NadaValue *parsed = nada_parse(str_arg->data.string);
-    
+
     // Free the evaluated argument
     nada_free(str_arg);
-    
+
     // If parsing failed, return nil
     if (!parsed) {
         nada_report_error(NADA_ERROR_SYNTAX, "failed to parse string");
         return nada_create_nil();
     }
-    
+
     return parsed;
 }
 
@@ -615,234 +501,4 @@ NadaValue *builtin_write_to_string(NadaValue *args, NadaEnv *env) {
 
     nada_free(expr);
     return nada_create_string(buffer);
-}
-
-// read-file: Read a file into a string
-NadaValue *builtin_read_file(NadaValue *args, NadaEnv *env) {
-    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: read-file requires exactly 1 argument\n");
-        return nada_create_nil();
-    }
-
-    NadaValue *path_val = nada_eval(nada_car(args), env);
-    if (path_val->type != NADA_STRING) {
-        fprintf(stderr, "Error: read-file requires a string argument\n");
-        nada_free(path_val);
-        return nada_create_nil();
-    }
-
-    FILE *file = fopen(path_val->data.string, "rb");
-    if (!file) {
-        fprintf(stderr, "Error: Could not open file %s\n", path_val->data.string);
-        nada_free(path_val);
-        return nada_create_nil();
-    }
-
-    // Get file size
-    fseek(file, 0, SEEK_END);
-    long size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    // Allocate buffer
-    char *buffer = malloc(size + 1);
-    if (!buffer) {
-        fprintf(stderr, "Error: Out of memory\n");
-        fclose(file);
-        nada_free(path_val);
-        return nada_create_nil();
-    }
-
-    // Read the file
-    size_t bytes_read = fread(buffer, 1, size, file);
-    fclose(file);
-
-    buffer[bytes_read] = '\0';
-
-    nada_free(path_val);
-    NadaValue *result = nada_create_string(buffer);
-    free(buffer);
-
-    return result;
-}
-
-// write-file: Write a string to a file
-NadaValue *builtin_write_file(NadaValue *args, NadaEnv *env) {
-    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
-        !nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        fprintf(stderr, "Error: write-file requires exactly 2 arguments\n");
-        return nada_create_bool(0);
-    }
-
-    NadaValue *path_val = nada_eval(nada_car(args), env);
-    if (path_val->type != NADA_STRING) {
-        fprintf(stderr, "Error: write-file requires a string as first argument\n");
-        nada_free(path_val);
-        return nada_create_bool(0);
-    }
-
-    NadaValue *content_val = nada_eval(nada_car(nada_cdr(args)), env);
-    if (content_val->type != NADA_STRING) {
-        fprintf(stderr, "Error: write-file requires a string as second argument\n");
-        nada_free(path_val);
-        nada_free(content_val);
-        return nada_create_bool(0);
-    }
-
-    FILE *file = fopen(path_val->data.string, "wb");
-    if (!file) {
-        fprintf(stderr, "Error: Could not open file %s for writing\n", path_val->data.string);
-        nada_free(path_val);
-        nada_free(content_val);
-        return nada_create_bool(0);
-    }
-
-    size_t len = strlen(content_val->data.string);
-    size_t written = fwrite(content_val->data.string, 1, len, file);
-
-    fclose(file);
-
-    nada_free(path_val);
-    nada_free(content_val);
-
-    return nada_create_bool(written == len);
-}
-
-// display: Output a string to console
-NadaValue *builtin_display(NadaValue *args, NadaEnv *env) {
-    if (nada_is_nil(args)) {
-        fprintf(stderr, "Error: display requires at least 1 argument\n");
-        return nada_create_nil();
-    }
-
-    NadaValue *curr = args;
-    while (!nada_is_nil(curr)) {
-        NadaValue *val = nada_eval(nada_car(curr), env);
-
-        if (val->type == NADA_STRING) {
-            printf("%s", val->data.string);  // No quotes
-        } else {
-            nada_print(val);  // Use regular printer for non-strings
-        }
-
-        nada_free(val);
-        curr = nada_cdr(curr);
-    }
-
-    printf("\n");  // Add newline at the end
-    return nada_create_nil();
-}
-
-// read-line: Read a line from console
-NadaValue *builtin_read_line(NadaValue *args, NadaEnv *env) {
-    if (!nada_is_nil(args)) {
-        // If prompt is provided, display it
-        NadaValue *prompt = nada_eval(nada_car(args), env);
-        if (prompt->type == NADA_STRING) {
-            printf("%s", prompt->data.string);
-        } else {
-            nada_print(prompt);
-        }
-        nada_free(prompt);
-    }
-
-    char buffer[1024];
-    if (fgets(buffer, sizeof(buffer), stdin)) {
-        // Remove trailing newline
-        size_t len = strlen(buffer);
-        if (len > 0 && buffer[len - 1] == '\n') {
-            buffer[len - 1] = '\0';
-        }
-
-        return nada_create_string(buffer);
-    }
-
-    return nada_create_string("");  // Empty string if read failed
-}
-
-// eval: Evaluate a quoted expression
-NadaValue *builtin_eval(NadaValue *args, NadaEnv *env) {
-    // Check argument count
-    if (nada_is_nil(args)) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "eval requires at least one argument");
-        return nada_create_nil();
-    }
-
-    // Get the expression to evaluate (without evaluating it yet)
-    NadaValue *expr = nada_car(args);
-    NadaValue *rest_args = nada_cdr(args);
-    
-    // Standard 1-argument eval
-    if (nada_is_nil(rest_args)) {
-        NadaValue *expr_val = nada_eval(expr, env);
-        return expr_val;
-    }
-    
-    // Extended 3-argument eval with error handling
-    // (eval expr error-handler success-handler)
-    if (!nada_is_nil(nada_cdr(rest_args)) && nada_is_nil(nada_cdr(nada_cdr(rest_args)))) {
-        // Get error and success handlers
-        NadaValue *error_handler = nada_eval(nada_car(rest_args), env);
-        NadaValue *success_handler = nada_eval(nada_car(nada_cdr(rest_args)), env);
-        
-        // Validate handlers are functions
-        if (error_handler->type != NADA_FUNC || success_handler->type != NADA_FUNC) {
-            nada_report_error(NADA_ERROR_TYPE_ERROR, "eval handlers must be functions");
-            nada_free(error_handler);
-            nada_free(success_handler);
-            return nada_create_nil();
-        }
-        
-        // Special case for symbols - check if symbol exists without triggering error
-        if (expr->type == NADA_SYMBOL) {
-            // Set silent lookup mode
-            nada_set_silent_symbol_lookup(1);
-            
-            // Try to lookup the symbol silently
-            NadaValue *lookup_result = nada_env_get(env, expr->data.symbol, 1);
-            
-            // Restore normal lookup mode
-            nada_set_silent_symbol_lookup(0);
-            
-            // Check if symbol was found
-            int symbol_found = !(lookup_result->type == NADA_NIL);
-            nada_free(lookup_result);
-            
-            // If symbol wasn't found, call error handler
-            if (!symbol_found) {
-                // Call error handler with no arguments
-                NadaValue *nil_args = nada_create_nil();
-                NadaValue *result = apply_function(error_handler, nil_args, env);
-                nada_free(nil_args);
-                
-                // Clean up
-                nada_free(error_handler);
-                nada_free(success_handler);
-                
-                return result;
-            }
-        }
-        
-        // Normal case - evaluate the expression
-        NadaValue *eval_result = nada_eval(expr, env);
-        
-        // Call success handler with the result
-        NadaValue *nil_val = nada_create_nil();
-        NadaValue *handler_args = nada_cons(eval_result, nil_val);
-        nada_free(nil_val);
-        
-        NadaValue *result = apply_function(success_handler, handler_args, env);
-        
-        // Clean up
-        nada_free(eval_result);
-        nada_free(handler_args);
-        nada_free(error_handler);
-        nada_free(success_handler);
-        
-        // CRITICAL FIX: Do NOT make a deep copy here - just return the result directly
-        return result;
-    }
-    
-    // Invalid argument count
-    nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "eval takes 1 or 3 arguments");
-    return nada_create_nil();
 }

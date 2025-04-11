@@ -1,9 +1,10 @@
-#include "NadaEnv.h"
-#include "NadaEval.h"
-#include "NadaError.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
+#include "NadaEnv.h"
+#include "NadaEval.h"
+#include "NadaError.h"
 
 // Increment the reference count for an environment
 void nada_env_add_ref(NadaEnv *env) {

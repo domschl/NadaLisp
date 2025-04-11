@@ -2,6 +2,7 @@
 #define NADA_ENV_H
 
 #include "NadaValue.h"
+#include "NadaEnv.h"
 
 // Define the binding structure
 struct NadaBinding {

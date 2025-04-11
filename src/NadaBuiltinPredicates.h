@@ -2,7 +2,7 @@
 #define NADA_BUILTIN_PREDICATE_H
 
 #include "NadaValue.h"
-#include "NadaError.h"
+#include "NadaEnv.h"
 
 // Empty list test (null?)
 NadaValue *builtin_null(NadaValue *args, NadaEnv *env);

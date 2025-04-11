@@ -2,8 +2,7 @@
 #define __NADA_BUILTIN_MATH_H__
 
 #include "NadaValue.h"
-#include "NadaEval.h"
-#include "NadaError.h"
+#include "NadaEnv.h"
 
 // Addition (+)
 NadaValue *builtin_add(NadaValue *args, NadaEnv *env);

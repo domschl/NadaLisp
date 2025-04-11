@@ -1,5 +1,6 @@
-#include "NadaBuiltinBoolOps.h"
 #include "NadaEval.h"
+#include "NadaError.h"
+#include "NadaBuiltinBoolOps.h"
 
 // Logical negation (not)
 NadaValue *builtin_not(NadaValue *args, NadaEnv *env) {
@@ -91,4 +92,3 @@ NadaValue *builtin_and(NadaValue *args, NadaEnv *env) {
     nada_free(result);
     return result_copy;
 }
-
