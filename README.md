@@ -41,6 +41,7 @@ In `NadaLisp/build`:
 ctest -L LispTests         # Just functional tests
 ctest -L MemoryTests       # All memory tests
 ctest -L LispMemoryTests   # Memory tests for regular Lisp files only
+ctest -L JupyterKernel     # Test Jupyter kernel only
 ```
 
 ## Jupyter Kernel for NadaLisp
