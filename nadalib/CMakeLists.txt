@@ -29,3 +29,9 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 # Set the output directories for the library
 set_target_properties(nada_lib PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set_target_properties(nada_shared PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+# Install include files
+file(GLOB INCLUDE_FILES "${CMAKE_SOURCE_DIR}/include/*.h")
+
+# Install the include files
+install(FILES ${INCLUDE_FILES} DESTINATION include/nadalib)

@@ -13,12 +13,12 @@
 void nada_load_libraries(NadaEnv *env) {
     // Try multiple potential library locations
     const char *lib_dirs[] = {
-        "nadalib_std",                // When run from project root
-        "../nadalib_std",             // When run from build directory
-        "../../nadalib_std",          // When run from build directory
-        "./nadalib_std",              // When run from current directory
-        "/usr/local/share/nada/lib",  // System-wide installation
-        NULL                          // End marker
+        "nadalib_std",                   // When run from project root
+        "../nadalib_std",                // When run from build directory
+        "../../nadalib_std",             // When run from build directory
+        "./nadalib_std",                 // When run from current directory
+        "/usr/local/share/nadalib_std",  // System-wide installation
+        NULL                             // End marker
     };
 
     DIR *dir = NULL;

@@ -77,10 +77,5 @@ install(TARGETS nada_lib nada_shared
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib)
 
-# Install the include files
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
-        DESTINATION include
-        FILES_MATCHING PATTERN "*.h")
-
 # Install the REPL executable
 install(TARGETS NadaLisp DESTINATION bin)
