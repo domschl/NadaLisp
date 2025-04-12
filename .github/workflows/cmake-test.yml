@@ -35,24 +35,42 @@ jobs:
     - name: Build
       run: cmake --build build
 
+    - name: List library locations for debugging
+      run: |
+        echo "Looking for shared library files:"
+        find build -name "libnada_shared*" -type f
+        echo "Contents of build/lib directory (if it exists):"
+        ls -la build/lib 2>/dev/null || echo "build/lib does not exist"
+
     - name: Setup Python virtual environment and build kernel
       run: |
         cd build
         # Print CMake variables to help debugging
         echo "Current directory: $(pwd)"
-        echo "CMake binary dir: $(cmake -LA . | grep CMAKE_BINARY_DIR)"
-        echo "CMake current binary dir: $(cmake -LA . | grep CMAKE_CURRENT_BINARY_DIR)"
         
-        # Attempt to build the venv target
-        cmake --build . --target setup_venv
+        # Create a symbolic link to the library in the jupyter_kernel directory if needed
+        if [ -f lib/libnada_shared.so ]; then
+          echo "Found library at lib/libnada_shared.so, creating symlink"
+          cp lib/libnada_shared.so jupyter_kernel/
+        else
+          echo "Searching for library:"
+          find . -name "libnada_shared.so"
+          LIBRARY_PATH=$(find . -name "libnada_shared.so" | head -1)
+          if [ -n "$LIBRARY_PATH" ]; then
+            echo "Found library at $LIBRARY_PATH, creating symlink"
+            cp "$LIBRARY_PATH" jupyter_kernel/
+          else
+            echo "Could not find library"
+            exit 1
+          fi
+        fi
         
-        # Debug: List files to find where venv was created
-        echo "Listing build directory contents:"
-        find . -name ".venv" -type d
-        find . -path "*/.venv/bin/python" 2>/dev/null || echo "Python executable not found in .venv/bin"
-        find . -name "python" 2>/dev/null | grep -i venv
+        # Set environment variable for the kernel to find the library
+        export NADA_LIBRARY_PATH=$(pwd)/jupyter_kernel/libnada_shared.so
+        echo "Set NADA_LIBRARY_PATH=$NADA_LIBRARY_PATH"
         
         # Continue with other targets
+        cmake --build . --target setup_venv
         cmake --build . --target jupyter_kernel
         cmake --build . --target install_kernel
 

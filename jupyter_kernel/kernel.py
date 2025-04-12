@@ -50,26 +50,38 @@ class NadaKernel(Kernel):
         lib_name = f"libnada_shared{lib_ext}"
         self.log.info(f"Looking for library with extension: {lib_ext}")
         
+        # Get the directory of the current file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        
         # Try to find the library in common locations
         lib_paths = [
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), lib_name),
+            # Standard locations
+            os.path.join(current_dir, lib_name),
             os.path.expanduser(f"~/Codeberg/NadaLisp/build/lib/{lib_name}"),
             f"/usr/local/lib/{lib_name}",
-            f"/usr/lib/{lib_name}"
+            f"/usr/lib/{lib_name}",
+            
+            # GitHub Actions specific paths
+            os.path.join(os.path.dirname(current_dir), "build", "lib", lib_name),
+            os.path.join(os.path.dirname(current_dir), "lib", lib_name),
+            
+            # More build directory possibilities
+            os.path.abspath(os.path.join(current_dir, "..", "build", "lib", lib_name)),
+            os.path.abspath(os.path.join(current_dir, "..", "lib", lib_name)),
+            os.path.abspath(os.path.join(current_dir, "..", "..", "lib", lib_name)),
+            os.path.abspath(os.path.join(current_dir, "..", "..", "build", "lib", lib_name))
         ]
         
-        # Add build directory relative to current file
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        build_lib_path = os.path.abspath(os.path.join(current_dir, "..", "..", "lib", lib_name))
-        lib_paths.insert(0, build_lib_path)
-        
-        # Add jupyter_kernel build directory
-        jupyter_build_lib_path = os.path.abspath(os.path.join(current_dir, "..", lib_name))
-        lib_paths.insert(0, jupyter_build_lib_path)
+        # Environment variable override (useful for CI)
+        if 'NADA_LIBRARY_PATH' in os.environ:
+            lib_path = os.environ['NADA_LIBRARY_PATH']
+            self.log.info(f"Using library path from environment: {lib_path}")
+            lib_paths.insert(0, lib_path)
         
         self.log.info(f"Searching for NadaLisp library in: {lib_paths}")
         
         for lib_path in lib_paths:
+            self.log.info(f"Checking if {lib_path} exists: {os.path.exists(lib_path)}")
             if os.path.exists(lib_path):
                 try:
                     self.log.info(f"Found library at {lib_path}, attempting to load...")
@@ -79,6 +91,17 @@ class NadaKernel(Kernel):
                 except Exception as e:
                     self.log.error(f"Failed to load library from {lib_path}: {e}")
         else:
+            # Do a directory listing to help debug
+            self.log.error("Library not found. Listing potential directories:")
+            for path in lib_paths:
+                dir_path = os.path.dirname(path)
+                if os.path.exists(dir_path):
+                    self.log.error(f"Contents of {dir_path}:")
+                    for file in os.listdir(dir_path):
+                        self.log.error(f"  {file}")
+                else:
+                    self.log.error(f"Directory {dir_path} does not exist")
+                    
             error_msg = "Could not find the NadaLisp shared library. Searched paths: " + ", ".join(lib_paths)
             self.log.error(error_msg)
             raise RuntimeError(error_msg)
