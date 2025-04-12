@@ -23,114 +23,73 @@ bool nada_is_global_silent_symbol_lookup() {
     return g_silent_symbol_lookup;
 }
 
-// Apply a function to arguments
-NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) {
+// Apply a user-defined function
+// *** FIX: Restore the third NadaEnv* parameter ***
+NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
+    // Check if it's actually a function
     if (func->type != NADA_FUNC) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "attempt to apply non-function");
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "attempt to apply non-function");
+        // Caller is responsible for freeing evaluated args list ('args')
         return nada_create_nil();
     }
 
-    // Handle built-in functions
-    if (func->data.function.builtin != NULL) {
-        // Create a list to hold evaluated arguments
-        NadaValue *eval_args = nada_create_nil();
-        NadaValue *current_arg = args;
+    // Bind parameters to arguments
+    NadaValue *params = func->data.function.params;
+    // 'args' contains the already evaluated arguments passed by the caller (nada_eval)
+    NadaValue *current_arg = args;
 
-        // Evaluate each argument
-        while (!nada_is_nil(current_arg)) {
-            // Evaluate the current argument
-            NadaValue *arg_val = nada_eval(nada_car(current_arg), outer_env);
-
-            // Prepend to our list (we'll reverse it later)
-            NadaValue *new_eval_args = nada_cons(arg_val, eval_args);
-            nada_free(arg_val);
-            nada_free(eval_args);
-            eval_args = new_eval_args;
-
-            // Move to next argument
-            current_arg = nada_cdr(current_arg);
-        }
-
-        // Reverse the list to get arguments in the correct order
-        NadaValue *reversed_args = nada_reverse(eval_args);
-
-        // Free the intermediate list
-        nada_free(eval_args);
-
-        // Call the built-in function with evaluated arguments
-        NadaValue *result = func->data.function.builtin(reversed_args, outer_env);
-
-        // Free our intermediate lists
-        nada_free(reversed_args);
-
-        return result;
+    // Create environment for function call, inheriting from function's closure env
+    // The caller's 'env' is not directly used here, but passed for interface correctness
+    NadaEnv *func_env = nada_env_create(func->data.function.env);
+    if (!func_env) {
+        // Caller (eval_list or similar) is responsible for freeing evaluated args
+        return nada_create_nil();
     }
 
-    // For user-defined functions:
+    // Loop through parameters and evaluated arguments
+    while (params->type == NADA_PAIR && current_arg->type == NADA_PAIR) {
+        // ... (binding logic remains the same) ...
+        NadaValue *param_name = nada_car(params);
+        NadaValue *arg_value = nada_car(current_arg);  // Get the evaluated argument value
 
-    // First, create a new environment with the closure as parent
-    NadaEnv *func_env = nada_env_create(func->data.function.env);
-
-    // Bind arguments to parameters
-    NadaValue *param = func->data.function.params;
-    NadaValue *arg = args;
-
-    while (!nada_is_nil(param) && !nada_is_nil(arg)) {
-        // Get parameter name
-        NadaValue *param_name = nada_car(param);
-
-        // Evaluate argument
-        NadaValue *arg_val = nada_eval(nada_car(arg), outer_env);
-
-        // Check for evaluation errors
-        if (!arg_val) {
-            nada_env_release(func_env);  // Clean up on error path
+        if (param_name->type == NADA_SYMBOL) {
+            nada_env_set(func_env, param_name->data.symbol, arg_value);
+        } else {
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "function parameter name must be a symbol");
+            nada_env_release(func_env);
+            // Caller is responsible for freeing the evaluated args list
             return nada_create_nil();
         }
-
-        // Bind parameter to argument value
-        nada_env_set(func_env, param_name->data.symbol, arg_val);
-        nada_free(arg_val);
-
-        // Move to next parameter and argument
-        param = nada_cdr(param);
-        arg = nada_cdr(arg);
+        params = nada_cdr(params);
+        current_arg = nada_cdr(current_arg);
     }
 
-    // Parameter count error checking
-    if (!nada_is_nil(param) || !nada_is_nil(arg)) {
-        if (!nada_is_nil(param)) {
-            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
-        } else {
-            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too many arguments");
-        }
-        nada_env_release(func_env);  // Clean up on error path
+    // Check for mismatched number of arguments
+    if ((params->type == NADA_PAIR && current_arg->type == NADA_NIL) ||
+        (params->type == NADA_NIL && current_arg->type == NADA_PAIR)) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "incorrect number of arguments");
+        nada_env_release(func_env);
+        // Caller is responsible for freeing the evaluated args list
         return nada_create_nil();
     }
 
-    // Evaluate the body expressions
+    // Evaluate the function body in the new environment
     NadaValue *result = nada_create_nil();
-    NadaValue *body_expr = func->data.function.body;
+    NadaValue *body = func->data.function.body;
 
-    while (!nada_is_nil(body_expr)) {
-        // Free previous result before getting new one
+    while (!nada_is_nil(body)) {
         nada_free(result);
-
-        // Evaluate current expression
-        result = nada_eval(nada_car(body_expr), func_env);
-
-        // Move to next expression
-        body_expr = nada_cdr(body_expr);
+        // Evaluate body expression in the function's local environment 'func_env'
+        result = nada_eval(nada_car(body), func_env);
+        body = nada_cdr(body);
+        // Check for errors during body evaluation if needed
     }
 
-    // CRITICAL: Make a deep copy of the result before releasing the environment
-    NadaValue *final_result = nada_deep_copy(result);
-    nada_free(result);
-
-    // ALWAYS release the function environment
+    // *** FIX: Release the function call environment ***
     nada_env_release(func_env);
 
-    return final_result;
+    // Caller (nada_eval) is responsible for freeing the evaluated args list ('args')
+    return result;  // Return final result
 }
 
 // Helper to check if a name is a built-in function
