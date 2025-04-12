@@ -4,7 +4,7 @@
 
 It's Scheme implementation implemented by Copilot using Claude Sonnet 3.7 Thinking and all of it's collegues. Human did only little hand-holding and debris removal...
 
-Since the language is in flux, have a look at `tests/lisp_tests` for the current language elements. `src/nadalib` will contain a standard library.
+Since the language is in flux, have a look at `tests/lisp_tests` for the current language elements. `nadalib` contains a standard library.
 
 ## Build
 
@@ -30,7 +30,7 @@ ninja
 ### Execute
 
 ```bash
-NadaLisp/build/src/nada
+NadaLisp/build/repl/nada
 ```
 
 ## Tests

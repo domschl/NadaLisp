@@ -1,9 +1,9 @@
 // tests/memory_tests/leak_test.c
-#include "../../src/NadaEval.h"
-#include "../../src/NadaParser.h"
-#include "../../src/NadaValue.h"
-#include "../../src/NadaError.h"
-#include "../../src/NadaConfig.h"
+#include "../../lib/NadaEval.h"
+#include "../../lib/NadaParser.h"
+#include "../../lib/NadaValue.h"
+#include "../../lib/NadaError.h"
+#include "../../lib/NadaConfig.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

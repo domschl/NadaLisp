@@ -55,8 +55,14 @@ endif()
 # Enable testing
 enable_testing()
 
-# Add the src directory
-add_subdirectory(src)
+# Add the lib directory (core library)
+add_subdirectory(lib)
+
+# Add the repl directory (NadaLisp executable)
+add_subdirectory(repl)
+
+# Add the nadalib directory (Scheme standard library)
+add_subdirectory(nadalib)
 
 # Add the tests directory
 add_subdirectory(tests)
