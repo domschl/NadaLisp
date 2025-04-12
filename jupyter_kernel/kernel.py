@@ -37,18 +37,35 @@ class NadaKernel(Kernel):
         
     def _load_nada_library(self):
         """Load the NadaLisp shared library"""
+        # Determine the appropriate library extension based on OS
+        if sys.platform.startswith('darwin'):
+            lib_ext = '.dylib'
+        elif sys.platform.startswith('linux'):
+            lib_ext = '.so'
+        elif sys.platform.startswith('win'):
+            lib_ext = '.dll'
+        else:
+            lib_ext = '.so'  # Default to .so for unknown platforms
+            
+        lib_name = f"libnada_shared{lib_ext}"
+        self.log.info(f"Looking for library with extension: {lib_ext}")
+        
         # Try to find the library in common locations
         lib_paths = [
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "libnada_shared.dylib"),
-            os.path.expanduser("~/Codeberg/NadaLisp/build/lib/libnada_shared.dylib"),
-            "/usr/local/lib/libnada_shared.dylib",
-            "/usr/lib/libnada_shared.dylib"
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), lib_name),
+            os.path.expanduser(f"~/Codeberg/NadaLisp/build/lib/{lib_name}"),
+            f"/usr/local/lib/{lib_name}",
+            f"/usr/lib/{lib_name}"
         ]
         
         # Add build directory relative to current file
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        build_lib_path = os.path.abspath(os.path.join(current_dir, "..", "..", "lib", "libnada_shared.dylib"))
+        build_lib_path = os.path.abspath(os.path.join(current_dir, "..", "..", "lib", lib_name))
         lib_paths.insert(0, build_lib_path)
+        
+        # Add jupyter_kernel build directory
+        jupyter_build_lib_path = os.path.abspath(os.path.join(current_dir, "..", lib_name))
+        lib_paths.insert(0, jupyter_build_lib_path)
         
         self.log.info(f"Searching for NadaLisp library in: {lib_paths}")
         
