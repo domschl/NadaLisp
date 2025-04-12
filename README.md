@@ -1,6 +1,6 @@
 # NadaLisp Project
 
-It's Scheme implementation implemented by Copilot using Claude Sonnet 3.7 Thinking, Gemini 2.5 Pro (Preview) and, to a lesser degree, all of it's collegues. Human did only little hand-holding and debris removal...
+An implementation of Scheme in pure 'C' (`readline` for the repl is the only external dependency) implemented by Copilot using Claude Sonnet 3.7 Thinking, Gemini 2.5 Pro (Preview) and, to a lesser degree, all of it's collegues. Human did only little hand-holding and debris removal...
 
 Since the language is in flux, have a look at `tests/lisp_tests` for the current language elements. `src/nadalib` will contain a standard library.
 
@@ -48,6 +48,10 @@ ctest -L LispTests         # Just functional tests
 ctest -L MemoryTests       # All memory tests
 ctest -L LispMemoryTests   # Memory tests for regular Lisp files only
 ```
+ 
+## History
+
+- 2025-04-12: First version with all tests passing, zero leaks (macOS, Linux)
 
 ## License
 
