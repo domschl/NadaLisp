@@ -64,10 +64,11 @@ add_custom_target(
 
 # Add test for kernel
 add_test(
-    NAME kernel_test
+    NAME "JupyterKernel.NadaLisp"
     COMMAND ${CMAKE_CURRENT_BINARY_DIR}/.venv/bin/python ${CMAKE_CURRENT_SOURCE_DIR}/test_kernel.py
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
+set_tests_properties("JupyterKernel.NadaLisp" PROPERTIES LABELS "JupyterKernel")
 
 # Install kernel
 install(

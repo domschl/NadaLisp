@@ -95,13 +95,13 @@ class NadaKernel(Kernel):
         
     def _init_nada_env(self):
         """Initialize the NadaLisp environment"""
-        logger.info("Initializing NadaLisp environment...")
+        self.log.info("Initializing NadaLisp environment...")
         self.env = self.lib.nada_create_standard_env()
         if not self.env:
             error_msg = "Failed to initialize NadaLisp environment"
-            logger.error(error_msg)
+            self.log.error(error_msg)
             raise RuntimeError(error_msg)
-        logger.info(f"NadaLisp environment initialized, handle: {self.env}")
+        self.log.info(f"NadaLisp environment initialized, handle: {self.env}")
         self.log.info("NadaLisp environment initialized")
         
     def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
@@ -117,13 +117,13 @@ class NadaKernel(Kernel):
         try:
             # Split code into separate expressions by detecting top-level parentheses
             expressions = self.split_expressions(code)
-            logger.info(f"Split code into {len(expressions)} expressions")
+            self.log.info(f"Split code into {len(expressions)} expressions")
             
             # Execute each expression and keep only the final result
             final_result = None
             
             for idx, expr in enumerate(expressions):
-                logger.info(f"Executing expression {idx+1}/{len(expressions)}: {expr}")
+                self.log.info(f"Executing expression {idx+1}/{len(expressions)}: {expr}")
                 
                 # Convert Python string to C string
                 c_code = expr.encode('utf-8')
@@ -135,32 +135,32 @@ class NadaKernel(Kernel):
                 def evaluation_thread():
                     try:
                         # Parse the input code to get a NadaValue pointer
-                        logger.info(f"Parsing expression: {expr}")
+                        self.log.info(f"Parsing expression: {expr}")
                         expr_ptr = self.lib.nada_parse(c_code)
                         if not expr_ptr:
                             error[0] = RuntimeError(f"Failed to parse expression: {expr}")
-                            logger.error(f"Failed to parse expression: {expr}")
+                            self.log.error(f"Failed to parse expression: {expr}")
                             return
                         
-                        logger.info(f"Expression parsed successfully, expr_ptr: {expr_ptr}")
+                        self.log.info(f"Expression parsed successfully, expr_ptr: {expr_ptr}")
                         
                         # Call the NadaLisp interpreter with the parsed expression
-                        logger.info("Calling nada_eval...")
+                        self.log.info("Calling nada_eval...")
                         value_ptr = self.lib.nada_eval(expr_ptr, self.env)
                         
                         # Free the parsed expression
                         self.lib.nada_free(expr_ptr)
                         
-                        logger.info(f"nada_eval returned: {value_ptr}")
+                        self.log.info(f"nada_eval returned: {value_ptr}")
                         
                         if not value_ptr:
                             error[0] = RuntimeError("Evaluation returned NULL")
-                            logger.error("Evaluation returned NULL")
+                            self.log.error("Evaluation returned NULL")
                             return
                             
                         # Convert to string only for the last expression
                         if idx == len(expressions) - 1:
-                            logger.info("Converting result to string...")
+                            self.log.info("Converting result to string...")
                             string_ptr = self.lib.nada_value_to_string(value_ptr)
                             
                             # Free the result value
@@ -168,12 +168,12 @@ class NadaKernel(Kernel):
                             
                             if not string_ptr:
                                 error[0] = RuntimeError("Failed to convert result to string")
-                                logger.error("Failed to convert result to string")
+                                self.log.error("Failed to convert result to string")
                                 return
                                 
                             # Convert C string result to Python string
                             result_str = ctypes.string_at(string_ptr).decode('utf-8')
-                            logger.info(f"Result string: {result_str}")
+                            self.log.info(f"Result string: {result_str}")
                             
                             # Free the string if needed
                             if hasattr(self.lib, 'nada_free_string'):
@@ -187,8 +187,8 @@ class NadaKernel(Kernel):
                             
                     except Exception as e:
                         error[0] = e
-                        logger.error(f"Exception in evaluation thread: {str(e)}")
-                        logger.error(traceback.format_exc())
+                        self.log.error(f"Exception in evaluation thread: {str(e)}")
+                        self.log.error(traceback.format_exc())
                 
                 # Start the evaluation thread...
                 thread = threading.Thread(target=evaluation_thread)
@@ -206,7 +206,7 @@ class NadaKernel(Kernel):
                         'evalue': f"NadaLisp evaluation timed out after {timeout_seconds} seconds",
                         'traceback': [f"Execution timed out after {timeout_seconds} seconds. The NadaLisp interpreter may be stuck."],
                     }
-                    logger.error(f"Timeout after {timeout_seconds} seconds")
+                    self.log.error(f"Timeout after {timeout_seconds} seconds")
                     self.send_response(self.iopub_socket, 'error', error_content)
                     return {
                         'status': 'error',
@@ -233,7 +233,7 @@ class NadaKernel(Kernel):
                     }
                 
             # Return the final result...
-            logger.info(f"Processing result_ptr: {result_ptr[0]}")
+            self.log.info(f"Processing result_ptr: {result_ptr[0]}")
             if result_ptr[0]:
                 if not silent:
                     stream_content = {'name': 'stdout', 'text': str(result_ptr[0])}
@@ -247,8 +247,8 @@ class NadaKernel(Kernel):
             }
             
         except Exception as e:
-            logger.error(f"Error in do_execute: {str(e)}")
-            logger.error(traceback.format_exc())
+            self.log.error(f"Error in do_execute: {str(e)}")
+            self.log.error(traceback.format_exc())
             error_content = {
                 'ename': type(e).__name__,
                 'evalue': str(e),
@@ -308,8 +308,8 @@ class NadaKernel(Kernel):
     def do_shutdown(self, restart):
         """Clean up resources when the kernel is shut down"""
         if hasattr(self, 'env') and self.env:
-            logger.info("Releasing NadaLisp environment...")
+            self.log.info("Releasing NadaLisp environment...")
             self.lib.nada_cleanup_env(self.env)
-            logger.info("NadaLisp environment released")
+            self.log.info("NadaLisp environment released")
             self.log.info("NadaLisp environment released")
         return {'status': 'ok', 'restart': restart}

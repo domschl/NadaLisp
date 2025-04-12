@@ -58,8 +58,8 @@ jobs:
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      # Filter out the kernel_test if it's still causing issues
-      run: ctest --output-on-failure -E kernel_test
+      # Filter out the JupyterKernel.NadaLispKernel if it's still causing issues
+      run: ctest --output-on-failure -E JupyterKernel.NadaLispKernel
 
     - name: Test Jupyter kernel separately
       working-directory: ${{github.workspace}}/build
