@@ -30,13 +30,13 @@ void nada_load_libraries(NadaEnv *env) {
         strcpy(cwd_buffer, "(unknown)");
     }
 
-    printf("Searching for libraries from working directory: %s\n", cwd_buffer);
+    // printf("Searching for libraries from working directory: %s\n", cwd_buffer);
 
     // Try each potential location
     for (int i = 0; lib_dirs[i] != NULL; i++) {
         dir = opendir(lib_dirs[i]);
         if (dir) {
-            printf("Found library directory: %s\n", lib_dirs[i]);
+            // printf("Found library directory: %s\n", lib_dirs[i]);
             found_index = i;  // Store the index
             break;
         }
@@ -44,22 +44,21 @@ void nada_load_libraries(NadaEnv *env) {
         // Show the full path we tried
         if (lib_dirs[i][0] == '/') {
             // Absolute path
-            printf("Tried library path: %s (not found)\n", lib_dirs[i]);
+            // printf("Tried library path: %s (not found)\n", lib_dirs[i]);
         } else {
             // Relative path
-            printf("Tried library path: %s/%s (not found)\n", cwd_buffer, lib_dirs[i]);
+            // printf("Tried library path: %s/%s (not found)\n", cwd_buffer, lib_dirs[i]);
         }
     }
 
     if (found_index < 0) {
         printf("Note: No library directory found. Libraries not loaded.\n");
-        printf("Create the directory 'src/nadalib' and add .scm files there.\n");
         return;
     }
 
     // Use the actual found directory path for loading
     const char *found_dir = lib_dirs[found_index];
-    printf("Loading libraries from %s...\n", found_dir);
+    // printf("Loading libraries from %s...\n", found_dir);
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
@@ -75,12 +74,12 @@ void nada_load_libraries(NadaEnv *env) {
             char full_path[1024];
             snprintf(full_path, sizeof(full_path), "%s/%s", found_dir, filename);
 
-            printf("  Loading %s\n", filename);
+            // printf("  Loading %s\n", filename);
             NadaValue *result = nada_load_file(full_path, env);
             nada_free(result);
         }
     }
 
     closedir(dir);
-    printf("Libraries loaded successfully.\n");
+    // printf("Libraries loaded successfully.\n");
 }

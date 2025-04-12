@@ -117,23 +117,121 @@ void run_repl(void) {
     printf("\nGoodbye!\n");
 }
 
-// Update the main function to call nada_load_file directly
+void print_usage() {
+    printf("Usage: nada [-n] [-c expr | -e expr | filename]\n");
+    printf("  -n: do not load the standard libraries\n");
+    printf("  -e expr: interpret expr as Scheme expression, evaluate it, exit\n");
+    printf("  -c expr: interpret expr as textual algebraic expression, evaluate it, exit\n");
+    printf("  If neither -e nor -c is given, expr is interpreted as a Scheme filename\n");
+}
+
 int main(int argc, char *argv[]) {
     // Initialize the global environment
     global_env = nada_create_standard_env();
 
-    // Load libraries
-    nada_load_libraries(global_env);
+    // Parse command-line arguments
+    int load_libs = 1;  // Default: load standard libraries
+    int eval_scheme = 0;
+    int eval_algebraic = 0;
+    char *expression = NULL;
 
-    if (argc > 1) {
-        // File mode: load the specified file using nada_load_file
-        NadaValue *result = nada_load_file(argv[1], global_env);
-        nada_free(result);
+    // Process all arguments
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-n") == 0) {
+            load_libs = 0;
+        } else if (strcmp(argv[i], "-e") == 0) {
+            eval_scheme = 1;
+            // Get the expression from the next argument
+            if (i + 1 < argc) {
+                expression = argv[++i];
+            } else {
+                printf("Error: -e requires an expression\n");
+                print_usage();
+                nada_cleanup_env(global_env);
+                return 1;
+            }
+        } else if (strcmp(argv[i], "-c") == 0) {
+            eval_algebraic = 1;
+            // Get the expression from the next argument
+            if (i + 1 < argc) {
+                expression = argv[++i];
+            } else {
+                printf("Error: -c requires an expression\n");
+                print_usage();
+                nada_cleanup_env(global_env);
+                return 1;
+            }
+        } else if (argv[i][0] == '-') {
+            printf("Unknown option: %s\n", argv[i]);
+            print_usage();
+            nada_cleanup_env(global_env);
+            return 1;
+        } else {
+            // Non-flag argument should be a filename
+            if (!eval_scheme && !eval_algebraic) {
+                expression = argv[i];
+            } else {
+                printf("Error: Unexpected argument: %s\n", argv[i]);
+                print_usage();
+                nada_cleanup_env(global_env);
+                return 1;
+            }
+            break;
+        }
+    }
+
+    // Load libraries if not disabled
+    if (load_libs) {
+        nada_load_libraries(global_env);
+    }
+
+    // Execute based on the parsed options
+    if (eval_scheme) {
+        // Evaluate Scheme expression
+        NadaValue *expr = nada_parse(expression);
+        if (expr) {
+            NadaValue *result = nada_eval(expr, global_env);
+            nada_print(result);
+            printf("\n");
+            nada_free(expr);
+            nada_free(result);
+        } else {
+            printf("Error parsing Scheme expression\n");
+            nada_cleanup_env(global_env);
+            return 1;
+        }
+    } else if (eval_algebraic) {
+        // Evaluate algebraic expression
+        char buffer[10240];
+        snprintf(buffer, sizeof(buffer), "(eval-algebraic \"%s\")", expression);
+
+        NadaValue *expr = nada_parse(buffer);
+        if (expr) {
+            NadaValue *result = nada_eval(expr, global_env);
+            nada_print(result);
+            printf("\n");
+            nada_free(expr);
+            nada_free(result);
+        } else {
+            printf("Error parsing algebraic expression\n");
+            nada_cleanup_env(global_env);
+            return 1;
+        }
+    } else if (expression) {
+        // File mode: load the specified file
+        NadaValue *result = nada_load_file(expression, global_env);
+        if (result) {
+            nada_free(result);
+        } else {
+            printf("Error loading file: %s\n", expression);
+            nada_cleanup_env(global_env);
+            return 1;
+        }
     } else {
         // Interactive mode: run the REPL
         run_repl();
     }
-    nada_cleanup_env(global_env);
 
+    nada_cleanup_env(global_env);
     return 0;
 }
