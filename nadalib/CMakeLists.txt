@@ -1,17 +1,31 @@
-# nadalib/CMakeLists.txt
+# CMakeLists.txt for nadalib
 
-# Install Scheme library files
-file(GLOB SCHEME_LIB_FILES "*.scm")
+# Source files for the library
+set(LIB_SOURCES
+    NadaValue.c
+    NadaEnv.c
+    NadaParser.c
+    NadaEval.c
+    NadaString.c
+    NadaNum.c
+    NadaError.c
+    NadaConfig.c
+    NadaBuiltinLists.c
+    NadaBuiltinMath.c
+    NadaBuiltinCompare.c
+    NadaBuiltinSpecialForms.c
+    NadaBuiltinPredicates.c
+    NadaBuiltinBoolOps.c
+    NadaBuiltinIO.c
+)
 
-# Copy library files to build directory
-foreach(SCHEME_FILE ${SCHEME_LIB_FILES})
-    get_filename_component(FILENAME ${SCHEME_FILE} NAME)
-    configure_file(
-        ${SCHEME_FILE}
-        ${CMAKE_BINARY_DIR}/nadalib/${FILENAME}
-        COPYONLY
-    )
-endforeach()
+# Add the library target
+add_library(nada_lib STATIC ${LIB_SOURCES})
+add_library(nada_shared SHARED ${LIB_SOURCES})
 
-# Install the library files
-install(FILES ${SCHEME_LIB_FILES} DESTINATION share/nadalib)
+# Include directories
+include_directories(${CMAKE_SOURCE_DIR}/include)
+
+# Set the output directories for the library
+set_target_properties(nada_lib PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set_target_properties(nada_shared PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

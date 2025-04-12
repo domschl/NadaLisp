@@ -56,18 +56,31 @@ endif()
 enable_testing()
 
 # Add the lib directory (core library)
-add_subdirectory(lib)
+add_subdirectory(nadalib)
 
 # Add the repl directory (NadaLisp executable)
 add_subdirectory(repl)
 
-# Add the nadalib directory (Scheme standard library)
-add_subdirectory(nadalib)
+# Add the nadalib_std directory (Scheme standard library)
+add_subdirectory(nadalib_std)
 
 # Add the tests directory
 add_subdirectory(tests)
 
 # Install library files
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/nadalib/
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/nadalib_std/
         DESTINATION ${CMAKE_INSTALL_PREFIX}/share/nada/lib
         FILES_MATCHING PATTERN "*.scm")
+
+# Install the static and shared libraries
+install(TARGETS nada_lib nada_shared
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib)
+
+# Install the include files
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/
+        DESTINATION include
+        FILES_MATCHING PATTERN "*.h")
+
+# Install the REPL executable
+install(TARGETS NadaLisp DESTINATION bin)

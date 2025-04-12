@@ -1,7 +1,7 @@
 #!/bin/bash
 # tests/memory_tests/leak_test_single.sh.in
 
-TEST_PROGRAM="@CMAKE_BINARY_DIR@/tests/memory_test"
+TEST_PROGRAM="@CMAKE_BINARY_DIR@/tests/leak_test"
 TEST_METHOD="$1"
 TEST_FILE="$2"
 
