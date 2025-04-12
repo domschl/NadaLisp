@@ -7,7 +7,6 @@ import sys
 import json
 import re
 import ctypes
-import logging
 import tempfile
 import threading
 import time
@@ -15,28 +14,7 @@ import traceback
 from ipykernel.kernelbase import Kernel
 from ctypes import c_char_p, c_void_p, c_int, CDLL, POINTER, byref, Structure
 
-# Set up file-based logging to the user's home directory
-log_dir = os.path.expanduser("~/nada_kernel_logs")
-os.makedirs(log_dir, exist_ok=True)
-log_file = os.path.join(log_dir, "nada_kernel.log")
-
-# Create a logger that logs to both file and console
-logger = logging.getLogger("nada_kernel")
-logger.setLevel(logging.DEBUG)
-
-# File handler
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logger.addHandler(file_handler)
-
-# Console handler
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
-console_handler.setFormatter(logging.Formatter('%(name)s - %(levelname)s - %(message)s'))
-logger.addHandler(console_handler)
-
-logger.info(f"NadaLisp kernel starting up, logs at: {log_file}")
+# The Kernel base class already provides a self.log logger
 
 class NadaKernel(Kernel):
     implementation = 'nada'
@@ -53,6 +31,7 @@ class NadaKernel(Kernel):
     
     def __init__(self, **kwargs):
         super(NadaKernel, self).__init__(**kwargs)
+        self.log.info("NadaLisp kernel starting up")
         self._load_nada_library()
         self._init_nada_env()
         
@@ -112,7 +91,7 @@ class NadaKernel(Kernel):
             self.lib.nada_free_string.argtypes = [c_char_p]
             self.lib.nada_free_string.restype = None
         
-        logger.info("Function prototypes defined successfully")
+        self.log.info("Function prototypes defined successfully")
         
     def _init_nada_env(self):
         """Initialize the NadaLisp environment"""
