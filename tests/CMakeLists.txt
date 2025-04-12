@@ -97,7 +97,7 @@ if(UNIX)
 endif()
 
 # Also run memory tests on regular lisp test files
-if(UNIX AND VALGRIND)
+if(UNIX)
     foreach(LISP_TEST_FILE ${LISP_TEST_FILES})
         get_filename_component(FILENAME ${LISP_TEST_FILE} NAME)
         get_filename_component(TEST_NAME ${LISP_TEST_FILE} NAME_WE)

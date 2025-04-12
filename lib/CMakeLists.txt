@@ -1,4 +1,4 @@
-# src/CMakeLists.txt
+# lib/CMakeLists.txt
 
 # Source files for the library
 set(LIB_SOURCES
@@ -25,10 +25,6 @@ add_library(nada_lib STATIC ${LIB_SOURCES})
 # Set include directories for the library
 target_include_directories(nada_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Create the executable
-add_executable(nada NadaLisp.c)
-target_link_libraries(nada PRIVATE nada_lib)
-
 # Add readline dependency to the library - use variables from parent scope
 if(READLINE_FOUND)
     # Add include directories
@@ -46,23 +42,5 @@ if(READLINE_FOUND)
     target_compile_definitions(nada_lib PUBLIC HAVE_READLINE)
 endif()
 
-if(READLINE_FOUND)
-    if(PkgConfig_FOUND AND READLINE_LIBRARIES)
-        # When using pkg-config
-        target_link_libraries(nada PRIVATE ${READLINE_LIBRARIES})
-    else()
-        # When found manually
-        target_link_libraries(nada PRIVATE ${READLINE_LIBRARY})
-        if(TERMCAP_LIBRARY)
-            target_link_libraries(nada PRIVATE ${TERMCAP_LIBRARY})
-        endif()
-    endif()
-    
-    # Add include directories if needed
-    if(READLINE_INCLUDE_DIR)
-        target_include_directories(nada PRIVATE ${READLINE_INCLUDE_DIR})
-    endif()
-endif()
-
-# Install the executable
-install(TARGETS nada DESTINATION bin)
+# Install the library
+install(TARGETS nada_lib DESTINATION lib)
