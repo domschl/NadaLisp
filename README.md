@@ -30,7 +30,7 @@ ninja
 ### Execute
 
 ```bash
-NadaLisp/build/repl/nada
+NadaLisp/build/repl/NadaLisp
 ```
 
 ## Tests
@@ -42,6 +42,62 @@ ctest -L LispTests         # Just functional tests
 ctest -L MemoryTests       # All memory tests
 ctest -L LispMemoryTests   # Memory tests for regular Lisp files only
 ```
+
+## Jupyter Kernel for NadaLisp
+
+NadaLisp comes with a Jupyter kernel that allows you to use NadaLisp in Jupyter notebooks.
+
+### Prerequisites
+
+- Python 3.8 or higher
+- uv (Python package manager)
+
+### Building and Installing the Kernel
+
+In `NadaLisp/build`:
+
+```bash
+# Build the NadaLisp project including the Jupyter kernel
+cmake -G Ninja ..
+ninja
+
+# Set up the Python virtual environment and install required packages
+ninja setup_venv
+
+# Install the NadaLisp kernel
+ninja install_kernel
+```
+
+### Running JupyterLab with NadaLisp
+
+After installing the kernel, you can start JupyterLab:
+
+```bash
+ninja run_jupyterlab
+```
+
+This will open JupyterLab in your browser. To create a new NadaLisp notebook:
+
+1. Click on the "+" button in the file browser to open the launcher
+2. Select "NadaLisp" from the notebook options
+3. You can now write and execute NadaLisp code in the notebook
+
+### Example Usage
+
+In a notebook cell, you can write NadaLisp code like (one expression per cell only currently):
+
+```scheme
+(define (factorial n)
+  (if (<= n 1)
+      1
+      (* n (factorial (- n 1)))))
+```
+
+```scheme
+(factorial 5)
+```
+
+Execute the cell to see the result.
 
 ## License
 

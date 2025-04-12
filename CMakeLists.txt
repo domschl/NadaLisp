@@ -67,6 +67,9 @@ add_subdirectory(nadalib_std)
 # Add the tests directory
 add_subdirectory(tests)
 
+# Add the Jupyter kernel directory
+add_subdirectory(jupyter_kernel)
+
 # Install library files
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/nadalib_std/
         DESTINATION ${CMAKE_INSTALL_PREFIX}/share/nada/lib
