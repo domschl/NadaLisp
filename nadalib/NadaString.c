@@ -20,6 +20,106 @@ int utf8_strlen(const char *str) {
     return count;
 }
 
+// Helper function to ensure buffer has enough space
+static void ensure_buffer_space(char **buffer, int *buffer_size, int pos, int needed) {
+    if (pos + needed >= *buffer_size) {
+        *buffer_size *= 2;
+        *buffer = realloc(*buffer, *buffer_size);
+        if (!*buffer) {
+            fprintf(stderr, "Error: Out of memory in nada_value_to_string\n");
+            exit(1);
+        }
+    }
+}
+
+// Helper function to append to buffer
+static void append_to_buffer(char **buffer, int *buffer_size, int *pos, const char *str) {
+    int len = strlen(str);
+    ensure_buffer_space(buffer, buffer_size, *pos, len + 1);
+    strcpy(*buffer + *pos, str);
+    *pos += len;
+}
+
+// Convert a NadaValue to a string representation
+// This is similar to nada_print but writes to a string instead of stdout
+char *nada_value_to_string(NadaValue *val) {
+    if (val == NULL) {
+        return strdup("NULL");
+    }
+
+    // Initial buffer size
+    int buffer_size = 1024;
+    char *buffer = malloc(buffer_size);
+    if (!buffer) {
+        return NULL;
+    }
+    buffer[0] = '\0';  // Ensure buffer is initially empty
+    int pos = 0;       // Current position in buffer
+
+    switch (val->type) {
+    case NADA_NUM: {
+        char *num_str = nada_num_to_string(val->data.number);
+        append_to_buffer(&buffer, &buffer_size, &pos, num_str);
+        free(num_str);
+        break;
+    }
+    case NADA_STRING: {
+        append_to_buffer(&buffer, &buffer_size, &pos, "\"");
+        append_to_buffer(&buffer, &buffer_size, &pos, val->data.string);
+        append_to_buffer(&buffer, &buffer_size, &pos, "\"");
+        break;
+    }
+    case NADA_SYMBOL:
+        append_to_buffer(&buffer, &buffer_size, &pos, val->data.symbol);
+        break;
+    case NADA_NIL:
+        append_to_buffer(&buffer, &buffer_size, &pos, "()");
+        break;
+    case NADA_PAIR: {
+        append_to_buffer(&buffer, &buffer_size, &pos, "(");
+
+        // Convert and append the car
+        char *car_str = nada_value_to_string(val->data.pair.car);
+        append_to_buffer(&buffer, &buffer_size, &pos, car_str);
+        free(car_str);
+
+        // Print rest of the list
+        NadaValue *rest = val->data.pair.cdr;
+        while (rest->type == NADA_PAIR) {
+            append_to_buffer(&buffer, &buffer_size, &pos, " ");
+
+            // Convert and append the next car
+            char *next_car_str = nada_value_to_string(rest->data.pair.car);
+            append_to_buffer(&buffer, &buffer_size, &pos, next_car_str);
+            free(next_car_str);
+
+            rest = rest->data.pair.cdr;
+        }
+
+        // Handle improper lists
+        if (rest->type != NADA_NIL) {
+            append_to_buffer(&buffer, &buffer_size, &pos, " . ");
+
+            // Convert and append the final cdr
+            char *cdr_str = nada_value_to_string(rest);
+            append_to_buffer(&buffer, &buffer_size, &pos, cdr_str);
+            free(cdr_str);
+        }
+
+        append_to_buffer(&buffer, &buffer_size, &pos, ")");
+        break;
+    }
+    case NADA_FUNC:
+        append_to_buffer(&buffer, &buffer_size, &pos, "#<function>");
+        break;
+    case NADA_BOOL:
+        append_to_buffer(&buffer, &buffer_size, &pos, val->data.boolean ? "#t" : "#f");
+        break;
+    }
+
+    return buffer;
+}
+
 // Get pointer to the nth UTF-8 character
 const char *utf8_index(const char *str, int index) {
     int count = 0;

@@ -1,0 +1,19 @@
+[project]
+name = "nada-kernel"
+version = "0.1.0"
+description = "Jupyter kernel for NadaLisp"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+dependencies = [
+    "jupyter_client>=6.0.0",
+    "ipykernel>=6.0.0",
+    "jupyterlab>=3.0.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kernel"]
