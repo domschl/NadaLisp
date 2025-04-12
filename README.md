@@ -1,3 +1,5 @@
+[![CMake Test](https://github.com/domschl/NadaLisp/actions/workflows/cmake-test.yml/badge.svg)](https://github.com/domschl/NadaLisp/actions/workflows/cmake-test.yml)
+
 # NadaLisp Project
 
 It's Scheme implementation implemented by Copilot using Claude Sonnet 3.7 Thinking and all of it's collegues. Human did only little hand-holding and debris removal...
