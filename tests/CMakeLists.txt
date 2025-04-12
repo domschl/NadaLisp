@@ -1,8 +1,16 @@
 # tests/CMakeLists.txt
 
 # Lisp-based test runner
+# Link test executables against the static library
 add_executable(run_lisp_tests run_lisp_tests.c)
 target_link_libraries(run_lisp_tests PRIVATE nada_lib)
+target_include_directories(run_lisp_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+# Rename the memory test executable to match the source file name
+add_executable(leak_test memory_tests/leak_test.c)
+set_target_properties(leak_test PROPERTIES OUTPUT_NAME "leak_test")
+target_link_libraries(leak_test PRIVATE nada_lib)
+target_include_directories(leak_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 # Copy Lisp test files to build directory
 file(GLOB LISP_TEST_FILES
@@ -58,9 +66,6 @@ if(UNIX)
          PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE 
                     GROUP_READ GROUP_EXECUTE 
                     WORLD_READ WORLD_EXECUTE)
-    
-    add_executable(memory_test memory_tests/leak_test.c)
-    target_link_libraries(memory_test PRIVATE nada_lib)
     
     # Memory leak test files
     file(GLOB MEMORY_TEST_FILES

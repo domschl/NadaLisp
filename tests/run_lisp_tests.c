@@ -4,11 +4,11 @@
 #include <dirent.h>
 #include <unistd.h>
 
-#include "../lib/NadaError.h"
-#include "../lib/NadaEval.h"
-#include "../lib/NadaParser.h"
-#include "../lib/NadaValue.h"
-#include "../lib/NadaConfig.h"
+#include "NadaError.h"
+#include "NadaEval.h"
+#include "NadaParser.h"
+#include "NadaValue.h"
+#include "NadaConfig.h"
 
 // Define test variables
 static int tests_run = 0;
