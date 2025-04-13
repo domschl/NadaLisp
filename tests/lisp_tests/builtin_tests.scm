@@ -88,7 +88,7 @@
 (define-test "cond-special-form"
   (assert-equal (cond (#f 1) (#t 2) (else 3)) 2)
   (assert-equal (cond (#f 1) (#f 2) (else 3)) 3)
-  (assert-equal (cond (#t 'first) (#t 'second)) 'xxfirst))
+  (assert-equal (cond (#t 'first) (#t 'second)) 'first))
 
 (define-test "begin-special-form"
   (define x 1)

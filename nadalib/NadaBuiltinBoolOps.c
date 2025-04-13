@@ -11,9 +11,9 @@ NadaValue *builtin_not(NadaValue *args, NadaEnv *env) {
 
     NadaValue *arg = nada_eval(nada_car(args), env);
 
-    // In Lisp, only #f and nil are falsy, everything else is truthy
-    int is_falsy = (arg->type == NADA_BOOL && arg->data.boolean == 0) ||
-                   (arg->type == NADA_NIL);
+    // In standard Scheme, only #f is falsy, everything else is truthy
+    // (including empty lists/nil)
+    int is_falsy = (arg->type == NADA_BOOL && arg->data.boolean == 0);
 
     nada_free(arg);
 

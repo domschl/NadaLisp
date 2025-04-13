@@ -31,30 +31,51 @@
             #f)))))
 
 ;; define-test: Define and run a named test case
-;; Simplified version that takes a single expression
+;; Now supports multiple assertion expressions
 (define define-test
-  (lambda (name expr)
-    ;; Increment the test counter
-    (set! tests-run-count (+ tests-run-count 1))
-    
-    (display "Running test: ")
-    (display name)
-    (display "\n")
-    
-    ;; Evaluate the expression directly (no list processing)
-    (let ((result expr))
-      ;; Update global status if test failed
-      (if result
-          (set! tests-passed-count (+ tests-passed-count 1))
-          (begin
-            (set! tests-failed-count (+ tests-failed-count 1))
-            (set! tests-all-passed #f)))
-      
-      (display "Test '")
-      (display name)
-      (display "' ")
-      (if result
-          (display "PASSED")
-          (display "FAILED"))
-      (display "\n")
-      result)))
+  (lambda args
+    ;; Extract the name and expressions
+    (if (< (length args) 2)
+        (begin
+          (display "ERROR: define-test requires at least a name and one assertion\n")
+          #f)
+        (let ((name (car args))
+              (assertions (cdr args)))
+          
+          ;; Increment the test counter
+          (set! tests-run-count (+ tests-run-count 1))
+          
+          (display "Running test: ")
+          (display name)
+          (display "\n")
+          
+          ;; Track if all assertions pass
+          (define all-passed #t)
+          
+          ;; Process each assertion
+          (define process-assertions
+            (lambda (remaining)
+              (if (null? remaining)
+                  all-passed
+                  (let ((result (car remaining)))
+                    (if (not result)
+                        (set! all-passed #f))
+                    (process-assertions (cdr remaining))))))
+          
+          ;; Run all assertions
+          (let ((test-passed (process-assertions assertions)))
+            ;; Update global counters
+            (if test-passed
+                (set! tests-passed-count (+ tests-passed-count 1))
+                (begin
+                  (set! tests-failed-count (+ tests-failed-count 1))
+                  (set! tests-all-passed #f)))
+            
+            (display "Test '")
+            (display name)
+            (display "' ")
+            (if test-passed
+                (display "PASSED")
+                (display "FAILED"))
+            (display "\n")
+            test-passed)))))

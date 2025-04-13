@@ -160,9 +160,8 @@ NadaValue *builtin_if(NadaValue *args, NadaEnv *env) {
     // Evaluate the condition
     NadaValue *condition = nada_eval(nada_car(args), env);
 
-    // Check if condition is true (anything other than #f or nil)
-    int is_true = !(condition->type == NADA_BOOL && condition->data.boolean == 0) &&
-                  !(condition->type == NADA_NIL);
+    // Check if condition is true (only #f is falsy in standard Scheme)
+    int is_true = !(condition->type == NADA_BOOL && condition->data.boolean == 0);
 
     nada_free(condition);
 
