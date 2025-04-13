@@ -9,13 +9,14 @@ typedef struct NadaEnv NadaEnv;
 
 // Type enumeration for our Lisp values
 typedef enum {
-    NADA_NUM,     // Number value (replacing NADA_INT)
+    NADA_NUM,     // Number
     NADA_STRING,  // String value
     NADA_SYMBOL,  // Symbol (identifier)
     NADA_PAIR,    // Cons cell (for lists)
     NADA_NIL,     // Empty list/nil
     NADA_FUNC,    // Function value
-    NADA_BOOL     // Boolean value
+    NADA_BOOL,    // Boolean value
+    NADA_ERROR    // Error value
 } NadaValueType;
 
 // Forward declaration
@@ -41,6 +42,7 @@ struct NadaValue {
     union {
         NadaNum *number;    // For NADA_NUM (replacing integer)
         char *string;       // For NADA_STRING
+        char *error;        // For NADA_ERROR
         char *symbol;       // For NADA_SYMBOL
         NadaPair pair;      // For NADA_PAIR
         NadaFunc function;  // For NADA_FUNC
@@ -65,6 +67,10 @@ NadaValue *nada_car(NadaValue *pair);
 NadaValue *nada_cdr(NadaValue *pair);
 int nada_is_nil(NadaValue *val);
 NadaValue *nada_reverse(NadaValue *list);
+
+// Error handling: functions for creating and checking errors:
+NadaValue *nada_create_error(const char *message);
+int nada_is_error(const NadaValue *value);
 
 // Memory management
 void nada_free(NadaValue *val);

@@ -109,6 +109,10 @@ char *nada_value_to_string(NadaValue *val) {
         append_to_buffer(&buffer, &buffer_size, &pos, ")");
         break;
     }
+    case NADA_ERROR:
+        append_to_buffer(&buffer, &buffer_size, &pos, "Error: ");
+        append_to_buffer(&buffer, &buffer_size, &pos, val->data.error);
+        break;
     case NADA_FUNC:
         append_to_buffer(&buffer, &buffer_size, &pos, "#<function>");
         break;

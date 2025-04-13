@@ -186,7 +186,26 @@ class NadaKernel(Kernel):
                             # Parse and evaluate the input code with nada_parse_eval_multi
                             self.log.info(f"Parsing and evaluating expression: {expr}")
                             value_ptr = self.lib.nada_parse_eval_multi(c_code, self.env)
-                        
+                            
+                            if value_ptr:
+                                # Check if it's an error using nada_is_error instead of nada_get_type
+                                self.lib.nada_is_error.argtypes = [c_void_p]
+                                self.lib.nada_is_error.restype = c_int
+                                
+                                if self.lib.nada_is_error(value_ptr):
+                                    # Get the error message
+                                    string_ptr = self.lib.nada_value_to_string(value_ptr)
+                                    error_msg = ctypes.string_at(string_ptr).decode('utf-8')
+                                    
+                                    # Free resources
+                                    if hasattr(self.lib, 'nada_free_string'):
+                                        self.lib.nada_free_string(string_ptr)
+                                    self.lib.nada_free(value_ptr)
+                                    
+                                    # Send error to Jupyter frontend
+                                    error[0] = RuntimeError(error_msg)
+                                    return
+                            
                         # Get any captured output
                         stdout_output = captured_output.getvalue()
                         

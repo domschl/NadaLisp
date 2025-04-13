@@ -140,3 +140,16 @@ NadaValue *builtin_atom_p(NadaValue *args, NadaEnv *env) {
     nada_free(val);
     return nada_create_bool(result);
 }
+
+// Error predicate (error?)
+NadaValue *builtin_error_p(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "error? requires exactly 1 argument");
+        return nada_create_bool(0);
+    }
+
+    NadaValue *val = nada_eval(nada_car(args), env);
+    int result = (val->type == NADA_ERROR);
+    nada_free(val);
+    return nada_create_bool(result);
+}

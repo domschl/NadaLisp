@@ -130,11 +130,12 @@ void run_repl(void) {
             if (strlen(buffer) > 0) {
                 NadaValue *result = nada_parse_eval_multi(buffer, global_env);
 
+                // Print the result
                 nada_print(result);
                 printf("\n");
 
+                // No need for special handling in REPL - just continue after errors
                 nada_free(result);
-                // nada_memory_report();
             }
             buffer[0] = '\0';  // Reset buffer but keep allocated memory
             strcpy(prompt, "nada> ");
@@ -223,7 +224,19 @@ int main(int argc, char *argv[]) {
         NadaValue *result = nada_parse_eval_multi(expression, global_env);
         nada_print(result);
         printf("\n");
+
+        // Check for errors and exit with non-zero status if there was an error
+        int exit_code = 0;
+        if (nada_is_error(result)) {
+            exit_code = 1;
+        }
+
         nada_free(result);
+
+        if (exit_code != 0) {
+            nada_cleanup_env(global_env);
+            return exit_code;
+        }
     } else if (eval_algebraic) {
         // Evaluate algebraic expression
         char buffer[10240];
@@ -232,7 +245,19 @@ int main(int argc, char *argv[]) {
         NadaValue *result = nada_parse_eval_multi(buffer, global_env);
         nada_print(result);
         printf("\n");
+
+        // Check for errors and exit with non-zero status if there was an error
+        int exit_code = 0;
+        if (nada_is_error(result)) {
+            exit_code = 1;
+        }
+
         nada_free(result);
+
+        if (exit_code != 0) {
+            nada_cleanup_env(global_env);
+            return exit_code;
+        }
     } else if (expression) {
         // File mode: load the specified file
         NadaValue *result = nada_load_file(expression, global_env);

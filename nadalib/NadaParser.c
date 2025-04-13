@@ -86,7 +86,7 @@ static int next_token(Tokenizer *t) {
     size_t i = 0;
     while (t->input[t->position] != '\0' &&
            !isspace(t->input[t->position]) &&
-           t->input[t->position] != '(' &&
+           t->input[t->position] != '(' &&  // Fixed the syntax error
            t->input[t->position] != ')') {
         t->token[i++] = t->input[t->position++];
     }
@@ -396,15 +396,22 @@ NadaValue *nada_parse_multi(const char *input) {
     return result;
 }
 
-// Add this function to parse and evaluate multiple expressions
 NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
-    // First validate parentheses
+    // First validate parentheses - keep unchanged
     int error_pos = -1;
     int paren_balance = validate_parentheses(input, &error_pos);
 
     if (paren_balance != 0) {
-        // Error handling code stays the same
-        return nada_create_nil();
+        // Error handling - keep unchanged
+        char error_buffer[1024];
+        if (paren_balance > 0) {
+            snprintf(error_buffer, sizeof(error_buffer),
+                     "Missing %d closing parentheses", paren_balance);
+        } else {
+            snprintf(error_buffer, sizeof(error_buffer),
+                     "Unexpected closing parenthesis at position %d", error_pos);
+        }
+        return nada_create_error(error_buffer);
     }
 
     Tokenizer t;
@@ -412,67 +419,97 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
 
     // Get the first token
     if (!get_next_token(&t)) {
-        // Empty input
+        // Empty input - this is not an error
         return nada_create_nil();
     }
 
     NadaValue *result = nada_create_nil();
     NadaValue *expr = NULL;
-    int had_valid_expressions = 0;
+    NadaValue *last_valid_result = NULL;
+    int first_expr = 1;
 
     // Parse and evaluate expressions until we reach the end of input
-    while (t.token[0] != '\0') {
-        // Free the previous result
-        if (result != NULL) {
-            nada_free(result);
-            result = NULL;
+    while (1) {
+        if (t.token[0] == '\0') {
+            break;  // End of input
         }
 
         // Parse the next expression
         expr = parse_expr(&t);
 
+        // Free any previous result
+        if (result != NULL) {
+            nada_free(result);
+        }
+
         // Evaluate the expression and store the result
         result = nada_eval(expr, env);
-        had_valid_expressions = 1;
+
+        // Check if result is an error
+        if (nada_is_error(result)) {
+            // Free the parsed expression
+            nada_free(expr);
+
+            // Free any previous valid result
+            if (last_valid_result != NULL) {
+                nada_free(last_valid_result);
+            }
+
+            // Return the error result directly
+            return result;
+        }
 
         // Free the parsed expression
         nada_free(expr);
 
-        // Skip any whitespace
+        // Keep track of the last valid result
+        if (last_valid_result != NULL) {
+            nada_free(last_valid_result);
+        }
+        last_valid_result = nada_deep_copy(result);
+
+        // We're at the end when the token is empty
+        if (t.token[0] == '\0') {
+            break;
+        }
+
+        // Check for end of input
+        if (t.input[t.position] == '\0') {
+            break;
+        }
+
+        // Skip whitespace but DON'T get the next token yet
         skip_whitespace(&t);
 
-        // Break if we're at the end of input or at a comment
-        if (t.token[0] == '\0' || t.input[t.position] == ';') {
-            // If we're at a comment, skip to end of input or next expression
-            if (t.input[t.position] == ';') {
-                while (t.input[t.position] != '\0' && t.input[t.position] != '\n') {
-                    t.position++;
-                }
-
-                // Skip newline if present
-                if (t.input[t.position] == '\n') {
-                    t.position++;
-                }
-
-                // If there's nothing left after comment, we're done
-                if (t.input[t.position] == '\0') {
-                    break;
-                }
-
-                // Otherwise get the next token and continue
-                get_next_token(&t);
-                continue;
+        // Check for comments
+        if (t.input[t.position] == ';') {
+            // Skip to end of line or end of input
+            while (t.input[t.position] != '\0' && t.input[t.position] != '\n') {
+                t.position++;
             }
-            break;
+
+            // If we've reached end of input after a comment, we're done
+            if (t.input[t.position] == '\0') {
+                break;
+            }
+
+            // Skip the newline character if present
+            if (t.input[t.position] == '\n') {
+                t.position++;
+            }
+
+            // After a comment, we need to get the next token
+            if (!get_next_token(&t)) {
+                break;  // No more tokens
+            }
         }
     }
 
-    // If we processed at least one expression, return the result
-    // even if we ended with comments
-    if (had_valid_expressions) {
-        return result;
-    } else {
+    // Free the final intermediate result
+    if (result != NULL) {
         nada_free(result);
-        return nada_create_nil();
     }
+
+    // Return the last valid result (or nil if none)
+    return last_valid_result ? last_valid_result : nada_create_nil();
 }

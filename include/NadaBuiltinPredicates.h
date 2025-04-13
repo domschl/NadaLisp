@@ -26,5 +26,7 @@ int is_proper_list(NadaValue *v);
 NadaValue *builtin_list_p(NadaValue *args, NadaEnv *env);
 // Atom predicate (atom?) - anything that's not a pair or nil
 NadaValue *builtin_atom_p(NadaValue *args, NadaEnv *env);
+// Error predicate (error?)
+NadaValue *builtin_error_p(NadaValue *args, NadaEnv *env);
 
 #endif  // NADA_BUILTIN_PREDICATE_H

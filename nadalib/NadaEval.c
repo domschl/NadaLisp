@@ -416,6 +416,7 @@ static BuiltinFuncInfo builtins[] = {
     {"list?", builtin_list_p},
     {"atom?", builtin_atom_p},
     {"builtin?", builtin_builtin_p},
+    {"error?", builtin_error_p},
 
     // String operations
     {"string-length", builtin_string_length},
@@ -530,9 +531,10 @@ const char *get_builtin_name(BuiltinFunc func) {
 
 // Evaluate an expression in an environment
 NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
-    // Self-evaluating expressions: numbers, strings, booleans, and nil
+    // Self-evaluating expressions: numbers, strings, booleans, nil, and errors
     if (expr->type == NADA_NUM || expr->type == NADA_STRING ||
-        expr->type == NADA_BOOL || expr->type == NADA_NIL) {
+        expr->type == NADA_BOOL || expr->type == NADA_NIL ||
+        expr->type == NADA_ERROR) {
         // Make a copy to avoid double-freeing
         switch (expr->type) {
         case NADA_NUM:
@@ -543,6 +545,8 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
             return nada_create_bool(expr->data.boolean);
         case NADA_NIL:
             return nada_create_nil();
+        case NADA_ERROR:
+            return nada_create_error(expr->data.error);
         default:
             return nada_create_nil();  // Should never happen
         }
