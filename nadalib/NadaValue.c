@@ -140,7 +140,10 @@ NadaValue *nada_create_function(NadaValue *params, NadaValue *body, NadaEnv *env
     val->data.function.builtin = NULL;
 
     // Add a reference to the environment
-    nada_env_add_ref(env);
+    if (env) {
+        printf("FUNC CREATE with env #%d\n", env->id);
+        nada_env_add_ref(env);
+    }
 
     nada_increment_allocations();
     return val;

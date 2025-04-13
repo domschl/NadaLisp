@@ -12,6 +12,7 @@
 
 static NadaEnv *global_env = NULL;
 static int had_evaluation_error = 0;
+static NadaValue *test_results_var;
 
 // Error handler callback
 static void test_error_handler(NadaErrorType type, const char *message, void *user_data) {

@@ -16,6 +16,7 @@ struct NadaEnv {
     struct NadaBinding *bindings;
     struct NadaEnv *parent;
     int ref_count;
+    int id;  // Unique ID for debugging
 };
 
 // Environment type

@@ -67,8 +67,18 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) 
     }
 
     // For user-defined functions:
+    // Add debugging output to track function application and environment relationship
+    printf("APPLY FUNCTION with env %p (ref_count: %d)\n",
+           (void *)func->data.function.env,
+           func->data.function.env ? func->data.function.env->ref_count : -1);
+
     // First, create a new environment with the closure as parent
     NadaEnv *func_env = nada_env_create(func->data.function.env);
+
+    printf("Created function env %p with parent %p (ref_count: %d)\n",
+           (void *)func_env,
+           (void *)func->data.function.env,
+           func_env->ref_count);
 
     // Check for variadic lambda - handle 'lambda args' pattern
     if (func->data.function.params->type == NADA_SYMBOL) {
