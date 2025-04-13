@@ -397,12 +397,12 @@ NadaValue *nada_parse_multi(const char *input) {
 }
 
 NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
-    // First validate parentheses - keep unchanged
+    // First validate parentheses
     int error_pos = -1;
     int paren_balance = validate_parentheses(input, &error_pos);
 
     if (paren_balance != 0) {
-        // Error handling - keep unchanged
+        // Error handling code (unchanged)
         char error_buffer[1024];
         if (paren_balance > 0) {
             snprintf(error_buffer, sizeof(error_buffer),
@@ -426,14 +426,8 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
     NadaValue *result = nada_create_nil();
     NadaValue *expr = NULL;
     NadaValue *last_valid_result = NULL;
-    int first_expr = 1;
 
-    // Parse and evaluate expressions until we reach the end of input
-    while (1) {
-        if (t.token[0] == '\0') {
-            break;  // End of input
-        }
-
+    while (t.token[0] != '\0') {
         // Parse the next expression
         expr = parse_expr(&t);
 
@@ -447,15 +441,11 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
 
         // Check if result is an error
         if (nada_is_error(result)) {
-            // Free the parsed expression
+            // Error handling code (unchanged)
             nada_free(expr);
-
-            // Free any previous valid result
             if (last_valid_result != NULL) {
                 nada_free(last_valid_result);
             }
-
-            // Return the error result directly
             return result;
         }
 
@@ -468,20 +458,15 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
         }
         last_valid_result = nada_deep_copy(result);
 
-        // We're at the end when the token is empty
-        if (t.token[0] == '\0') {
-            break;
-        }
+        // Skip whitespace
+        skip_whitespace(&t);
 
-        // Check for end of input
+        // If we've reached the end of input, we're done
         if (t.input[t.position] == '\0') {
             break;
         }
 
-        // Skip whitespace but DON'T get the next token yet
-        skip_whitespace(&t);
-
-        // Check for comments
+        // Check for comments and handle them properly
         if (t.input[t.position] == ';') {
             // Skip to end of line or end of input
             while (t.input[t.position] != '\0' && t.input[t.position] != '\n') {
@@ -493,12 +478,23 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
                 break;
             }
 
-            // Skip the newline character if present
+            // Skip newline and continue
             if (t.input[t.position] == '\n') {
                 t.position++;
             }
 
-            // After a comment, we need to get the next token
+            // Skip any more whitespace
+            skip_whitespace(&t);
+
+            // If we're at the end of input now, we're done
+            if (t.input[t.position] == '\0') {
+                break;
+            }
+        }
+
+        // Only try to get the next token if we haven't already reached the end
+        // and we're not currently at a comment
+        if (t.input[t.position] != '\0' && t.input[t.position] != ';') {
             if (!get_next_token(&t)) {
                 break;  // No more tokens
             }

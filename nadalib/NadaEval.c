@@ -243,6 +243,9 @@ void print_bindings(NadaEnv *current_env, int level) {
         case NADA_NIL:
             printf("Nil\n");
             break;
+        case NADA_ERROR:
+            fprintf(stderr, "#<error: %s>", binding->value->data.error);
+            break;
         }
 
         binding = binding->next;
@@ -289,6 +292,9 @@ void serialize_value(NadaValue *val, FILE *f) {
         break;
     case NADA_NIL:
         fprintf(f, "()");
+        break;
+    case NADA_ERROR:
+        fprintf(f, "#<error: %s>", val->data.error);
         break;
     case NADA_PAIR: {
         fprintf(f, "(");
