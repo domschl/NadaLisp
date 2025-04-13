@@ -25,11 +25,12 @@
   (assert-equal (/ 2) 0.5)  ; Unary division (1/x)
   (assert-equal (/ 1 2) 0.5))
 
-(define-test "modulo"
+(define-test "modulo-and-remainder"
   (assert-equal (modulo 7 3) 1)
   (assert-equal (% 7 3) 1)  ; % alias
   (assert-equal (modulo -7 3) 2)  ; Check behavior with negative numbers
   (assert-equal (modulo 7 -3) -2))
+  (assert-equal (remainder -7 3) -1)  ; Check behavior with negative numbers
 
 ; ----- Numeric Comparisons Tests -----
 (define-test "less-than"

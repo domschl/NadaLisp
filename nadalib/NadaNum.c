@@ -367,26 +367,83 @@ NadaNum *nada_num_modulo(const NadaNum *a, const NadaNum *b) {
         return nada_num_from_int(0);
     }
 
+    // Get absolute values for the calculation
+    char *a_abs = strdup(a->numerator);
+    char *b_abs = strdup(b->numerator);
+
     char *remainder = NULL;
-    
-    // IMPORTANT: Capture and free the quotient returned by divide_integers
-    char *quotient = divide_integers(a->numerator, b->numerator, &remainder);
-    
-    // Create result from remainder
+    char *quotient = divide_integers(a_abs, b_abs, &remainder);
+
+    // Create result from remainder, initially with the sign of a
     NadaNum *result = nada_num_from_fraction(remainder, "1");
-    
-    // Free both the quotient and remainder after they've been used
+    result->sign = a->sign;
+
+    // Now adjust based on the rules of Scheme's modulo:
+    // In Scheme, modulo returns a result with the same sign as the divisor
+
+    // If signs differ and remainder isn't zero, adjust
+    if (a->sign != b->sign && strcmp(result->numerator, "0") != 0) {
+        // For modulo, we need a value in range [0, |b|)
+        char *b_abs_copy = strdup(b_abs);
+        char *adjusted = subtract_integers(b_abs_copy, remainder);
+
+        free(result->numerator);
+        result->numerator = adjusted;
+        result->sign = b->sign;  // Result takes the sign of divisor
+
+        free(b_abs_copy);
+    }
+
+    // Ensure zero is always positive
+    if (strcmp(result->numerator, "0") == 0) {
+        result->sign = 1;
+    }
+
     free(quotient);
     free(remainder);
-    
-    // Set the sign on the result
-    if (result) {
-        result->sign = a->sign;
-        if (strcmp(result->numerator, "0") == 0) {
-            result->sign = 1;  // Zero is always positive
-        }
+    free(a_abs);
+    free(b_abs);
+
+    return result;
+}
+
+// Calculate remainder of two rational numbers
+NadaNum *nada_num_remainder(const NadaNum *a, const NadaNum *b) {
+    if (!a || !b) return NULL;
+
+    // Check for division by zero
+    if (strcmp(b->numerator, "0") == 0) {
+        fprintf(stderr, "Error: Remainder by zero\n");
+        return nada_num_from_int(0);
     }
-    
+
+    // Only defined for integers
+    if (!nada_num_is_integer(a) || !nada_num_is_integer(b)) {
+        fprintf(stderr, "Error: Remainder only defined for integers\n");
+        return nada_num_from_int(0);
+    }
+
+    // Get absolute values for the calculation
+    char *a_abs = strdup(a->numerator);
+    char *b_abs = strdup(b->numerator);
+
+    char *remainder = NULL;
+    char *quotient = divide_integers(a_abs, b_abs, &remainder);
+
+    // Create result from remainder, with the sign of dividend (a)
+    NadaNum *result = nada_num_from_fraction(remainder, "1");
+    result->sign = a->sign;
+
+    // Ensure zero is always positive
+    if (strcmp(result->numerator, "0") == 0) {
+        result->sign = 1;
+    }
+
+    free(quotient);
+    free(remainder);
+    free(a_abs);
+    free(b_abs);
+
     return result;
 }
 

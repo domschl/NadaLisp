@@ -383,6 +383,7 @@ static BuiltinFuncInfo builtins[] = {
     {"/", builtin_divide},
     {"%", builtin_modulo},
     {"modulo", builtin_modulo},  // Add modulo as alias
+    {"remainder", builtin_remainder},
     {"define", builtin_define},
     {"lambda", builtin_lambda},
     {"<", builtin_less_than},

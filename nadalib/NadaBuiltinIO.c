@@ -326,7 +326,7 @@ NadaValue *builtin_write_file(NadaValue *args, NadaEnv *env) {
     return nada_create_bool(written == len);
 }
 
-// display: Output a string to console
+// display: Output a string to console without adding newlines
 NadaValue *builtin_display(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args)) {
         fprintf(stderr, "Error: display requires at least 1 argument\n");
@@ -338,7 +338,36 @@ NadaValue *builtin_display(NadaValue *args, NadaEnv *env) {
         NadaValue *val = nada_eval(nada_car(curr), env);
 
         if (val->type == NADA_STRING) {
-            printf("%s", val->data.string);  // No quotes
+            // Process the string to handle escape sequences
+            const char *str = val->data.string;
+            while (*str) {
+                if (*str == '\\' && *(str + 1) != '\0') {
+                    // Handle escape sequences
+                    switch (*(str + 1)) {
+                    case 'n':
+                        printf("\n");
+                        break;
+                    case 't':
+                        printf("\t");
+                        break;
+                    case 'r':
+                        printf("\r");
+                        break;
+                    case '\\':
+                        printf("\\");
+                        break;
+                    case '"':
+                        printf("\"");
+                        break;
+                    default:
+                        printf("\\%c", *(str + 1));
+                        break;
+                    }
+                    str += 2;
+                } else {
+                    printf("%c", *str++);
+                }
+            }
         } else {
             nada_print(val);  // Use regular printer for non-strings
         }
@@ -347,6 +376,6 @@ NadaValue *builtin_display(NadaValue *args, NadaEnv *env) {
         curr = nada_cdr(curr);
     }
 
-    printf("\n");  // Add newline at the end
+    // Remove the automatic newline at the end
     return nada_create_nil();
 }

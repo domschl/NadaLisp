@@ -19,7 +19,7 @@
 ;; Test reduce function
 (define-test "Reduce function"
   (equal? (reduce + 0 '(1 2 3 4)) 10)
-  (equal? (reduce * 1 '(1 2 3 4)) 26)  
+  (equal? (reduce * 1 '(1 2 3 4)) 24  
   (equal? (reduce (lambda (x y) (+ x y)) 0 '(1 2 3 4)) 10)
   (equal? (reduce (lambda (x y) (* x y)) 1 '(1 2 3 4)) 24)
   ; (equal? (reduce (lambda (acc x) (cons x acc)) '() '(1 2 3)) '(3 2 1))

@@ -394,18 +394,16 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env) {
             start = found + delim_len;
         }
 
-        // Add the last segment
-        if (*start) {
-            NadaValue *seg_val = nada_create_string(start);
-            NadaValue *new_result = nada_cons(seg_val, result);
+        // Add the last segment (always add it, even if empty)
+        NadaValue *seg_val = nada_create_string(start);
+        NadaValue *new_result = nada_cons(seg_val, result);
 
-            // Free temporary values
-            nada_free(seg_val);
-            nada_free(result);
+        // Free temporary values
+        nada_free(seg_val);
+        nada_free(result);
 
-            // Update result pointer
-            result = new_result;
-        }
+        // Update result pointer
+        result = new_result;
 
         // Reverse the list
         NadaValue *reversed = nada_reverse(result);
