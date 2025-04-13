@@ -47,7 +47,15 @@ void run_repl(void) {
     printf("NadaLisp REPL (Ctrl+D to exit)\n");
     nada_memory_reset();
 
-    char buffer[10240] = {0};
+    // Use dynamic allocation instead of fixed buffer
+    size_t buffer_size = 1024;  // Initial size
+    char *buffer = malloc(buffer_size);
+    if (!buffer) {
+        fprintf(stderr, "Memory allocation failed\n");
+        return;
+    }
+    buffer[0] = '\0';
+
     int paren_balance = 0;
     int in_string = 0;
     char prompt[32] = "nada> ";
@@ -76,6 +84,30 @@ void run_repl(void) {
             add_history(line);
         }
 
+        // Check if buffer needs to be resized before appending
+        size_t current_len = strlen(buffer);
+        size_t line_len = strlen(line);
+        size_t required_size = current_len + line_len + 2;  // +2 for space and null terminator
+
+        if (required_size > buffer_size) {
+            // Double the buffer size or increase to required size, whichever is larger
+            size_t new_size = buffer_size * 2;
+            if (new_size < required_size) {
+                new_size = required_size;
+            }
+
+            char *new_buffer = realloc(buffer, new_size);
+            if (!new_buffer) {
+                fprintf(stderr, "Memory reallocation failed\n");
+                free(buffer);
+                free(line);
+                return;
+            }
+
+            buffer = new_buffer;
+            buffer_size = new_size;
+        }
+
         // Append to the buffer
         strcat(buffer, line);
         strcat(buffer, " ");  // Add space for readability
@@ -96,17 +128,15 @@ void run_repl(void) {
         // If balanced, process the expression
         if (paren_balance == 0) {
             if (strlen(buffer) > 0) {
-                NadaValue *expr = nada_parse(buffer);
-                NadaValue *result = nada_eval(expr, global_env);
+                NadaValue *result = nada_parse_eval_multi(buffer, global_env);
 
                 nada_print(result);
                 printf("\n");
 
-                nada_free(expr);
                 nada_free(result);
                 // nada_memory_report();
             }
-            buffer[0] = '\0';
+            buffer[0] = '\0';  // Reset buffer but keep allocated memory
             strcpy(prompt, "nada> ");
         } else {
             // Change prompt to show we're awaiting more input
@@ -114,6 +144,8 @@ void run_repl(void) {
         }
     }
 
+    // Clean up
+    free(buffer);
     printf("\nGoodbye!\n");
 }
 
@@ -188,35 +220,19 @@ int main(int argc, char *argv[]) {
     // Execute based on the parsed options
     if (eval_scheme) {
         // Evaluate Scheme expression
-        NadaValue *expr = nada_parse(expression);
-        if (expr) {
-            NadaValue *result = nada_eval(expr, global_env);
-            nada_print(result);
-            printf("\n");
-            nada_free(expr);
-            nada_free(result);
-        } else {
-            printf("Error parsing Scheme expression\n");
-            nada_cleanup_env(global_env);
-            return 1;
-        }
+        NadaValue *result = nada_parse_eval_multi(expression, global_env);
+        nada_print(result);
+        printf("\n");
+        nada_free(result);
     } else if (eval_algebraic) {
         // Evaluate algebraic expression
         char buffer[10240];
         snprintf(buffer, sizeof(buffer), "(eval-algebraic \"%s\")", expression);
 
-        NadaValue *expr = nada_parse(buffer);
-        if (expr) {
-            NadaValue *result = nada_eval(expr, global_env);
-            nada_print(result);
-            printf("\n");
-            nada_free(expr);
-            nada_free(result);
-        } else {
-            printf("Error parsing algebraic expression\n");
-            nada_cleanup_env(global_env);
-            return 1;
-        }
+        NadaValue *result = nada_parse_eval_multi(buffer, global_env);
+        nada_print(result);
+        printf("\n");
+        nada_free(result);
     } else if (expression) {
         // File mode: load the specified file
         NadaValue *result = nada_load_file(expression, global_env);

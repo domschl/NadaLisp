@@ -114,7 +114,11 @@ class NadaKernel(Kernel):
         self.lib.nada_eval.argtypes = [c_void_p, c_void_p]
         self.lib.nada_eval.restype = c_void_p
         
-        # Add nada_parse to convert string input to NadaValue
+        # Add nada_parse_eval_multi to process multiple expressions at once
+        self.lib.nada_parse_eval_multi.argtypes = [c_char_p, c_void_p]
+        self.lib.nada_parse_eval_multi.restype = c_void_p
+        
+        # Existing prototypes
         self.lib.nada_parse.argtypes = [c_char_p]
         self.lib.nada_parse.restype = c_void_p
         
@@ -174,24 +178,11 @@ class NadaKernel(Kernel):
                 
                 def evaluation_thread():
                     try:
-                        # Parse the input code to get a NadaValue pointer
-                        self.log.info(f"Parsing expression: {expr}")
-                        expr_ptr = self.lib.nada_parse(c_code)
-                        if not expr_ptr:
-                            error[0] = RuntimeError(f"Failed to parse expression: {expr}")
-                            self.log.error(f"Failed to parse expression: {expr}")
-                            return
+                        # Parse and evaluate the input code directly with nada_parse_eval_multi
+                        self.log.info(f"Parsing and evaluating expression: {expr}")
+                        value_ptr = self.lib.nada_parse_eval_multi(c_code, self.env)
                         
-                        self.log.info(f"Expression parsed successfully, expr_ptr: {expr_ptr}")
-                        
-                        # Call the NadaLisp interpreter with the parsed expression
-                        self.log.info("Calling nada_eval...")
-                        value_ptr = self.lib.nada_eval(expr_ptr, self.env)
-                        
-                        # Free the parsed expression
-                        self.lib.nada_free(expr_ptr)
-                        
-                        self.log.info(f"nada_eval returned: {value_ptr}")
+                        self.log.info(f"nada_parse_eval_multi returned: {value_ptr}")
                         
                         if not value_ptr:
                             error[0] = RuntimeError("Evaluation returned NULL")

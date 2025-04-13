@@ -1,8 +1,12 @@
-#include "NadaParser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+
+#include "NadaParser.h"
+#include "NadaValue.h"
+#include "NadaEnv.h"
+#include "NadaEval.h"
 
 // Initialize the tokenizer
 void tokenizer_init(Tokenizer *t, const char *input) {
@@ -323,6 +327,138 @@ NadaValue *nada_parse(const char *input) {
         fprintf(stderr, "Warning: extra input after expression ignored\n");
     } else if (strcmp(t.token, ")") == 0) {
         fprintf(stderr, "Error: unexpected closing parenthesis\n");
+    }
+
+    return result;
+}
+
+// Parse multiple expressions from a string
+NadaValue *nada_parse_multi(const char *input) {
+    // First validate parentheses
+    int error_pos = -1;
+    int paren_balance = validate_parentheses(input, &error_pos);
+
+    if (paren_balance != 0) {
+        fprintf(stderr, "Input: %s\n", input);
+        if (paren_balance > 0) {
+            fprintf(stderr, "Error: missing %d closing parentheses\n", paren_balance);
+        } else {
+            fprintf(stderr, "Error: unexpected closing parenthesis at position %d\n", error_pos);
+        }
+
+        // Show the context of the error
+        if (error_pos >= 0) {
+            int context_start = error_pos > 20 ? error_pos - 20 : 0;
+            fprintf(stderr, "Context: %.*s\n", 40, input + context_start);
+
+            // Print pointer to error position
+            fprintf(stderr, "%*s^\n", error_pos - context_start, "");
+            fprintf(stderr, "Full input:\n%s\n", input);
+        }
+
+        return nada_create_nil();
+    }
+
+    Tokenizer t;
+    tokenizer_init(&t, input);
+
+    // Get the first token
+    if (!get_next_token(&t)) {
+        // Empty input
+        return nada_create_nil();
+    }
+
+    NadaValue *result = nada_create_nil();
+    NadaValue *current = NULL;
+
+    // Parse expressions until we reach the end of input
+    while (t.token[0] != '\0') {
+        // Parse the next expression
+        current = parse_expr(&t);
+
+        // Free the previous result if we have a new one
+        if (result != NULL) {
+            nada_free(result);
+        }
+
+        // Store the current result (will be returned if it's the last one)
+        result = current;
+
+        // Skip any extra whitespace between expressions
+        skip_whitespace(&t);
+
+        // If we've reached the end of input, we're done
+        if (t.token[0] == '\0') {
+            break;
+        }
+    }
+
+    return result;
+}
+
+// Add this function to parse and evaluate multiple expressions
+NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
+    // First validate parentheses
+    int error_pos = -1;
+    int paren_balance = validate_parentheses(input, &error_pos);
+
+    if (paren_balance != 0) {
+        fprintf(stderr, "Input: %s\n", input);
+        if (paren_balance > 0) {
+            fprintf(stderr, "Error: missing %d closing parentheses\n", paren_balance);
+        } else {
+            fprintf(stderr, "Error: unexpected closing parenthesis at position %d\n", error_pos);
+        }
+
+        // Show the context of the error
+        if (error_pos >= 0) {
+            int context_start = error_pos > 20 ? error_pos - 20 : 0;
+            fprintf(stderr, "Context: %.*s\n", 40, input + context_start);
+
+            // Print pointer to error position
+            fprintf(stderr, "%*s^\n", error_pos - context_start, "");
+            fprintf(stderr, "Full input:\n%s\n", input);
+        }
+
+        return nada_create_nil();
+    }
+
+    Tokenizer t;
+    tokenizer_init(&t, input);
+
+    // Get the first token
+    if (!get_next_token(&t)) {
+        // Empty input
+        return nada_create_nil();
+    }
+
+    NadaValue *result = nada_create_nil();
+    NadaValue *expr = NULL;
+
+    // Parse and evaluate expressions until we reach the end of input
+    while (t.token[0] != '\0') {
+        // Free the previous result if we have one
+        if (result != NULL) {
+            nada_free(result);
+            result = NULL;
+        }
+
+        // Parse the next expression
+        expr = parse_expr(&t);
+
+        // Evaluate the expression and store the result
+        result = nada_eval(expr, env);
+
+        // Free the parsed expression
+        nada_free(expr);
+
+        // If we've reached the end of input, we're done
+        if (t.token[0] == '\0') {
+            break;
+        }
+
+        // Skip any whitespace between expressions
+        skip_whitespace(&t);
     }
 
     return result;
