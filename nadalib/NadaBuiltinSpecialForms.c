@@ -303,19 +303,25 @@ NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
 
 // Built-in special form: let (with support for named let)
 NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
-    // Check we have at least bindings and body
-    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let requires bindings and body");
+    // Check for at least one argument
+    if (nada_is_nil(args)) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let requires arguments");
         return nada_create_nil();
     }
 
-    // Get bindings list or loop name
     NadaValue *first_arg = nada_car(args);
 
-    // Check if this is a named let
+    // Check for named let
     if (first_arg->type == NADA_SYMBOL) {
-        // Named let: (let loop ((var1 val1)...) body...)
-        const char *loop_name = first_arg->data.symbol;
+        // Named let - creates a recursive function
+        const char *func_name = first_arg->data.symbol;
+
+        // Get the bindings and body
+        if (nada_is_nil(nada_cdr(args))) {
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "named let requires bindings and body");
+            return nada_create_nil();
+        }
+
         NadaValue *bindings = nada_car(nada_cdr(args));
         NadaValue *body = nada_cdr(nada_cdr(args));
 
@@ -381,7 +387,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
 
         // Bind the loop function to its name *within* the loop environment
         // nada_env_set handles the self-reference ref count adjustment
-        nada_env_set(loop_env, loop_name, loop_func);
+        nada_env_set(loop_env, func_name, loop_func);
 
         // Free the original loop_func value created above, *after* it's been copied.
         // Temporarily NULL the env pointer to prevent premature release of the
@@ -408,9 +414,28 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             current_expr = nada_cdr(current_expr);
         }
 
-        // Release the environment references and return the last result
-        nada_env_release(loop_env);  // Release our scope reference
-        nada_env_release(loop_env);  // Release the 'extra' scope
+        // Before returning, break the circular reference
+        struct NadaBinding *binding = loop_env->bindings;
+        while (binding != NULL) {
+            if (strcmp(binding->name, func_name) == 0 &&
+                binding->value && binding->value->type == NADA_FUNC &&
+                binding->value->data.function.env == loop_env) {
+                printf("Breaking circular reference in named let function: %s\n", func_name);
+
+                // Set function's env pointer to parent env and increment parent's ref count
+                binding->value->data.function.env = loop_env->parent;
+                if (loop_env->parent) {
+                    nada_env_add_ref(loop_env->parent);
+                }
+            }
+            binding = binding->next;
+        }
+
+        // Force let_env to be fully cleaned up
+        printf("Forcing cleanup of named let_env #%d\n", loop_env->id);
+        loop_env->ref_count = 1;  // Set to 1 so next release will free it
+        nada_env_release(loop_env);
+
         return result;
     } else {
         // Regular let
