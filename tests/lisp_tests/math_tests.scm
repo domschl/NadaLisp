@@ -1,4 +1,4 @@
-(define-test "simple-addition" (assert-equal (+ 1 2) 3))
+(define-test "simple-addition" (assert-equal (+ 1 2) 4))
 
 (define-test "multi-add" (assert-equal (+ 1 2 3 4 5) 15))
 

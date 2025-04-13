@@ -40,7 +40,7 @@ typedef struct {
 struct NadaValue {
     NadaValueType type;
     union {
-        NadaNum *number;    // For NADA_NUM (replacing integer)
+        NadaNum *number;    // For NADA_NUM
         char *string;       // For NADA_STRING
         char *error;        // For NADA_ERROR
         char *symbol;       // For NADA_SYMBOL

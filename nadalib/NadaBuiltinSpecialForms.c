@@ -114,16 +114,29 @@ NadaValue *builtin_lambda(NadaValue *args, NadaEnv *env) {
         return nada_create_nil();
     }
 
-    // First argument must be a list of symbols (parameter names)
+    // First argument must be either a list of symbols or a single symbol
     NadaValue *params = nada_car(args);
-    // Validate parameters (should all be symbols)
-    NadaValue *param_check = params;
-    while (param_check->type == NADA_PAIR) {
-        if (nada_car(param_check)->type != NADA_SYMBOL) {
-            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda parameters must be symbols");
-            return nada_create_nil();
+
+    // Case 1: Single symbol for variadic function (lambda args body)
+    if (params->type == NADA_SYMBOL) {
+        // This is a valid case - all args will be collected as a list
+    }
+    // Case 2: List of parameters
+    else if (params->type == NADA_PAIR || params->type == NADA_NIL) {
+        // Validate parameters (should all be symbols)
+        NadaValue *param_check = params;
+        while (param_check->type == NADA_PAIR) {
+            if (nada_car(param_check)->type != NADA_SYMBOL) {
+                nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda parameters must be symbols");
+                return nada_create_nil();
+            }
+            param_check = nada_cdr(param_check);
         }
-        param_check = nada_cdr(param_check);
+
+        // TODO: Check for dotted pair notation for rest params: (a b . rest)
+    } else {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda parameters must be a symbol or list");
+        return nada_create_nil();
     }
 
     // The rest is the function body

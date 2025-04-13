@@ -14,6 +14,8 @@ NadaValue *builtin_number_p(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_string_p(NadaValue *args, NadaEnv *env);
 // Symbol predicate (symbol?)
 NadaValue *builtin_symbol_p(NadaValue *args, NadaEnv *env);
+// Symbol defined?
+NadaValue *builtin_defined_p(NadaValue *args, NadaEnv *env);
 // Boolean predicate (boolean?)
 NadaValue *builtin_boolean_p(NadaValue *args, NadaEnv *env);
 // Pair predicate (pair?)
