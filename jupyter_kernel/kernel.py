@@ -11,6 +11,8 @@ import tempfile
 import threading
 import time
 import traceback
+import io
+from contextlib import redirect_stdout
 from ipykernel.kernelbase import Kernel
 from ctypes import c_char_p, c_void_p, c_int, CDLL, POINTER, byref, Structure
 
@@ -178,9 +180,22 @@ class NadaKernel(Kernel):
                 
                 def evaluation_thread():
                     try:
-                        # Parse and evaluate the input code directly with nada_parse_eval_multi
-                        self.log.info(f"Parsing and evaluating expression: {expr}")
-                        value_ptr = self.lib.nada_parse_eval_multi(c_code, self.env)
+                        # Capture stdout to collect any display/print output
+                        captured_output = io.StringIO()
+                        with redirect_stdout(captured_output):
+                            # Parse and evaluate the input code with nada_parse_eval_multi
+                            self.log.info(f"Parsing and evaluating expression: {expr}")
+                            value_ptr = self.lib.nada_parse_eval_multi(c_code, self.env)
+                        
+                        # Get any captured output
+                        stdout_output = captured_output.getvalue()
+                        
+                        # If we have captured output, send it to the frontend
+                        if stdout_output and stdout_output.strip():
+                            self.send_response(self.iopub_socket, 'stream', {
+                                'name': 'stdout',
+                                'text': stdout_output
+                            })
                         
                         self.log.info(f"nada_parse_eval_multi returned: {value_ptr}")
                         

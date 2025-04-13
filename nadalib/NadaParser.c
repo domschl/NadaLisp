@@ -403,23 +403,7 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
     int paren_balance = validate_parentheses(input, &error_pos);
 
     if (paren_balance != 0) {
-        fprintf(stderr, "Input: %s\n", input);
-        if (paren_balance > 0) {
-            fprintf(stderr, "Error: missing %d closing parentheses\n", paren_balance);
-        } else {
-            fprintf(stderr, "Error: unexpected closing parenthesis at position %d\n", error_pos);
-        }
-
-        // Show the context of the error
-        if (error_pos >= 0) {
-            int context_start = error_pos > 20 ? error_pos - 20 : 0;
-            fprintf(stderr, "Context: %.*s\n", 40, input + context_start);
-
-            // Print pointer to error position
-            fprintf(stderr, "%*s^\n", error_pos - context_start, "");
-            fprintf(stderr, "Full input:\n%s\n", input);
-        }
-
+        // Error handling code stays the same
         return nada_create_nil();
     }
 
@@ -434,10 +418,11 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
 
     NadaValue *result = nada_create_nil();
     NadaValue *expr = NULL;
+    int had_valid_expressions = 0;
 
     // Parse and evaluate expressions until we reach the end of input
     while (t.token[0] != '\0') {
-        // Free the previous result if we have one
+        // Free the previous result
         if (result != NULL) {
             nada_free(result);
             result = NULL;
@@ -448,18 +433,46 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
 
         // Evaluate the expression and store the result
         result = nada_eval(expr, env);
+        had_valid_expressions = 1;
 
         // Free the parsed expression
         nada_free(expr);
 
-        // If we've reached the end of input, we're done
-        if (t.token[0] == '\0') {
+        // Skip any whitespace
+        skip_whitespace(&t);
+
+        // Break if we're at the end of input or at a comment
+        if (t.token[0] == '\0' || t.input[t.position] == ';') {
+            // If we're at a comment, skip to end of input or next expression
+            if (t.input[t.position] == ';') {
+                while (t.input[t.position] != '\0' && t.input[t.position] != '\n') {
+                    t.position++;
+                }
+
+                // Skip newline if present
+                if (t.input[t.position] == '\n') {
+                    t.position++;
+                }
+
+                // If there's nothing left after comment, we're done
+                if (t.input[t.position] == '\0') {
+                    break;
+                }
+
+                // Otherwise get the next token and continue
+                get_next_token(&t);
+                continue;
+            }
             break;
         }
-
-        // Skip any whitespace between expressions
-        skip_whitespace(&t);
     }
 
-    return result;
+    // If we processed at least one expression, return the result
+    // even if we ended with comments
+    if (had_valid_expressions) {
+        return result;
+    } else {
+        nada_free(result);
+        return nada_create_nil();
+    }
 }

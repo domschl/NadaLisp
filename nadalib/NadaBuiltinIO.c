@@ -209,7 +209,7 @@ NadaValue *nada_load_file(const char *filename, NadaEnv *env) {
     return result;
 }
 
-// read-line: Read a line from console
+// read-line: Read a line from console  XXX fixed buffer!
 NadaValue *builtin_read_line(NadaValue *args, NadaEnv *env) {
     if (!nada_is_nil(args)) {
         // If prompt is provided, display it
