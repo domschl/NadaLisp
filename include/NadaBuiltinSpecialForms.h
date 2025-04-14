@@ -22,5 +22,8 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_begin(NadaValue *args, NadaEnv *env);
 // Built-in special form: set!
 NadaValue *builtin_set(NadaValue *args, NadaEnv *env);
+// Built-in special form apply:
+// Add this declaration
+NadaValue *builtin_apply(NadaValue *args, NadaEnv *env);
 
 #endif  // NADABUILTINSPECIALFORMS_H

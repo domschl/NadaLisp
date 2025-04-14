@@ -429,7 +429,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             if (strcmp(binding->name, func_name) == 0 &&
                 binding->value && binding->value->type == NADA_FUNC &&
                 binding->value->data.function.env == loop_env) {
-                printf("Breaking circular reference in named let function: %s\n", func_name);
+                // printf("Breaking circular reference in named let function: %s\n", func_name);
 
                 // Set function's env pointer to parent env and increment parent's ref count
                 binding->value->data.function.env = loop_env->parent;
@@ -478,7 +478,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             NadaValue *val = nada_eval(val_expr, env);
 
             nada_env_set(let_env, var_name, val);
-            if (val->type == NADA_ERROR) {  // Check for eval errors
+            if (val->type == NADA_ERROR) {
                 nada_env_release(let_env);  // Release env before returning
                 return val;                 // Propagate error
             }
@@ -511,7 +511,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
         while (binding != NULL) {
             if (binding->value && binding->value->type == NADA_FUNC &&
                 binding->value->data.function.env == let_env) {
-                printf("Breaking circular reference in let-bound function: %s\n", binding->name);
+                // printf("Breaking circular reference in let-bound function: %s\n", binding->name);
 
                 // Set function's env pointer to parent env and increment parent's ref count
                 binding->value->data.function.env = let_env->parent;
@@ -603,4 +603,82 @@ NadaValue *builtin_set(NadaValue *args, NadaEnv *env) {
 
     // Return the new value
     return val;
+}
+
+// Updated implementation for builtin_apply to better handle function objects
+
+NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
+    // Check argument count
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
+        !nada_is_nil(nada_cdr(nada_cdr(args)))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "apply requires exactly 2 arguments");
+        return nada_create_nil();
+    }
+
+    // Get the function value without evaluating it first
+    NadaValue *func_val = nada_car(args);
+    NadaValue *true_func = NULL;
+
+    // First try direct evaluation - this handles when op is passed in
+    NadaValue *eval_func_val = nada_eval(func_val, env);
+
+    // If evaluation gives us a function, use it directly
+    if (eval_func_val->type == NADA_FUNC) {
+        true_func = eval_func_val;
+    }
+    // Otherwise check if it's a symbol we can resolve
+    else if (eval_func_val->type == NADA_SYMBOL) {
+        const char *symbol_name = eval_func_val->data.symbol;
+
+        // Check for arithmetic operators by name
+        if (strcmp(symbol_name, "+") == 0) {
+            nada_free(eval_func_val);
+            true_func = nada_create_builtin_function(builtin_add);
+        } else if (strcmp(symbol_name, "-") == 0) {
+            nada_free(eval_func_val);
+            true_func = nada_create_builtin_function(builtin_subtract);
+        } else if (strcmp(symbol_name, "*") == 0) {
+            nada_free(eval_func_val);
+            true_func = nada_create_builtin_function(builtin_multiply);
+        } else if (strcmp(symbol_name, "/") == 0) {
+            nada_free(eval_func_val);
+            true_func = nada_create_builtin_function(builtin_divide);
+        } else {
+            // Try environment lookup
+            nada_free(eval_func_val);
+            true_func = nada_env_get(env, symbol_name, 0);
+        }
+    } else {
+        // Not a function or symbol - clean up and report error
+        nada_free(eval_func_val);
+        nada_report_error(NADA_ERROR_TYPE_ERROR,
+                          "apply requires a function as first argument (got %s)",
+                          nada_type_name(func_val->type));
+        return nada_create_nil();
+    }
+
+    // Check if we found a valid function
+    if (!true_func || true_func->type != NADA_FUNC) {
+        if (true_func) nada_free(true_func);
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply requires a function as first argument");
+        return nada_create_nil();
+    }
+
+    // Get the argument list - now we can evaluate it
+    NadaValue *arg_list = nada_eval(nada_car(nada_cdr(args)), env);
+    if (!nada_is_nil(arg_list) && arg_list->type != NADA_PAIR) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply requires a list as second argument");
+        nada_free(true_func);
+        nada_free(arg_list);
+        return nada_create_nil();
+    }
+
+    // Apply the function to the argument list
+    NadaValue *result = apply_function(true_func, arg_list, env);
+
+    // Clean up
+    nada_free(true_func);
+    nada_free(arg_list);
+
+    return result;
 }

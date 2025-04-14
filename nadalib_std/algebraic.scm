@@ -62,6 +62,42 @@
           (else (find-op (+ pos 1) lowest-idx lowest-prec paren-level)))))
     (find-op 0 -1 999 0)))
 
+;; Update process-tokens to use eval-op
+(define process-tokens
+  (lambda (tokens)
+    (begin
+       (display "tokens: >")
+       (display tokens)
+        (display "<\n")
+        
+    (cond
+      ;; Empty expression
+      ((null? tokens) '())
+      
+      ;; Single token
+      ((= (length tokens) 1) 
+       (process-token (car tokens)))
+      
+      ;; Parenthesized expression
+      ((and (equal? (car tokens) "(")
+            (let ((closing (find-matching-paren tokens 0)))
+              (and (> closing 0) 
+                   (= closing (- (length tokens) 1)))))
+       (process-tokens (sublist tokens 1 (- (length tokens) 1))))
+      
+      ;; Process by operator precedence
+      (else
+        (let ((op-pos (find-lowest-precedence-op tokens)))
+          (if (>= op-pos 0)
+              (let ((op (list-ref tokens op-pos))
+                    (left (process-tokens (sublist tokens 0 op-pos)))
+                    (right (process-tokens (sublist tokens (+ op-pos 1) (length tokens)))))
+                (if (equal? op "^")
+                    (expt-op left right)  ; Special handling for exponentiation
+                    (list (string->symbol op) left right)))
+              tokens))))))
+)
+
 ;; Process a token into a value or symbol
 (define process-token
   (lambda (token)
@@ -113,36 +149,6 @@
       ((/) (/ left right))
       ((^) (expt-op left right))
       (else (display (string-append "Unknown operator: " (symbol->string op) "\n"))))))
-
-;; Update process-tokens to use eval-op
-(define process-tokens
-  (lambda (tokens)
-    (cond
-      ;; Empty expression
-      ((null? tokens) '())
-      
-      ;; Single token
-      ((= (length tokens) 1) 
-       (process-token (car tokens)))
-      
-      ;; Parenthesized expression
-      ((and (equal? (car tokens) "(")
-            (let ((closing (find-matching-paren tokens 0)))
-              (and (> closing 0) 
-                   (= closing (- (length tokens) 1)))))
-       (process-tokens (sublist tokens 1 (- (length tokens) 1))))
-      
-      ;; Process by operator precedence
-      (else
-        (let ((op-pos (find-lowest-precedence-op tokens)))
-          (if (>= op-pos 0)
-              (let ((op (list-ref tokens op-pos))
-                    (left (process-tokens (sublist tokens 0 op-pos)))
-                    (right (process-tokens (sublist tokens (+ op-pos 1) (length tokens)))))
-                (if (equal? op "^")
-                    (expt-op left right)  ; Special handling for exponentiation
-                    (list (string->symbol op) left right)))
-              tokens))))))
 
 ;; Evaluate an algebraic expression
 (define eval-algebraic

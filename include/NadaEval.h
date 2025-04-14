@@ -45,6 +45,9 @@ NadaValue *builtin_string_to_symbol(NadaValue *args, NadaEnv *env);
 // Check if a symbol is a built-in function and get its name
 const char *get_builtin_name(BuiltinFunc func);
 
+// Function to look up a built-in function by name
+BuiltinFunc get_builtin_func(const char *name);
+
 void nada_serialize_env(NadaEnv *current_env, FILE *out);
 
 #endif  // NADA_EVAL_H

@@ -23,159 +23,178 @@ bool nada_is_global_silent_symbol_lookup() {
     return g_silent_symbol_lookup;
 }
 
-// Apply a function to arguments
-NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *outer_env) {
-    if (func->type != NADA_FUNC) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "attempt to apply non-function");
-        return nada_create_nil();
+// Enhance apply_function to handle function objects from lists
+NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
+    // Special handling for built-in functions
+    if (func->type == NADA_FUNC && func->data.function.builtin) {
+        // Call the built-in function directly
+        return func->data.function.builtin(args, env);
     }
 
-    // Handle built-in functions - keep unchanged
-    if (func->data.function.builtin != NULL) {
-        // Create a list to hold evaluated arguments
-        NadaValue *eval_args = nada_create_nil();
-        NadaValue *current_arg = args;
-
-        // Evaluate each argument
-        while (!nada_is_nil(current_arg)) {
-            // Evaluate the current argument
-            NadaValue *arg_val = nada_eval(nada_car(current_arg), outer_env);
-
-            // Prepend to our list (we'll reverse it later)
-            NadaValue *new_eval_args = nada_cons(arg_val, eval_args);
-            nada_free(arg_val);
-            nada_free(eval_args);
-            eval_args = new_eval_args;
-
-            // Move to next argument
-            current_arg = nada_cdr(current_arg);
-        }
-
-        // Reverse the list to get arguments in the correct order
-        NadaValue *reversed_args = nada_reverse(eval_args);
-
-        // Free the intermediate list
-        nada_free(eval_args);
-
-        // Call the built-in function with evaluated arguments
-        NadaValue *result = func->data.function.builtin(reversed_args, outer_env);
-
-        // Free our intermediate lists
-        nada_free(reversed_args);
-
-        return result;
-    }
-
-    // For user-defined functions:
-    // Add debugging output to track function application and environment relationship
-    // printf("APPLY FUNCTION with env %p (ref_count: %d)\n",
-    //       (void *)func->data.function.env,
-    //       func->data.function.env ? func->data.function.env->ref_count : -1);
-
-    // First, create a new environment with the closure as parent
+    // For user-defined functions, create a new environment
     NadaEnv *func_env = nada_env_create(func->data.function.env);
 
-    // printf("Created function env %p with parent %p (ref_count: %d)\n",
-    //        (void *)func_env,
-    //        (void *)func->data.function.env,
-    //        func_env->ref_count);
+    // Get parameter list and body
+    NadaValue *params = func->data.function.params;
+    NadaValue *body = func->data.function.body;
 
-    // Check for variadic lambda - handle 'lambda args' pattern
-    if (func->data.function.params->type == NADA_SYMBOL) {
-        // This is a variadic function with 'lambda args' pattern
-        // All arguments should be collected into a single list and bound to the symbol
+    // Handle variadic functions - find out if this is a variadic function
+    int is_variadic = 0;
+    const char *rest_param = NULL;
 
-        // Get the parameter name (single symbol)
-        char *param_name = func->data.function.params->data.symbol;
+    // Check if params is a single symbol (fully variadic)
+    if (params->type == NADA_SYMBOL) {
+        is_variadic = 1;
+        rest_param = params->data.symbol;
+    }
+    // Check if params ends with a dotted pair (partially variadic)
+    else if (params->type == NADA_PAIR) {
+        NadaValue *current = params;
+        NadaValue *next;
 
-        // Create a list of evaluated arguments
-        NadaValue *arg_list = nada_create_nil();
+        while (current->type == NADA_PAIR) {
+            next = current->data.pair.cdr;
+            if (next->type == NADA_SYMBOL && !nada_is_nil(next)) {
+                is_variadic = 1;
+                rest_param = next->data.symbol;
+                break;
+            }
+            current = next;
+        }
+    }
+
+    // Bind arguments to parameters
+    if (is_variadic) {
+        if (params->type == NADA_SYMBOL) {
+            // Case: (lambda args body) - all args as a list
+            // Evaluate each argument in the list
+            NadaValue *evaluated_args = nada_create_nil();
+            NadaValue *current = args;
+
+            // Evaluate each argument and build a new list
+            while (current->type == NADA_PAIR) {
+                NadaValue *arg_evaluated = nada_eval(current->data.pair.car, env);
+                NadaValue *new_args = nada_cons(arg_evaluated, evaluated_args);
+                nada_free(arg_evaluated);   // Free after it's been copied
+                nada_free(evaluated_args);  // Free the old list
+                evaluated_args = new_args;  // Update our list pointer
+                current = current->data.pair.cdr;
+            }
+
+            // Reverse the list to maintain the original order
+            NadaValue *reversed_args = nada_reverse(evaluated_args);
+            nada_free(evaluated_args);
+
+            // Bind the evaluated arguments list to the parameter
+            nada_env_set(func_env, rest_param, reversed_args);
+            nada_free(reversed_args);  // Free after it's been stored
+        } else {
+            // Case: (lambda (a b . rest) body) - fixed args plus rest list
+            NadaValue *current_param = params;
+            NadaValue *current_arg = args;
+
+            // Process the fixed parameters
+            while (current_param->type == NADA_PAIR &&
+                   current_param->data.pair.cdr->type == NADA_PAIR) {
+
+                if (nada_is_nil(current_arg)) {
+                    // Not enough arguments
+                    nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
+                    nada_env_release(func_env);
+                    return nada_create_nil();
+                }
+
+                // Evaluate and bind this parameter
+                NadaValue *arg_evaluated = nada_eval(current_arg->data.pair.car, env);
+                nada_env_set(func_env,
+                             current_param->data.pair.car->data.symbol,
+                             arg_evaluated);
+                nada_free(arg_evaluated);  // Free after it's been stored
+
+                // Move to next param and arg
+                current_param = current_param->data.pair.cdr;
+                current_arg = current_arg->data.pair.cdr;
+            }
+
+            // Bind the last fixed parameter
+            if (current_param->type == NADA_PAIR &&
+                current_param->data.pair.car->type == NADA_SYMBOL) {
+
+                if (nada_is_nil(current_arg)) {
+                    // Not enough arguments
+                    nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
+                    nada_env_release(func_env);
+                    return nada_create_nil();
+                }
+
+                // Bind this parameter
+                nada_env_set(func_env,
+                             current_param->data.pair.car->data.symbol,
+                             current_arg->data.pair.car);
+
+                // Move to next arg
+                current_arg = current_arg->data.pair.cdr;
+            }
+
+            // Bind rest parameter to remaining args - don't use nada_deep_copy
+            nada_env_set(func_env, rest_param, current_arg);
+        }
+    } else {
+        // Regular function binding - same fix applies
+        NadaValue *current_param = params;
         NadaValue *current_arg = args;
 
-        // Evaluate arguments in reverse order (we'll reverse the list at the end)
-        while (!nada_is_nil(current_arg)) {
-            // Evaluate the current argument
-            NadaValue *arg_val = nada_eval(nada_car(current_arg), outer_env);
-
-            // Add to our argument list (prepending, will be reversed later)
-            NadaValue *new_list = nada_cons(arg_val, arg_list);
-            nada_free(arg_val);
-            nada_free(arg_list);
-            arg_list = new_list;
-
-            // Move to next argument
-            current_arg = nada_cdr(current_arg);
-        }
-
-        // Reverse to get the correct order
-        NadaValue *reversed_args = nada_reverse(arg_list);
-        nada_free(arg_list);
-
-        // Bind all arguments as a list to the single parameter
-        nada_env_set(func_env, param_name, reversed_args);
-        nada_free(reversed_args);
-    } else {
-        // Standard parameter list handling (existing code)
-        NadaValue *param = func->data.function.params;
-        NadaValue *arg = args;
-
-        while (!nada_is_nil(param) && !nada_is_nil(arg)) {
-            // Get parameter name
-            NadaValue *param_name = nada_car(param);
-
-            // Evaluate argument
-            NadaValue *arg_val = nada_eval(nada_car(arg), outer_env);
-
-            // Check for evaluation errors
-            if (!arg_val) {
-                nada_env_release(func_env);  // Clean up on error path
+        while (!nada_is_nil(current_param) && !nada_is_nil(current_arg)) {
+            if (current_param->type != NADA_PAIR || current_param->data.pair.car->type != NADA_SYMBOL) {
+                nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "invalid parameter list");
+                nada_env_release(func_env);
                 return nada_create_nil();
             }
 
-            // Bind parameter to argument value
-            nada_env_set(func_env, param_name->data.symbol, arg_val);
-            nada_free(arg_val);
+            // Evaluate the argument before binding it to the parameter
+            NadaValue *arg_evaluated = nada_eval(current_arg->data.pair.car, env);
+            nada_env_set(func_env,
+                         current_param->data.pair.car->data.symbol,
+                         arg_evaluated);
+            nada_free(arg_evaluated);  // Free after it's been stored
 
-            // Move to next parameter and argument
-            param = nada_cdr(param);
-            arg = nada_cdr(arg);
+            // Move to next param and arg
+            current_param = current_param->data.pair.cdr;
+            current_arg = current_arg->data.pair.cdr;
         }
 
-        // Parameter count error checking
-        if (!nada_is_nil(param) || !nada_is_nil(arg)) {
-            if (!nada_is_nil(param)) {
-                nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
-            } else {
-                nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too many arguments");
-            }
-            nada_env_release(func_env);  // Clean up on error path
+        // Check for parameter/argument count mismatch
+        if (!nada_is_nil(current_param)) {
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
+            nada_env_release(func_env);
+            return nada_create_nil();
+        }
+
+        if (!nada_is_nil(current_arg)) {
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too many arguments");
+            nada_env_release(func_env);
             return nada_create_nil();
         }
     }
 
-    // Evaluate the body expressions (keep this unchanged)
+    // Evaluate body expressions
     NadaValue *result = nada_create_nil();
-    NadaValue *body_expr = func->data.function.body;
+    NadaValue *current_expr = body;
 
-    while (!nada_is_nil(body_expr)) {
-        // Free previous result before getting new one
+    while (!nada_is_nil(current_expr)) {
         nada_free(result);
-
-        // Evaluate current expression
-        result = nada_eval(nada_car(body_expr), func_env);
-
-        // Move to next expression
-        body_expr = nada_cdr(body_expr);
+        result = nada_eval(current_expr->data.pair.car, func_env);
+        current_expr = current_expr->data.pair.cdr;
     }
 
-    // CRITICAL: Make a deep copy of the result before releasing the environment
-    NadaValue *final_result = nada_deep_copy(result);
+    // Make a deep copy before cleaning up
+    NadaValue *result_copy = nada_deep_copy(result);
     nada_free(result);
 
-    // ALWAYS release the function environment
+    // Clean up
     nada_env_release(func_env);
 
-    return final_result;
+    return result_copy;
 }
 
 // Helper to check if a name is a built-in function
@@ -419,6 +438,7 @@ static BuiltinFuncInfo builtins[] = {
     {"boolean?", builtin_boolean_p},
     {"pair?", builtin_pair_p},
     {"function?", builtin_function_p},
+    {"procedure?", builtin_procedure_p},
     {"list?", builtin_list_p},
     {"atom?", builtin_atom_p},
     {"builtin?", builtin_builtin_p},
@@ -480,6 +500,8 @@ static BuiltinFuncInfo builtins[] = {
     // Add the new set! function
     {"set!", builtin_set},
 
+    {"apply", builtin_apply},
+
     {NULL, NULL}  // Sentinel to mark end of array
 };
 
@@ -514,30 +536,44 @@ NadaEnv *nada_create_standard_env(void) {
 
 // Helper to check if a symbol is a built-in function
 BuiltinFunc get_builtin_func(const char *name) {
+    // Search through the existing builtins array for a matching name
     for (int i = 0; builtins[i].name != NULL; i++) {
         if (strcmp(name, builtins[i].name) == 0) {
             return builtins[i].func;
         }
     }
+
+    // No match found
     return NULL;
 }
 
-// Helper to get builtin name from function
+// Enhanced function to get the name of a builtin function
+
 const char *get_builtin_name(BuiltinFunc func) {
+    // Add additional special case handling for arithmetic operators
+    if (func == builtin_add) return "+";
+    if (func == builtin_subtract) return "-";
+    if (func == builtin_multiply) return "*";
+    if (func == builtin_divide) return "/";
+
+    // Loop through the builtins array to find a match
     for (int i = 0; builtins[i].name != NULL; i++) {
         if (builtins[i].func == func) {
             return builtins[i].name;
         }
     }
+
+    // No match found
     return NULL;
 }
 
 // Evaluate an expression in an environment
 NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
-    // Self-evaluating expressions: numbers, strings, booleans, nil, and errors
+    // Self-evaluating expressions: numbers, strings, booleans, nil, functions, and errors
     if (expr->type == NADA_NUM || expr->type == NADA_STRING ||
         expr->type == NADA_BOOL || expr->type == NADA_NIL ||
-        expr->type == NADA_ERROR) {
+        expr->type == NADA_ERROR || expr->type == NADA_FUNC) {
+
         // Make a copy to avoid double-freeing
         switch (expr->type) {
         case NADA_NUM:
@@ -550,8 +586,17 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
             return nada_create_nil();
         case NADA_ERROR:
             return nada_create_error(expr->data.error);
+        case NADA_FUNC:
+            // For built-in functions
+            if (expr->data.function.builtin) {
+                return nada_create_builtin_function(expr->data.function.builtin);
+            }
+            // For user-defined functions, use deep_copy instead of individual components
+            else {
+                return nada_deep_copy(expr);
+            }
         default:
-            return nada_create_nil();  // Should never happen
+            return nada_create_nil();
         }
     }
 
@@ -777,7 +822,6 @@ NadaValue *builtin_string_to_symbol(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
-// Updated tokenize-expr function
 NadaValue *builtin_tokenize_expr(NadaValue *args, NadaEnv *env) {
     // Check args
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {

@@ -142,6 +142,12 @@ NadaValue *builtin_function_p(NadaValue *args, NadaEnv *env) {
     return nada_create_bool(result);
 }
 
+// Procedure predicate (procedure?) - alias for function?
+NadaValue *builtin_procedure_p(NadaValue *args, NadaEnv *env) {
+    // Simply delegate to function?
+    return builtin_function_p(args, env);
+}
+
 // Helper function to check if a value is a proper list
 int is_proper_list(NadaValue *v) {
     if (v->type == NADA_NIL) return 1;

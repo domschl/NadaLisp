@@ -22,6 +22,8 @@ NadaValue *builtin_boolean_p(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_pair_p(NadaValue *args, NadaEnv *env);
 // Function predicate (function?)
 NadaValue *builtin_function_p(NadaValue *args, NadaEnv *env);
+// Procedure predicate (procedure?)
+NadaValue *builtin_procedure_p(NadaValue *args, NadaEnv *env);
 // Helper function to check if a value is a proper list
 int is_proper_list(NadaValue *v);
 // List predicate (list?)
