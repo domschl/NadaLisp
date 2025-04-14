@@ -439,47 +439,115 @@ NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
     // Process each set of elements from all lists
     NadaValue *result = nada_create_nil();
 
-    for (int i = 0; i < count; i++) {
-        // Build the argument list for this function call
-        NadaValue *call_args = nada_create_nil();
+    // Special case for car/cdr family when used with a single list argument
+    if (list_count == 1 &&
+        (func->data.function.builtin == builtin_car ||
+         func->data.function.builtin == builtin_cdr ||
+         func->data.function.builtin == builtin_cadr ||
+         func->data.function.builtin == builtin_caddr)) {
 
-        // For each list, get the ith element and add it to the call args
-        for (int j = list_count - 1; j >= 0; j--) {
-            // Get the ith element of list j
-            NadaValue *list_j = list_args[j];
-            for (int k = 0; k < i; k++) {
-                if (list_j->type == NADA_PAIR) {
-                    list_j = nada_cdr(list_j);
+        // Process elements from the first list
+        current = list_args[0];
+        for (int i = 0; i < count; i++) {
+            NadaValue *element = nada_car(current);
+            NadaValue *mapped_result = NULL;
+
+            if (func->data.function.builtin == builtin_car) {
+                if (element->type == NADA_PAIR) {
+                    mapped_result = nada_deep_copy(element->data.pair.car);
+                } else {
+                    nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "car called on non-pair");
+                    mapped_result = nada_create_nil();
+                }
+            } else if (func->data.function.builtin == builtin_cdr) {
+                if (element->type == NADA_PAIR) {
+                    mapped_result = nada_deep_copy(element->data.pair.cdr);
+                } else {
+                    nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "cdr called on non-pair");
+                    mapped_result = nada_create_nil();
+                }
+            } else if (func->data.function.builtin == builtin_cadr) {
+                if (element->type == NADA_PAIR) {
+                    NadaValue *cdr_val = nada_cdr(element);
+                    if (cdr_val->type == NADA_PAIR) {
+                        mapped_result = nada_deep_copy(nada_car(cdr_val));
+                    } else {
+                        mapped_result = nada_create_nil();
+                    }
+                } else {
+                    mapped_result = nada_create_nil();
+                }
+            } else if (func->data.function.builtin == builtin_caddr) {
+                if (element->type == NADA_PAIR) {
+                    NadaValue *cdr_val = nada_cdr(element);
+                    if (cdr_val->type == NADA_PAIR) {
+                        NadaValue *cddr_val = nada_cdr(cdr_val);
+                        if (cddr_val->type == NADA_PAIR) {
+                            mapped_result = nada_deep_copy(nada_car(cddr_val));
+                        } else {
+                            mapped_result = nada_create_nil();
+                        }
+                    } else {
+                        mapped_result = nada_create_nil();
+                    }
+                } else {
+                    mapped_result = nada_create_nil();
                 }
             }
 
-            if (list_j->type == NADA_PAIR) {
-                NadaValue *element = nada_car(list_j);
-                NadaValue *new_args = nada_cons(element, call_args);
-                nada_free(call_args);
-                call_args = new_args;
-            } else {
-                // If any list is too short, stop processing
-                nada_free(call_args);
-                call_args = nada_create_nil();
+            // Add result to our list (in reverse)
+            NadaValue *new_result = nada_cons(mapped_result, result);
+            nada_free(mapped_result);
+            nada_free(result);
+            result = new_result;
+
+            // Move to next element
+            current = nada_cdr(current);
+        }
+    } else {
+        // Regular case - for each position in the lists
+        for (int i = 0; i < count; i++) {
+            // Build argument list for the function call
+            NadaValue *call_args = nada_create_nil();
+
+            // For each list, get the ith element and add it to the call args
+            for (int j = list_count - 1; j >= 0; j--) {
+                // Get the ith element of list j
+                NadaValue *list_j = list_args[j];
+                for (int k = 0; k < i; k++) {
+                    if (list_j->type == NADA_PAIR) {
+                        list_j = nada_cdr(list_j);
+                    }
+                }
+
+                if (list_j->type == NADA_PAIR) {
+                    NadaValue *element = nada_car(list_j);
+                    NadaValue *new_args = nada_cons(element, call_args);
+                    nada_free(call_args);
+                    call_args = new_args;
+                } else {
+                    // If any list is too short, stop processing
+                    nada_free(call_args);
+                    call_args = nada_create_nil();
+                    break;
+                }
+            }
+
+            // Check if we have a valid arg list
+            if (nada_is_nil(call_args)) {
                 break;
             }
+
+            // Apply function to arguments
+            NadaValue *mapped_result = apply_function(func, call_args, env);
+            nada_free(call_args);
+
+            // Add the result to our list (in reverse)
+            NadaValue *new_result = nada_cons(mapped_result, result);
+            nada_free(mapped_result);
+            nada_free(result);
+            result = new_result;
         }
-
-        // Check if we have a valid arg list
-        if (nada_is_nil(call_args)) {
-            break;
-        }
-
-        // Apply function to arguments
-        NadaValue *mapped_result = apply_function(func, call_args, env);
-        nada_free(call_args);
-
-        // Add the result to our list (in reverse)
-        NadaValue *new_result = nada_cons(mapped_result, result);
-        nada_free(mapped_result);
-        nada_free(result);
-        result = new_result;
     }
 
     // Reverse the result to get correct order
