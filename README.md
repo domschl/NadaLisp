@@ -89,16 +89,14 @@ This will open JupyterLab in your browser. To create a new NadaLisp notebook:
 
 ### Example Usage
 
-In a notebook cell, you can write NadaLisp code like (one expression per cell only currently):
+In a notebook cell, you can write NadaLisp code like:
 
 ```scheme
 (define (factorial n)
   (if (<= n 1)
       1
       (* n (factorial (- n 1)))))
-```
 
-```scheme
 (factorial 5)
 ```
 
