@@ -69,6 +69,40 @@ NadaValue *builtin_symbol_p(NadaValue *args, NadaEnv *env) {
     return nada_create_bool(result);
 }
 
+// Symbol defined predicate (defined?)
+NadaValue *builtin_defined_p(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "defined? requires exactly 1 argument");
+        return nada_create_bool(0);
+    }
+
+    // First argument must be a symbol (not evaluated)
+    NadaValue *symbol = nada_car(args);
+    if (symbol->type != NADA_SYMBOL) {
+        // nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "defined? requires a symbol as argument");
+        return nada_create_bool(0);
+    }
+
+    // Check if symbol exists in environment
+    // We need to suppress error reporting for the lookup
+    int was_silent = nada_is_global_silent_symbol_lookup();
+    nada_set_silent_symbol_lookup(1);
+
+    // Try to get the symbol
+    NadaValue *val = nada_env_get(env, symbol->data.symbol, 1);
+
+    // Restore original silent setting
+    nada_set_silent_symbol_lookup(was_silent);
+
+    // Check if the returned value is nil (undefined) or not
+    int result = !nada_is_nil(val);
+
+    // Free the value returned by env_get
+    nada_free(val);
+
+    return nada_create_bool(result);
+}
+
 // Boolean predicate (boolean?)
 NadaValue *builtin_boolean_p(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
@@ -137,6 +171,19 @@ NadaValue *builtin_atom_p(NadaValue *args, NadaEnv *env) {
 
     NadaValue *val = nada_eval(nada_car(args), env);
     int result = (val->type != NADA_PAIR && val->type != NADA_NIL);
+    nada_free(val);
+    return nada_create_bool(result);
+}
+
+// Error predicate (error?)
+NadaValue *builtin_error_p(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "error? requires exactly 1 argument");
+        return nada_create_bool(0);
+    }
+
+    NadaValue *val = nada_eval(nada_car(args), env);
+    int result = (val->type == NADA_ERROR);
     nada_free(val);
     return nada_create_bool(result);
 }

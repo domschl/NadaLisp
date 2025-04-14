@@ -57,8 +57,14 @@ NadaValue *builtin_define(NadaValue *args, NadaEnv *env) {
         // Bind function to name
         nada_env_set(env, func_name->data.symbol, func);
 
-        // Free the function value after it's been stored in the environment
-        nada_free(func);
+        // Free the original function value *after* it's been copied and stored.
+        // Temporarily NULL the env pointer to prevent premature release of the
+        // environment, which is now correctly referenced by the copy in the binding.
+        if (func->type == NADA_FUNC) {  // Safety check
+            // We don't need to save/restore, just prevent release during this free
+            func->data.function.env = NULL;
+        }
+        nada_free(func);  // Free the original func value
 
         // Return the function name
         return nada_create_symbol(func_name->data.symbol);
@@ -114,16 +120,38 @@ NadaValue *builtin_lambda(NadaValue *args, NadaEnv *env) {
         return nada_create_nil();
     }
 
-    // First argument must be a list of symbols (parameter names)
+    // First argument must be either a list of symbols or a single symbol
     NadaValue *params = nada_car(args);
-    // Validate parameters (should all be symbols)
-    NadaValue *param_check = params;
-    while (param_check->type == NADA_PAIR) {
-        if (nada_car(param_check)->type != NADA_SYMBOL) {
-            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda parameters must be symbols");
+
+    // Case 1: Single symbol for variadic function (lambda args body)
+    if (params->type == NADA_SYMBOL) {
+        // This is a valid case - all args will be collected as a list
+    }
+    // Case 2: List of parameters
+    else if (params->type == NADA_PAIR || params->type == NADA_NIL) {
+        // Validate parameters (should all be symbols)
+        NadaValue *param_check = params;
+        while (param_check->type == NADA_PAIR) {
+            if (nada_car(param_check)->type != NADA_SYMBOL) {
+                nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda parameters must be symbols");
+                return nada_create_nil();
+            }
+            // Check for dotted pair notation
+            if (nada_cdr(param_check)->type == NADA_SYMBOL) {
+                // Valid dotted pair notation (e.g., (a b . rest))
+                param_check = nada_cdr(param_check);  // Move to the rest parameter
+                break;
+            }
+            param_check = nada_cdr(param_check);
+        }
+        // Ensure the rest parameter (if present) is a symbol
+        if (param_check->type != NADA_NIL && param_check->type != NADA_SYMBOL) {
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda rest parameter must be a symbol");
             return nada_create_nil();
         }
-        param_check = nada_cdr(param_check);
+    } else {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda parameters must be a symbol or list");
+        return nada_create_nil();
     }
 
     // The rest is the function body
@@ -147,9 +175,8 @@ NadaValue *builtin_if(NadaValue *args, NadaEnv *env) {
     // Evaluate the condition
     NadaValue *condition = nada_eval(nada_car(args), env);
 
-    // Check if condition is true (anything other than #f or nil)
-    int is_true = !(condition->type == NADA_BOOL && condition->data.boolean == 0) &&
-                  !(condition->type == NADA_NIL);
+    // Check if condition is true (only #f is falsy in standard Scheme)
+    int is_true = !(condition->type == NADA_BOOL && condition->data.boolean == 0);
 
     nada_free(condition);
 
@@ -285,19 +312,25 @@ NadaValue *builtin_cond(NadaValue *args, NadaEnv *env) {
 
 // Built-in special form: let (with support for named let)
 NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
-    // Check we have at least bindings and body
-    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let requires bindings and body");
+    // Check for at least one argument
+    if (nada_is_nil(args)) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "let requires arguments");
         return nada_create_nil();
     }
 
-    // Get bindings list or loop name
     NadaValue *first_arg = nada_car(args);
 
-    // Check if this is a named let
+    // Check for named let
     if (first_arg->type == NADA_SYMBOL) {
-        // Named let: (let loop ((var1 val1)...) body...)
-        const char *loop_name = first_arg->data.symbol;
+        // Named let - creates a recursive function
+        const char *func_name = first_arg->data.symbol;
+
+        // Get the bindings and body
+        if (nada_is_nil(nada_cdr(args))) {
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "named let requires bindings and body");
+            return nada_create_nil();
+        }
+
         NadaValue *bindings = nada_car(nada_cdr(args));
         NadaValue *body = nada_cdr(nada_cdr(args));
 
@@ -321,74 +354,97 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             NadaValue *val_expr = nada_car(nada_cdr(binding));
             NadaValue *val = nada_eval(val_expr, env);
             nada_env_set(loop_env, var_name, val);
+            if (val->type == NADA_ERROR) {   // Check for eval errors
+                nada_env_release(loop_env);  // Release extra scope ref
+                nada_env_release(loop_env);  // Release initial ref
+                return val;                  // Propagate error
+            }
             nada_free(val);
             current_binding = nada_cdr(current_binding);
         }
 
-        // Build parameter list
+        // Build the parameter list for the loop function from binding names
         NadaValue *params = nada_create_nil();
-        current_binding = bindings;
+        current_binding = bindings;  // Reset to start of bindings
         while (!nada_is_nil(current_binding)) {
             NadaValue *binding = nada_car(current_binding);
             NadaValue *param_symbol = nada_car(binding);
-            NadaValue *param_copy = nada_deep_copy(param_symbol);
-            NadaValue *new_params = nada_cons(param_copy, params);
-            nada_free(param_copy);
-            nada_free(params);
-            params = new_params;
+            // Need deep copy here as original symbols are part of bindings list
+            NadaValue *param_symbol_copy = nada_deep_copy(param_symbol);
+            NadaValue *new_params = nada_cons(param_symbol_copy, params);
+            nada_free(param_symbol_copy);  // Cons creates its own copy
+            nada_free(params);             // Free the old list head
+            params = new_params;           // Update params to point to the new list
             current_binding = nada_cdr(current_binding);
         }
-        NadaValue *reversed_params = nada_reverse(params);
+        // params is now the reversed list of parameter symbols
+
+        NadaValue *reversed_params = nada_reverse(params);  // Reverse to get correct order
+        // Free the original reversed list (now pointed to by 'params')
+        // before assigning the newly created correct-order list.
         nada_free(params);
-        NadaValue *body_copy = nada_deep_copy(body);
+        params = reversed_params;  // 'params' now holds the correct list
 
-        // Create recursive function
-        NadaValue *loop_func = nada_create_function(reversed_params, body_copy, loop_env);
+        // Create the loop function capturing the loop environment
+        // Pass ownership of params and body copy to the function
+        NadaValue *loop_func = nada_create_function(
+            params,  // Pass params directly
+            nada_deep_copy(body),
+            loop_env  // Capture the current environment (adds ref)
+        );
+        // params list is now owned by loop_func, don't free here
 
-        // Store the function in the environment
-        nada_env_set(loop_env, loop_name, loop_func);
+        // Bind the loop function to its name *within* the loop environment
+        // nada_env_set handles the self-reference ref count adjustment
+        nada_env_set(loop_env, func_name, loop_func);
 
-        // IMPORTANT: Don't completely break the circular reference
-        // Instead, decrement the ref count but keep the environment pointer
-        struct NadaBinding *binding = loop_env->bindings;
-        while (binding != NULL) {
-            if (strcmp(binding->name, loop_name) == 0 &&
-                binding->value && binding->value->type == NADA_FUNC) {
-                // Decrement ref count but DON'T NULL OUT the env pointer
-                nada_env_release(binding->value->data.function.env);
-                break;
-            }
-            binding = binding->next;
+        // Free the original loop_func value created above, *after* it's been copied.
+        // Temporarily NULL the env pointer to prevent premature release of the
+        // environment, which is now correctly referenced by the copy in the binding.
+        if (loop_func->type == NADA_FUNC) {  // Safety check
+            // We don't need to save/restore, just prevent release during this free
+            loop_func->data.function.env = NULL;
         }
-
-        // Free our reference to the function
-        // The environment still has its copy
-        nada_free(loop_func);
+        nada_free(loop_func);  // Free the original loop_func value
 
         // Evaluate body
         NadaValue *result = nada_create_nil();
         NadaValue *current_expr = body;
         while (!nada_is_nil(current_expr)) {
-            nada_free(result);
-            if (nada_is_nil(nada_cdr(current_expr))) {
-                // Last expression; return a copy
-                result = nada_eval(nada_car(current_expr), loop_env);
-                NadaValue *result_copy = nada_deep_copy(result);
-                nada_free(result);
-
-                // Use nada_env_release instead of nada_env_free
-                nada_env_release(loop_env);  // Release our scope reference
-                nada_env_release(loop_env);  // Release the 'extra' scope
-                return result_copy;
-            } else {
-                result = nada_eval(nada_car(current_expr), loop_env);
+            nada_free(result);  // Free previous result
+            result = nada_eval(nada_car(current_expr), loop_env);
+            if (result->type == NADA_ERROR) {  // Check for eval errors in body
+                                               // Error occurred, result holds the error value.
+                                               // Need to release env before returning.
+                nada_env_release(loop_env);    // Release our scope reference
+                nada_env_release(loop_env);    // Release the 'extra' scope
+                return result;                 // Propagate error
             }
             current_expr = nada_cdr(current_expr);
         }
 
-        // Ensure we release loop_env in ALL code paths before returning
-        nada_env_release(loop_env);  // Release our scope reference
-        nada_env_release(loop_env);  // Release the 'extra' scope
+        // Before returning, break the circular reference
+        struct NadaBinding *binding = loop_env->bindings;
+        while (binding != NULL) {
+            if (strcmp(binding->name, func_name) == 0 &&
+                binding->value && binding->value->type == NADA_FUNC &&
+                binding->value->data.function.env == loop_env) {
+                printf("Breaking circular reference in named let function: %s\n", func_name);
+
+                // Set function's env pointer to parent env and increment parent's ref count
+                binding->value->data.function.env = loop_env->parent;
+                if (loop_env->parent) {
+                    nada_env_add_ref(loop_env->parent);
+                }
+            }
+            binding = binding->next;
+        }
+
+        // Force let_env to be fully cleaned up
+        printf("Forcing cleanup of named let_env #%d\n", loop_env->id);
+        loop_env->ref_count = 1;  // Set to 1 so next release will free it
+        nada_env_release(loop_env);
+
         return result;
     } else {
         // Regular let
@@ -398,7 +454,11 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             return nada_create_nil();
         }
 
+        // Create a new environment
         NadaEnv *let_env = nada_env_create(env);
+
+        // IMPORTANT: Define the body - this was missing!
+        NadaValue *body = nada_cdr(args);
 
         // Evaluate binding expressions in the original env
         NadaValue *binding_list = bindings;
@@ -418,23 +478,56 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             NadaValue *val = nada_eval(val_expr, env);
 
             nada_env_set(let_env, var_name, val);
+            if (val->type == NADA_ERROR) {  // Check for eval errors
+                nada_env_release(let_env);  // Release env before returning
+                return val;                 // Propagate error
+            }
+
             nada_free(val);
             binding_list = nada_cdr(binding_list);
         }
 
-        // Evaluate body in the new env
-        NadaValue *body = nada_cdr(args);
+        // Evaluate body expressions in the new environment
         NadaValue *result = nada_create_nil();
-        while (!nada_is_nil(body)) {
+        NadaValue *body_expr = body;
+
+        while (!nada_is_nil(body_expr)) {
+            // Free previous result before getting a new one
             nada_free(result);
-            NadaValue *expr = nada_car(body);
-            result = nada_eval(expr, let_env);
-            body = nada_cdr(body);
+
+            // Evaluate the next expression
+            result = nada_eval(nada_car(body_expr), let_env);
+
+            // Move to next expression
+            body_expr = nada_cdr(body_expr);
         }
 
-        // Use nada_env_release instead of nada_env_free
+        // Make a copy of the result to return
+        NadaValue *result_copy = nada_deep_copy(result);
+        nada_free(result);
+
+        // Before releasing let_env, find and fix circular references
+        struct NadaBinding *binding = let_env->bindings;
+        while (binding != NULL) {
+            if (binding->value && binding->value->type == NADA_FUNC &&
+                binding->value->data.function.env == let_env) {
+                printf("Breaking circular reference in let-bound function: %s\n", binding->name);
+
+                // Set function's env pointer to parent env and increment parent's ref count
+                binding->value->data.function.env = let_env->parent;
+                if (let_env->parent) {
+                    nada_env_add_ref(let_env->parent);
+                }
+            }
+            binding = binding->next;
+        }
+
+        // Force let_env to be fully cleaned up
+        printf("Forcing cleanup of let_env #%d\n", let_env->id);
+        let_env->ref_count = 1;  // Set to 1 so next release will free it
         nada_env_release(let_env);
-        return result;
+
+        return result_copy;
     }
 }
 

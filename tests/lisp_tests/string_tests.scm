@@ -5,13 +5,13 @@
   (assert-equal (string-length "") 0))
 
 (define-test "substring"
-  (assert-equal (substring "hello world" 6 5) "world"))
+  (assert-equal (substring "hello world" 6 11) "world"))
 
 (define-test "substring-beginning"
   (assert-equal (substring "hello world" 0 5) "hello"))
 
 (define-test "substring-edge"
-  (assert-equal (substring "hello" 4 1) "o"))
+  (assert-equal (substring "hello" 4 5) "o"))
 
 (define-test "string-join"
   (assert-equal (string-join (list "hello" "world") " ") "hello world"))

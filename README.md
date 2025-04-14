@@ -44,6 +44,10 @@ ctest -L LispMemoryTests   # Memory tests for regular Lisp files only
 ctest -L JupyterKernel     # Test Jupyter kernel only
 ```
 
+### Known problems
+
+- Variadic lambdas currently generate a memory leak, the corresponding test is currently disabled in `MEMORY_TEST_EXCLUDE_LIST` in `tests/CMakeLists.txt`.
+
 ## Jupyter Kernel for NadaLisp
 
 NadaLisp comes with a Jupyter kernel that allows you to use NadaLisp in Jupyter notebooks.

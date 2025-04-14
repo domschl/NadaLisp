@@ -175,6 +175,10 @@ NadaValue *builtin_eq(NadaValue *args, NadaEnv *env) {
             // This simplified implementation always returns false
             result = 0;
             break;
+        case NADA_ERROR:
+            // Errors with the same message are eq?
+            result = (strcmp(first->data.error, second->data.error) == 0);
+            break;
         }
     }
 
@@ -206,6 +210,8 @@ int values_equal(NadaValue *a, NadaValue *b) {
     case NADA_FUNC:
         // Functions are complex; for simplicity, consider them not equal
         return 0;
+    case NADA_ERROR:
+        return strcmp(a->data.error, b->data.error) == 0;
     default:
         return 0;
     }

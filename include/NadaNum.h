@@ -21,6 +21,7 @@ NadaNum *nada_num_subtract(const NadaNum *a, const NadaNum *b);
 NadaNum *nada_num_multiply(const NadaNum *a, const NadaNum *b);
 NadaNum *nada_num_divide(const NadaNum *a, const NadaNum *b);
 NadaNum *nada_num_modulo(const NadaNum *a, const NadaNum *b);
+NadaNum *nada_num_remainder(const NadaNum *a, const NadaNum *b);
 NadaNum *nada_num_negate(const NadaNum *a);
 
 // Comparison operations

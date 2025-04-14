@@ -2,7 +2,6 @@
 """
 NadaLisp Jupyter Kernel - Implementation
 """
-import os
 import sys
 import json
 import re
@@ -11,8 +10,11 @@ import tempfile
 import threading
 import time
 import traceback
+import io
+import os
+from contextlib import redirect_stdout
 from ipykernel.kernelbase import Kernel
-from ctypes import c_char_p, c_void_p, c_int, CDLL, POINTER, byref, Structure
+from ctypes import cdll, CDLL, c_void_p, c_int, c_char_p, c_buffer
 
 # The Kernel base class already provides a self.log logger
 
@@ -114,7 +116,11 @@ class NadaKernel(Kernel):
         self.lib.nada_eval.argtypes = [c_void_p, c_void_p]
         self.lib.nada_eval.restype = c_void_p
         
-        # Add nada_parse to convert string input to NadaValue
+        # Add nada_parse_eval_multi to process multiple expressions at once
+        self.lib.nada_parse_eval_multi.argtypes = [c_char_p, c_void_p]
+        self.lib.nada_parse_eval_multi.restype = c_void_p
+        
+        # Existing prototypes
         self.lib.nada_parse.argtypes = [c_char_p]
         self.lib.nada_parse.restype = c_void_p
         
@@ -155,13 +161,13 @@ class NadaKernel(Kernel):
             }
         
         try:
-            # Split code into separate expressions by detecting top-level parentheses
+            # Split code into separate expressions
             expressions = self.split_expressions(code)
             self.log.info(f"Split code into {len(expressions)} expressions")
             
             # Execute each expression and keep only the final result
             final_result = None
-            
+
             for idx, expr in enumerate(expressions):
                 self.log.info(f"Executing expression {idx+1}/{len(expressions)}: {expr}")
                 
@@ -174,57 +180,78 @@ class NadaKernel(Kernel):
                 
                 def evaluation_thread():
                     try:
-                        # Parse the input code to get a NadaValue pointer
-                        self.log.info(f"Parsing expression: {expr}")
-                        expr_ptr = self.lib.nada_parse(c_code)
-                        if not expr_ptr:
-                            error[0] = RuntimeError(f"Failed to parse expression: {expr}")
-                            self.log.error(f"Failed to parse expression: {expr}")
-                            return
+                        # Create temporary files for stdout redirection
+                        stdout_fd = sys.stdout.fileno()
+                        # Save a copy of the original stdout fd
+                        stdout_fd_copy = os.dup(stdout_fd)
                         
-                        self.log.info(f"Expression parsed successfully, expr_ptr: {expr_ptr}")
-                        
-                        # Call the NadaLisp interpreter with the parsed expression
-                        self.log.info("Calling nada_eval...")
-                        value_ptr = self.lib.nada_eval(expr_ptr, self.env)
-                        
-                        # Free the parsed expression
-                        self.lib.nada_free(expr_ptr)
-                        
-                        self.log.info(f"nada_eval returned: {value_ptr}")
-                        
-                        if not value_ptr:
-                            error[0] = RuntimeError("Evaluation returned NULL")
-                            self.log.error("Evaluation returned NULL")
-                            return
+                        # Create a temporary file to redirect C-level output
+                        with tempfile.TemporaryFile(mode='w+') as temp_stdout:
+                            # Redirect C stdout to our temp file
+                            temp_stdout_fd = temp_stdout.fileno()
+                            os.dup2(temp_stdout_fd, stdout_fd)
                             
-                        # Convert to string only for the last expression
-                        if idx == len(expressions) - 1:
-                            self.log.info("Converting result to string...")
-                            string_ptr = self.lib.nada_value_to_string(value_ptr)
-                            
-                            # Free the result value
-                            self.lib.nada_free(value_ptr)
-                            
-                            if not string_ptr:
-                                error[0] = RuntimeError("Failed to convert result to string")
-                                self.log.error("Failed to convert result to string")
-                                return
+                            try:
+                                # Parse and evaluate the input code
+                                self.log.info(f"Calling nada_parse_eval_multi for: {expr}")
+                                value_ptr = self.lib.nada_parse_eval_multi(c_code, self.env)
+                                self.log.info(f"Result pointer: {value_ptr}")
                                 
-                            # Convert C string result to Python string
-                            result_str = ctypes.string_at(string_ptr).decode('utf-8')
-                            self.log.info(f"Result string: {result_str}")
-                            
-                            # Free the string if needed
-                            if hasattr(self.lib, 'nada_free_string'):
-                                self.lib.nada_free_string(string_ptr)
-                            
-                            # Store the result string
-                            result_ptr[0] = result_str.strip()
-                        else:
-                            # Just free the intermediate result without converting to string
-                            self.lib.nada_free(value_ptr)
-                            
+                                # Check if it's an error
+                                if value_ptr:
+                                    self.lib.nada_is_error.argtypes = [c_void_p]
+                                    self.lib.nada_is_error.restype = c_int
+                                    
+                                    if self.lib.nada_is_error(value_ptr):
+                                        # Get the error message
+                                        string_ptr = self.lib.nada_value_to_string(value_ptr)
+                                        error_msg = ctypes.string_at(string_ptr).decode('utf-8')
+                                        
+                                        # Free resources
+                                        if hasattr(self.lib, 'nada_free_string'):
+                                            self.lib.nada_free_string(string_ptr)
+                                        self.lib.nada_free(value_ptr)
+                                        
+                                        # Store error
+                                        error[0] = RuntimeError(error_msg)
+                                        return
+                                
+                                # Flush to ensure all output is written
+                                sys.stdout.flush()
+                                
+                                # Restore original stdout
+                                os.dup2(stdout_fd_copy, stdout_fd)
+                                
+                                # Get captured output
+                                temp_stdout.seek(0)
+                                stdout_output = temp_stdout.read()
+                                
+                                # Send captured output to frontend
+                                if stdout_output:
+                                    self.send_response(self.iopub_socket, 'stream', {
+                                        'name': 'stdout',
+                                        'text': stdout_output
+                                    })
+                                
+                                # Convert result to string
+                                if value_ptr:
+                                    string_ptr = self.lib.nada_value_to_string(value_ptr)
+                                    if string_ptr:
+                                        result_ptr[0] = ctypes.string_at(string_ptr).decode('utf-8')
+                                        self.log.info(f"Got result: {result_ptr[0]}")
+                                        
+                                        # Free the string if needed
+                                        if hasattr(self.lib, 'nada_free_string'):
+                                            self.lib.nada_free_string(string_ptr)
+                                    
+                                    # Free the result value
+                                    self.lib.nada_free(value_ptr)
+                                
+                            finally:
+                                # Ensure we restore stdout
+                                os.dup2(stdout_fd_copy, stdout_fd)
+                                os.close(stdout_fd_copy)
+                                
                     except Exception as e:
                         error[0] = e
                         self.log.error(f"Exception in evaluation thread: {str(e)}")

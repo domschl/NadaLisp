@@ -1,8 +1,12 @@
-#include "NadaParser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+
+#include "NadaParser.h"
+#include "NadaValue.h"
+#include "NadaEnv.h"
+#include "NadaEval.h"
 
 // Initialize the tokenizer
 void tokenizer_init(Tokenizer *t, const char *input) {
@@ -82,7 +86,7 @@ static int next_token(Tokenizer *t) {
     size_t i = 0;
     while (t->input[t->position] != '\0' &&
            !isspace(t->input[t->position]) &&
-           t->input[t->position] != '(' &&
+           t->input[t->position] != '(' &&  // Fixed the syntax error
            t->input[t->position] != ')') {
         t->token[i++] = t->input[t->position++];
     }
@@ -326,4 +330,182 @@ NadaValue *nada_parse(const char *input) {
     }
 
     return result;
+}
+
+// Parse multiple expressions from a string
+NadaValue *nada_parse_multi(const char *input) {
+    // First validate parentheses
+    int error_pos = -1;
+    int paren_balance = validate_parentheses(input, &error_pos);
+
+    if (paren_balance != 0) {
+        fprintf(stderr, "Input: %s\n", input);
+        if (paren_balance > 0) {
+            fprintf(stderr, "Error: missing %d closing parentheses\n", paren_balance);
+        } else {
+            fprintf(stderr, "Error: unexpected closing parenthesis at position %d\n", error_pos);
+        }
+
+        // Show the context of the error
+        if (error_pos >= 0) {
+            int context_start = error_pos > 20 ? error_pos - 20 : 0;
+            fprintf(stderr, "Context: %.*s\n", 40, input + context_start);
+
+            // Print pointer to error position
+            fprintf(stderr, "%*s^\n", error_pos - context_start, "");
+            fprintf(stderr, "Full input:\n%s\n", input);
+        }
+
+        return nada_create_nil();
+    }
+
+    Tokenizer t;
+    tokenizer_init(&t, input);
+
+    // Get the first token
+    if (!get_next_token(&t)) {
+        // Empty input
+        return nada_create_nil();
+    }
+
+    NadaValue *result = nada_create_nil();
+    NadaValue *current = NULL;
+
+    // Parse expressions until we reach the end of input
+    while (t.token[0] != '\0') {
+        // Parse the next expression
+        current = parse_expr(&t);
+
+        // Free the previous result if we have a new one
+        if (result != NULL) {
+            nada_free(result);
+        }
+
+        // Store the current result (will be returned if it's the last one)
+        result = current;
+
+        // Skip any extra whitespace between expressions
+        skip_whitespace(&t);
+
+        // If we've reached the end of input, we're done
+        if (t.token[0] == '\0') {
+            break;
+        }
+    }
+
+    return result;
+}
+
+NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
+    // First validate parentheses
+    int error_pos = -1;
+    int paren_balance = validate_parentheses(input, &error_pos);
+
+    if (paren_balance != 0) {
+        // Error handling code (unchanged)
+        char error_buffer[1024];
+        if (paren_balance > 0) {
+            snprintf(error_buffer, sizeof(error_buffer),
+                     "Missing %d closing parentheses", paren_balance);
+        } else {
+            snprintf(error_buffer, sizeof(error_buffer),
+                     "Unexpected closing parenthesis at position %d", error_pos);
+        }
+        return nada_create_error(error_buffer);
+    }
+
+    Tokenizer t;
+    tokenizer_init(&t, input);
+
+    // Get the first token
+    if (!get_next_token(&t)) {
+        // Empty input - this is not an error
+        return nada_create_nil();
+    }
+
+    NadaValue *result = nada_create_nil();
+    NadaValue *expr = NULL;
+    NadaValue *last_valid_result = NULL;
+
+    while (t.token[0] != '\0') {
+        // Parse the next expression
+        expr = parse_expr(&t);
+
+        // Free any previous result
+        if (result != NULL) {
+            nada_free(result);
+        }
+
+        // Evaluate the expression and store the result
+        result = nada_eval(expr, env);
+
+        // Check if result is an error
+        if (nada_is_error(result)) {
+            // Error handling code (unchanged)
+            nada_free(expr);
+            if (last_valid_result != NULL) {
+                nada_free(last_valid_result);
+            }
+            return result;
+        }
+
+        // Free the parsed expression
+        nada_free(expr);
+
+        // Keep track of the last valid result
+        if (last_valid_result != NULL) {
+            nada_free(last_valid_result);
+        }
+        last_valid_result = nada_deep_copy(result);
+
+        // Skip whitespace
+        skip_whitespace(&t);
+
+        // If we've reached the end of input, we're done
+        if (t.input[t.position] == '\0') {
+            break;
+        }
+
+        // Check for comments and handle them properly
+        if (t.input[t.position] == ';') {
+            // Skip to end of line or end of input
+            while (t.input[t.position] != '\0' && t.input[t.position] != '\n') {
+                t.position++;
+            }
+
+            // If we've reached end of input after a comment, we're done
+            if (t.input[t.position] == '\0') {
+                break;
+            }
+
+            // Skip newline and continue
+            if (t.input[t.position] == '\n') {
+                t.position++;
+            }
+
+            // Skip any more whitespace
+            skip_whitespace(&t);
+
+            // If we're at the end of input now, we're done
+            if (t.input[t.position] == '\0') {
+                break;
+            }
+        }
+
+        // Only try to get the next token if we haven't already reached the end
+        // and we're not currently at a comment
+        if (t.input[t.position] != '\0' && t.input[t.position] != ';') {
+            if (!get_next_token(&t)) {
+                break;  // No more tokens
+            }
+        }
+    }
+
+    // Free the final intermediate result
+    if (result != NULL) {
+        nada_free(result);
+    }
+
+    // Return the last valid result (or nil if none)
+    return last_valid_result ? last_valid_result : nada_create_nil();
 }

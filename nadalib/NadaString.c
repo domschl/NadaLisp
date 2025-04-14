@@ -109,6 +109,10 @@ char *nada_value_to_string(NadaValue *val) {
         append_to_buffer(&buffer, &buffer_size, &pos, ")");
         break;
     }
+    case NADA_ERROR:
+        append_to_buffer(&buffer, &buffer_size, &pos, "Error: ");
+        append_to_buffer(&buffer, &buffer_size, &pos, val->data.error);
+        break;
     case NADA_FUNC:
         append_to_buffer(&buffer, &buffer_size, &pos, "#<function>");
         break;
@@ -167,17 +171,17 @@ NadaValue *builtin_string_length(NadaValue *args, NadaEnv *env) {
 
 // substring: Extract a substring
 NadaValue *builtin_substring(NadaValue *args, NadaEnv *env) {
-    // Check args: (substring str start [length])
+    // Check args: (substring str start end)
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
         !nada_is_nil(nada_cdr(nada_cdr(nada_cdr(args))))) {
-        fprintf(stderr, "Error: substring requires 2 or 3 arguments\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "substring requires exactly 3 arguments");
         return nada_create_nil();
     }
 
     // Evaluate string argument
     NadaValue *str_val = nada_eval(nada_car(args), env);
     if (str_val->type != NADA_STRING) {
-        fprintf(stderr, "Error: substring requires a string as first argument\n");
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "substring requires a string as first argument");
         nada_free(str_val);
         return nada_create_nil();
     }
@@ -185,7 +189,7 @@ NadaValue *builtin_substring(NadaValue *args, NadaEnv *env) {
     // Evaluate start index
     NadaValue *start_val = nada_eval(nada_car(nada_cdr(args)), env);
     if (start_val->type != NADA_NUM) {
-        fprintf(stderr, "Error: substring requires a number as second argument\n");
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "substring requires a number as second argument");
         nada_free(str_val);
         nada_free(start_val);
         return nada_create_nil();
@@ -193,7 +197,7 @@ NadaValue *builtin_substring(NadaValue *args, NadaEnv *env) {
 
     // Check if start is an integer
     if (!nada_num_is_integer(start_val->data.number)) {
-        fprintf(stderr, "Error: substring start index must be an integer\n");
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "substring start index must be an integer");
         nada_free(str_val);
         nada_free(start_val);
         return nada_create_nil();
@@ -201,82 +205,74 @@ NadaValue *builtin_substring(NadaValue *args, NadaEnv *env) {
 
     int start = nada_num_to_int(start_val->data.number);
     if (start < 0) {
-        fprintf(stderr, "Error: substring start index must be non-negative\n");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "substring start index must be non-negative");
         nada_free(str_val);
         nada_free(start_val);
         return nada_create_nil();
     }
 
-    // Optional length parameter
-    int length = -1;  // Default to rest of string
-    if (!nada_is_nil(nada_cdr(nada_cdr(args)))) {
-        NadaValue *length_val = nada_eval(nada_car(nada_cdr(nada_cdr(args))), env);
-        if (length_val->type != NADA_NUM) {
-            fprintf(stderr, "Error: substring requires a number as third argument\n");
-            nada_free(str_val);
-            nada_free(start_val);
-            nada_free(length_val);
-            return nada_create_nil();
-        }
-
-        // Check if length is an integer
-        if (!nada_num_is_integer(length_val->data.number)) {
-            fprintf(stderr, "Error: substring length must be an integer\n");
-            nada_free(str_val);
-            nada_free(start_val);
-            nada_free(length_val);
-            return nada_create_nil();
-        }
-
-        length = nada_num_to_int(length_val->data.number);
-        if (length < 0) {
-            fprintf(stderr, "Error: substring length must be non-negative\n");
-            nada_free(str_val);
-            nada_free(start_val);
-            nada_free(length_val);
-            return nada_create_nil();
-        }
-
-        nada_free(length_val);
+    // Evaluate end index
+    NadaValue *end_val = nada_eval(nada_car(nada_cdr(nada_cdr(args))), env);
+    if (end_val->type != NADA_NUM) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "substring requires a number as third argument");
+        nada_free(str_val);
+        nada_free(start_val);
+        nada_free(end_val);
+        return nada_create_nil();
     }
 
-    // The rest of the function remains unchanged
-    // Get pointers to the relevant positions
+    // Check if end is an integer
+    if (!nada_num_is_integer(end_val->data.number)) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "substring end index must be an integer");
+        nada_free(str_val);
+        nada_free(start_val);
+        nada_free(end_val);
+        return nada_create_nil();
+    }
+
+    int end = nada_num_to_int(end_val->data.number);
+    if (end < 0) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "substring end index must be non-negative");
+        nada_free(str_val);
+        nada_free(start_val);
+        nada_free(end_val);
+        return nada_create_nil();
+    }
+
+    if (end < start) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "substring end index must be >= start index");
+        nada_free(str_val);
+        nada_free(start_val);
+        nada_free(end_val);
+        return nada_create_nil();
+    }
+
+    // Get string length in characters
+    int str_len = utf8_strlen(str_val->data.string);
+
+    // Clamp indices to string length
+    if (start > str_len) start = str_len;
+    if (end > str_len) end = str_len;
+
+    // Get pointers to the start and end positions
     const char *str = str_val->data.string;
     const char *start_ptr = utf8_index(str, start);
+    const char *end_ptr = utf8_index(str, end);
 
-    if (*start_ptr == '\0') {
-        // Start index is beyond the string
-        nada_free(str_val);
-        nada_free(start_val);
-        return nada_create_string("");
-    }
+    // Calculate byte length and copy the substring
+    int byte_len = end_ptr - start_ptr;
+    char *result = malloc(byte_len + 1);
+    strncpy(result, start_ptr, byte_len);
+    result[byte_len] = '\0';
 
-    if (length < 0) {
-        // Extract to the end of the string
-        nada_free(start_val);
-        char *result = strdup(start_ptr);
-        nada_free(str_val);
-        return nada_create_string(result);
-    } else {
-        // Extract specific number of characters
-        const char *end_ptr = start_ptr;
-        for (int i = 0; i < length && *end_ptr; i++) {
-            end_ptr = utf8_index(end_ptr, 1);
-        }
+    // Clean up and return
+    nada_free(str_val);
+    nada_free(start_val);
+    nada_free(end_val);
 
-        int byte_len = end_ptr - start_ptr;
-        char *result = malloc(byte_len + 1);
-        strncpy(result, start_ptr, byte_len);
-        result[byte_len] = '\0';
-
-        nada_free(str_val);
-        nada_free(start_val);
-
-        NadaValue *ret = nada_create_string(result);
-        free(result);
-        return ret;
-    }
+    NadaValue *ret = nada_create_string(result);
+    free(result);
+    return ret;
 }
 
 // string-split: Split a string by delimiter or into characters
@@ -390,18 +386,16 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env) {
             start = found + delim_len;
         }
 
-        // Add the last segment
-        if (*start) {
-            NadaValue *seg_val = nada_create_string(start);
-            NadaValue *new_result = nada_cons(seg_val, result);
+        // Add the last segment (always add it, even if empty)
+        NadaValue *seg_val = nada_create_string(start);
+        NadaValue *new_result = nada_cons(seg_val, result);
 
-            // Free temporary values
-            nada_free(seg_val);
-            nada_free(result);
+        // Free temporary values
+        nada_free(seg_val);
+        nada_free(result);
 
-            // Update result pointer
-            result = new_result;
-        }
+        // Update result pointer
+        result = new_result;
 
         // Reverse the list
         NadaValue *reversed = nada_reverse(result);

@@ -255,3 +255,45 @@ NadaValue *builtin_modulo(NadaValue *args, NadaEnv *env) {
 
     return result;
 }
+
+// Built-in function: remainder
+NadaValue *builtin_remainder(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
+        !nada_is_nil(nada_cdr(nada_cdr(args)))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "remainder requires exactly 2 arguments");
+        return nada_create_nil();
+    }
+
+    NadaValue *a = nada_eval(nada_car(args), env);
+    NadaValue *b = nada_eval(nada_car(nada_cdr(args)), env);
+
+    if (a->type != NADA_NUM || b->type != NADA_NUM) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "remainder arguments must be numbers");
+        nada_free(a);
+        nada_free(b);
+        return nada_create_nil();
+    }
+
+    // Check for division by zero
+    if (nada_num_is_zero(b->data.number)) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "division by zero");
+        nada_free(a);
+        nada_free(b);
+        return nada_create_nil();
+    }
+
+    // Perform remainder operation
+    NadaNum *result_num = nada_num_remainder(a->data.number, b->data.number);
+
+    // Create result
+    NadaValue *result = nada_create_num(result_num);
+
+    // Free temporary value - this is crucial
+    nada_num_free(result_num);
+
+    // Free arguments
+    nada_free(a);
+    nada_free(b);
+
+    return result;
+}

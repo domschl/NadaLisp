@@ -14,6 +14,8 @@ NadaValue *builtin_number_p(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_string_p(NadaValue *args, NadaEnv *env);
 // Symbol predicate (symbol?)
 NadaValue *builtin_symbol_p(NadaValue *args, NadaEnv *env);
+// Symbol defined?
+NadaValue *builtin_defined_p(NadaValue *args, NadaEnv *env);
 // Boolean predicate (boolean?)
 NadaValue *builtin_boolean_p(NadaValue *args, NadaEnv *env);
 // Pair predicate (pair?)
@@ -26,5 +28,7 @@ int is_proper_list(NadaValue *v);
 NadaValue *builtin_list_p(NadaValue *args, NadaEnv *env);
 // Atom predicate (atom?) - anything that's not a pair or nil
 NadaValue *builtin_atom_p(NadaValue *args, NadaEnv *env);
+// Error predicate (error?)
+NadaValue *builtin_error_p(NadaValue *args, NadaEnv *env);
 
 #endif  // NADA_BUILTIN_PREDICATE_H

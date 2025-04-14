@@ -44,6 +44,8 @@ const char *nada_type_name(int type) {
         return "PAIR";
     case NADA_FUNC:
         return "FUNCTION";
+    case NADA_ERROR:
+        return "error";
     default:
         return "UNKNOWN";
     }
@@ -138,7 +140,10 @@ NadaValue *nada_create_function(NadaValue *params, NadaValue *body, NadaEnv *env
     val->data.function.builtin = NULL;
 
     // Add a reference to the environment
-    nada_env_add_ref(env);
+    if (env) {
+        printf("FUNC CREATE with env #%d\n", env->id);
+        nada_env_add_ref(env);
+    }
 
     nada_increment_allocations();
     return val;
@@ -217,6 +222,9 @@ void nada_free(NadaValue *val) {
     case NADA_BOOL:
         // No special cleanup needed for boolean
         break;
+    case NADA_ERROR:
+        free(val->data.error);  // Free the error message string
+        break;
     }
 
     free(val);
@@ -272,6 +280,9 @@ void nada_print(NadaValue *val) {
     case NADA_BOOL:
         printf("%s", val->data.boolean ? "#t" : "#f");
         break;
+    case NADA_ERROR:
+        printf("Error: %s", val->data.error);
+        break;
     }
 }
 
@@ -313,10 +324,36 @@ NadaValue *nada_deep_copy(NadaValue *val) {
     case NADA_BOOL:
         result->data.boolean = val->data.boolean;
         break;
+    case NADA_ERROR:
+        return nada_create_error(val->data.error);
     }
 
     nada_increment_allocations();
     return result;
+}
+
+// Create an error value
+NadaValue *nada_create_error(const char *message) {
+    NadaValue *val = malloc(sizeof(NadaValue));
+    if (val == NULL) {
+        fprintf(stderr, "Error: Out of memory when creating error value\n");
+        exit(1);
+    }
+    val->type = NADA_ERROR;
+    val->data.error = strdup(message);
+    if (val->data.error == NULL) {
+        fprintf(stderr, "Error: Out of memory when duplicating error message\n");
+        free(val);
+        exit(1);
+    }
+    nada_increment_allocations();
+    return val;
+}
+
+// Check if a value is an error
+int nada_is_error(const NadaValue *value) {
+    if (value == NULL) return 0;
+    return value->type == NADA_ERROR;
 }
 
 /*
