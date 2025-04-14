@@ -208,8 +208,28 @@ int values_equal(NadaValue *a, NadaValue *b) {
         return values_equal(a->data.pair.car, b->data.pair.car) &&
                values_equal(a->data.pair.cdr, b->data.pair.cdr);
     case NADA_FUNC:
-        // Functions are complex; for simplicity, consider them not equal
-        return 0;
+        // If both are built-in functions, compare their function pointers
+        if (a->data.function.builtin != NULL && b->data.function.builtin != NULL) {
+            return a->data.function.builtin == b->data.function.builtin;
+        }
+
+        // If one is built-in and one isn't, they're not equal
+        if ((a->data.function.builtin == NULL) != (b->data.function.builtin == NULL)) {
+            return 0;
+        }
+
+        // For user-defined functions, compare their bodies and parameters
+        if (a->data.function.builtin == NULL && b->data.function.builtin == NULL) {
+            // First, compare parameters
+            if (!values_equal(a->data.function.params, b->data.function.params)) {
+                return 0;
+            }
+
+            // Then compare body
+            return values_equal(a->data.function.body, b->data.function.body);
+        }
+
+        return 0;  // Fallback, shouldn't reach here
     case NADA_ERROR:
         return strcmp(a->data.error, b->data.error) == 0;
     default:
