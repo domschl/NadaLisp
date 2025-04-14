@@ -78,7 +78,43 @@
           '())
         (process-tokens (tokenize-expr expr)))))
 
-;; Process tokens - returns a Lisp expression
+;; Exponentiation operation - handles both numeric and symbolic cases
+(define expt-op
+  (lambda (base exp)
+    (cond
+      ;; Integer exponents can be computed exactly
+      ((integer? exp) 
+       (if (and (integer? base) (>= exp 0))
+           (expt base exp)  ; Use built-in expt function for all cases
+           (expt base exp)))
+      
+      ;; Special case: square root of perfect square
+      ((and (= (denominator exp) 2) 
+            (integer? base)
+            (integer? (sqrt base)))
+       (sqrt base))
+      
+      ;; Special case: cube root of perfect cube
+      ((and (= (denominator exp) 3)
+            (integer? base)
+            (integer? (expt base (/ 1 3))))
+       (expt base (/ 1 3)))
+      
+      ;; Keep symbolic for other cases
+      (else (list 'expt base exp)))))
+
+;; Update the operator list to handle ^
+(define eval-op
+  (lambda (op left right)
+    (case op
+      ((+) (+ left right))
+      ((-) (- left right))
+      ((*) (* left right))
+      ((/) (/ left right))
+      ((^) (expt-op left right))
+      (else (display (string-append "Unknown operator: " (symbol->string op) "\n"))))))
+
+;; Update process-tokens to use eval-op
 (define process-tokens
   (lambda (tokens)
     (cond
@@ -103,7 +139,9 @@
               (let ((op (list-ref tokens op-pos))
                     (left (process-tokens (sublist tokens 0 op-pos)))
                     (right (process-tokens (sublist tokens (+ op-pos 1) (length tokens)))))
-                (list (string->symbol op) left right))
+                (if (equal? op "^")
+                    (expt-op left right)  ; Special handling for exponentiation
+                    (list (string->symbol op) left right)))
               tokens))))))
 
 ;; Evaluate an algebraic expression
