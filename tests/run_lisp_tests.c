@@ -42,6 +42,9 @@ static void init_test_env() {
     reset_error_flag();
 }
 
+static int total_tests_run = 0;
+static int total_tests_passed = 0;
+
 static void report_results() {
 }
 
@@ -100,32 +103,41 @@ static int run_test_file(const char *filename) {
     // Get tests run count - use silent lookup
     NadaValue *test_count = nada_env_get(global_env, "tests-run-count", 1);
 
+    // Reset to use only values from the current file
     int file_tests = 0;
+    int file_tests_passed = 0;
+    int file_tests_failed = 0;
+
     if (test_count && test_count->type == NADA_NUM) {
-        // This line is causing the issue - incorrect field access
         file_tests = nada_num_to_int(test_count->data.number);
+    }
+
+    if (passed_count && passed_count->type == NADA_NUM) {
+        file_tests_passed = nada_num_to_int(passed_count->data.number);
+    }
+
+    if (failed_count && failed_count->type == NADA_NUM) {
+        file_tests_failed = nada_num_to_int(failed_count->data.number);
     }
 
     int success = !had_evaluation_error && result != NULL && all_tests_passed;
 
     printf("Test file %s, test-count: %d\n", filename, file_tests);
 
-    // Update test counters
-    int tests_run;
-    tests_run += file_tests;
-    if (all_tests_passed) {
-        tests_passed += file_tests;
-    }
+    // Update global counters correctly
+    total_tests_run += file_tests;
+    total_tests_passed += file_tests_passed;
 
-    // Free values
-    if (final_status) nada_free(final_status);
-    if (test_count) nada_free(test_count);
-
+    // Print file summary
     printf("Ran %d tests from %s\n", file_tests, filename);
+    printf("  Passed: %d\n", file_tests_passed);
+    printf("  Failed: %d\n", file_tests_failed);
+
+    // Print overall summary
     printf("\n==== Test Summary ====\n");
-    printf("Ran %d tests\n", tests_run);
-    printf("Passed: %d\n", tests_passed);
-    printf("Failed: %d\n", tests_run - tests_passed);
+    printf("Ran %d tests\n", total_tests_run);
+    printf("Passed: %d\n", total_tests_passed);
+    printf("Failed: %d\n", total_tests_run - total_tests_passed);
     printf("========================\n");
 
     // Clean up
