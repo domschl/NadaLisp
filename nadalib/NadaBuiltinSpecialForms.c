@@ -136,10 +136,19 @@ NadaValue *builtin_lambda(NadaValue *args, NadaEnv *env) {
                 nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda parameters must be symbols");
                 return nada_create_nil();
             }
+            // Check for dotted pair notation
+            if (nada_cdr(param_check)->type == NADA_SYMBOL) {
+                // Valid dotted pair notation (e.g., (a b . rest))
+                param_check = nada_cdr(param_check);  // Move to the rest parameter
+                break;
+            }
             param_check = nada_cdr(param_check);
         }
-
-        // TODO: Check for dotted pair notation for rest params: (a b . rest)
+        // Ensure the rest parameter (if present) is a symbol
+        if (param_check->type != NADA_NIL && param_check->type != NADA_SYMBOL) {
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda rest parameter must be a symbol");
+            return nada_create_nil();
+        }
     } else {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "lambda parameters must be a symbol or list");
         return nada_create_nil();
