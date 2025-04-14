@@ -539,21 +539,14 @@ NadaEnv *nada_create_standard_env(void) {
 
 // Helper to check if a symbol is a built-in function
 BuiltinFunc get_builtin_func(const char *name) {
+    // Search through the existing builtins array for a matching name
     for (int i = 0; builtins[i].name != NULL; i++) {
         if (strcmp(name, builtins[i].name) == 0) {
             return builtins[i].func;
         }
     }
-    return NULL;
-}
 
-// Helper to get builtin name from function
-const char *get_builtin_name(BuiltinFunc func) {
-    for (int i = 0; builtins[i].name != NULL; i++) {
-        if (builtins[i].func == func) {
-            return builtins[i].name;
-        }
-    }
+    // No match found
     return NULL;
 }
 

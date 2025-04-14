@@ -478,7 +478,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             NadaValue *val = nada_eval(val_expr, env);
 
             nada_env_set(let_env, var_name, val);
-            if (val->type == NADA_ERROR) {  // Check for eval errors
+            if (val->type == NADA_ERROR) {
                 nada_env_release(let_env);  // Release env before returning
                 return val;                 // Propagate error
             }
@@ -607,47 +607,69 @@ NadaValue *builtin_set(NadaValue *args, NadaEnv *env) {
 
 // Fixed apply implementation
 NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
-    // Check that we have at least two arguments
-    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "apply requires at least 2 arguments");
+    // Check argument count
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
+        !nada_is_nil(nada_cdr(nada_cdr(args)))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "apply requires exactly 2 arguments");
         return nada_create_nil();
     }
 
-    // Get the procedure
-    NadaValue *proc = nada_eval(nada_car(args), env);
+    // Get the function value
+    NadaValue *func_val = nada_eval(nada_car(args), env);
+    NadaValue *true_func = NULL;
 
-    // Check that the first argument is a function
-    if (proc->type != NADA_FUNC) {
-        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply: first argument must be a function");
-        nada_free(proc);
+    // Handle different function representations
+    if (func_val->type == NADA_FUNC) {
+        // Already a function value - don't deep copy, just use it directly
+        true_func = func_val;
+    } else if (func_val->type == NADA_SYMBOL) {
+        // Symbol that needs to be resolved to a function
+        const char *symbol_name = func_val->data.symbol;
+
+        // Try environment lookup first
+        NadaValue *env_func = nada_env_get(env, symbol_name, 0);
+        if (env_func && env_func->type == NADA_FUNC) {
+            true_func = env_func;  // env_get already returns a new copy
+        } else if (env_func) {
+            nada_free(env_func);
+        }
+
+        // If environment lookup failed, try built-in lookup
+        if (!true_func) {
+            BuiltinFunc builtin = get_builtin_func(symbol_name);
+            if (builtin) {
+                true_func = nada_create_builtin_function(builtin);
+            }
+        }
+
+        nada_free(func_val);
+    } else {
+        // Not a function - free and report error
+        nada_free(func_val);
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply requires a function as first argument");
         return nada_create_nil();
     }
 
-    // Get the list of arguments (second arg to apply)
+    // Check if we have a valid function
+    if (!true_func) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply requires a function as first argument");
+        return nada_create_nil();
+    }
+
+    // Get the argument list
     NadaValue *arg_list = nada_eval(nada_car(nada_cdr(args)), env);
-
-    // Validate the argument list
     if (!nada_is_nil(arg_list) && arg_list->type != NADA_PAIR) {
-        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply: second argument must be a list");
-        nada_free(proc);
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply requires a list as second argument");
+        nada_free(true_func);
         nada_free(arg_list);
         return nada_create_nil();
     }
 
-    // Apply the function directly
-    NadaValue *result;
-
-    // Handle built-in functions differently from user-defined functions
-    if (proc->data.function.builtin != NULL) {
-        // For built-ins, pass the argument list directly
-        result = proc->data.function.builtin(arg_list, env);
-    } else {
-        // For user-defined functions, use apply_function which handles the environment binding
-        result = apply_function(proc, arg_list, env);
-    }
+    // Apply the function to the argument list
+    NadaValue *result = apply_function(true_func, arg_list, env);
 
     // Clean up
-    nada_free(proc);
+    nada_free(true_func);
     nada_free(arg_list);
 
     return result;
