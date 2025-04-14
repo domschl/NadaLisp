@@ -57,7 +57,7 @@
 (define-test "map-print-operator-type"
   (begin
     (define op-list (list + - * /))
-    (define result (map (lambda (x) (symbol? x)) op-list))
+    (define result (map (lambda (x) (procedure? x)) op-list))
     (display result)
     (assert-equal result '(#t #t #t #t))))
 

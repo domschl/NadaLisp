@@ -521,8 +521,8 @@ NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
                 if (list_j->type == NADA_PAIR) {
                     NadaValue *element = nada_car(list_j);
 
-                    // Simply pass the element without modification
-                    // This is critical for function objects in op-list
+                    // CRITICAL FIX: Don't evaluate function objects, just pass them directly
+                    // This allows ops and args to be correctly passed to the lambda
                     NadaValue *new_args = nada_cons(element, call_args);
                     nada_free(call_args);
                     call_args = new_args;

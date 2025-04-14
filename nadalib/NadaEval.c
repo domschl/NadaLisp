@@ -442,6 +442,7 @@ static BuiltinFuncInfo builtins[] = {
     {"boolean?", builtin_boolean_p},
     {"pair?", builtin_pair_p},
     {"function?", builtin_function_p},
+    {"procedure?", builtin_procedure_p},
     {"list?", builtin_list_p},
     {"atom?", builtin_atom_p},
     {"builtin?", builtin_builtin_p},
