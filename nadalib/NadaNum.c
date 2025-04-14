@@ -1,4 +1,5 @@
 #include "NadaNum.h"
+#include "NadaError.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -626,6 +627,65 @@ bool nada_is_valid_number_string(const char *str) {
     if (*(p - 1) == '/' || *(p - 1) == '.') return false;
 
     return true;
+}
+
+// Compute integer exponent power exactly
+NadaNum *nada_num_int_expt(const NadaNum *base, int exponent) {
+    if (!base) return NULL;
+
+    // Handle special cases
+    if (exponent == 0) {
+        return nada_num_from_int(1);  // Any number^0 = 1
+    }
+
+    if (nada_num_is_zero(base)) {
+        if (exponent > 0) {
+            return nada_num_from_int(0);  // 0^positive = 0
+        } else {
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "Cannot raise zero to negative power");
+            return NULL;
+        }
+    }
+
+    // Handle negative exponents
+    if (exponent < 0) {
+        // For negative exponent, compute 1/(base^(-exponent))
+        NadaNum *temp = nada_num_int_expt(base, -exponent);
+        if (!temp) return NULL;  // Propagate error
+
+        NadaNum *one = nada_num_from_int(1);
+        NadaNum *result = nada_num_divide(one, temp);
+
+        // Free temporary values
+        nada_num_free(one);
+        nada_num_free(temp);
+
+        return result;
+    }
+
+    // Use binary exponentiation for efficiency
+    NadaNum *result = nada_num_from_int(1);
+    NadaNum *current = nada_num_copy(base);
+
+    while (exponent > 0) {
+        if (exponent % 2 == 1) {
+            // This is where the leak likely happened - need to store temp and free old result
+            NadaNum *temp = nada_num_multiply(result, current);
+            nada_num_free(result);  // Free old result
+            result = temp;
+        }
+
+        exponent /= 2;
+        if (exponent > 0) {
+            // Same here - store temp and free old current
+            NadaNum *temp = nada_num_multiply(current, current);
+            nada_num_free(current);  // Free old current
+            current = temp;
+        }
+    }
+
+    nada_num_free(current);
+    return result;
 }
 
 // Helper function implementations

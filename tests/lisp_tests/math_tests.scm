@@ -10,6 +10,8 @@
 
 (define-test "nested-arithmetic" (assert-equal (+ (* 2 3) (- 10 5)) 11))
 
+(define-test "modulo" (assert-equal (modulo 10 3) 1))
+
 ;; Factorial function - recursive implementation
 (define factorial 
   (lambda (n)
@@ -86,4 +88,18 @@
 ;; Length function tests
 (define-test "length-empty" (assert-equal (length '()) 0))
 (define-test "length-list" (assert-equal (length '(1 2 3)) 3))
+
+;; Exponentiation tests - integer exponents only
+(define-test "expt-basic" (assert-equal (expt 2 3) 8))
+(define-test "expt-basic-2" (assert-equal (expt 3 2) 9))
+(define-test "expt-zero-exp" (assert-equal (expt 5 0) 1))
+(define-test "expt-zero-base" (assert-equal (expt 0 5) 0))
+(define-test "expt-identity-1" (assert-equal (expt 7 1) 7))
+(define-test "expt-identity-2" (assert-equal (expt 1 100) 1))
+(define-test "expt-neg-base-even" (assert-equal (expt -2 2) 4))
+(define-test "expt-neg-base-odd" (assert-equal (expt -2 3) -8))
+(define-test "expt-neg-exp" (assert-equal (expt 2 -3) 1/8))
+(define-test "expt-neg-both" (assert-equal (expt -3 -2) 1/9))
+(define-test "expt-large" (assert-equal (expt 2 10) 1024))
+(define-test "expt-fraction-base" (assert-equal (expt 1/2 3) 1/8))
 

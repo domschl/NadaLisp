@@ -1,6 +1,8 @@
 #include <stdlib.h>
+// #include <string.h>
 
 #include "NadaEval.h"
+// #include "NadaNum.h"
 #include "NadaError.h"
 #include "NadaBuiltinMath.h"
 
@@ -294,6 +296,63 @@ NadaValue *builtin_remainder(NadaValue *args, NadaEnv *env) {
     // Free arguments
     nada_free(a);
     nada_free(b);
+
+    return result;
+}
+
+// Built-in function: expt (exponentiation)
+NadaValue *builtin_expt(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
+        !nada_is_nil(nada_cdr(nada_cdr(args)))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "expt requires exactly 2 arguments");
+        return nada_create_nil();
+    }
+
+    NadaValue *base = nada_eval(nada_car(args), env);
+    NadaValue *exponent = nada_eval(nada_car(nada_cdr(args)), env);
+
+    if (base->type != NADA_NUM || exponent->type != NADA_NUM) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "expt arguments must be numbers");
+        nada_free(base);
+        nada_free(exponent);
+        return nada_create_nil();
+    }
+
+    // Use encapsulated functions instead of direct structure access
+    if (!nada_num_is_integer(exponent->data.number)) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
+                          "expt: non-integer exponents require symbolic handling");
+        nada_free(base);
+        nada_free(exponent);
+        return nada_create_nil();
+    }
+
+    // Perform exponentiation - letting NadaNum handle all internal checks
+    NadaNum *result_num = NULL;
+
+    // Convert to integer using nada_num API
+    int exp_int = nada_num_to_int(exponent->data.number);
+
+    // Call exponentiation function which should handle all error cases internally
+    result_num = nada_num_int_expt(base->data.number, exp_int);
+
+    if (result_num == NULL) {
+        // Error occurred in the computation (e.g., 0^negative)
+        // Error already reported by nada_num_int_expt
+        nada_free(base);
+        nada_free(exponent);
+        return nada_create_nil();
+    }
+
+    // Create result
+    NadaValue *result = nada_create_num(result_num);
+
+    // Free temporary value
+    nada_num_free(result_num);
+
+    // Free arguments
+    nada_free(base);
+    nada_free(exponent);
 
     return result;
 }
