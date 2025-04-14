@@ -521,9 +521,12 @@ NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
                 if (list_j->type == NADA_PAIR) {
                     NadaValue *element = nada_car(list_j);
 
-                    // CRITICAL FIX: Don't evaluate function objects, just pass them directly
-                    // This allows ops and args to be correctly passed to the lambda
-                    NadaValue *new_args = nada_cons(element, call_args);
+                    // Create a deep copy to ensure we don't lose function objects
+                    NadaValue *element_copy = nada_deep_copy(element);
+
+                    // Add to argument list
+                    NadaValue *new_args = nada_cons(element_copy, call_args);
+                    nada_free(element_copy);
                     nada_free(call_args);
                     call_args = new_args;
                 } else {

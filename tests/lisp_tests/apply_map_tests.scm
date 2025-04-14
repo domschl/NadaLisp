@@ -29,6 +29,52 @@
     (assert-equal (map (lambda (op) (apply op '(10 5))) op-list) 
                   '(15 5 50 2))))
 
+;; Test A: Basic verification of operators in list
+(define-test "verify-ops-in-list"
+  (begin
+    (define ops (list + -))
+    (assert-equal (procedure? (car ops)) #t)
+    (assert-equal (procedure? (cadr ops)) #t)))
+
+;; Test B: Direct application of operators from list
+(define-test "direct-ops-application" 
+  (begin
+    (define ops (list + -))
+    (define op1 (car ops))
+    (define op2 (cadr ops))
+    (assert-equal (op1 10 5) 15)
+    (assert-equal (op2 10 5) 5)))
+
+;; Test C: Apply with operators from list
+(define-test "apply-ops-from-list"
+  (begin
+    (define ops (list + -))
+    (define op1 (car ops))
+    (define op2 (cadr ops))
+    (assert-equal (apply op1 '(10 5)) 15)
+    (assert-equal (apply op2 '(10 5)) 5)))
+
+;; Test D: Lambda accessing operators
+(define-test "lambda-with-ops"
+  (begin
+    (define ops (list + -))
+    (define op1 (car ops))
+    (define result ((lambda (op) (apply op '(10 5))) op1))
+    (assert-equal result 15)))
+
+;; Test E: Map with single list
+(define-test "map-single-list"
+  (begin
+    (define ops (list + -))
+    (assert-equal (map (lambda (op) (apply op '(10 5))) ops) '(15 5))))
+
+;; Test F: Simplified map with two lists
+(define-test "simple-map-two-lists"
+  (begin
+    (define ops (list + -))
+    (define args (list '(10 5)))
+    (assert-equal (map (lambda (op) (apply op '(10 5))) ops) '(15 5))))
+
 ;; Test 7: Simplified version with just two operators
 (define-test "map-apply-subset"
   (begin

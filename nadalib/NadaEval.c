@@ -23,15 +23,11 @@ bool nada_is_global_silent_symbol_lookup() {
     return g_silent_symbol_lookup;
 }
 
-// Update apply_function to properly handle memory cleanup
+// Enhance apply_function to handle function objects from lists
 NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
-    if (func->type != NADA_FUNC) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "attempt to apply non-function");
-        return nada_create_nil();
-    }
-
-    // For built-in functions, call directly
-    if (func->data.function.builtin != NULL) {
+    // Special handling for built-in functions
+    if (func->type == NADA_FUNC && func->data.function.builtin) {
+        // Call the built-in function directly
         return func->data.function.builtin(args, env);
     }
 

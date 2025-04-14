@@ -605,7 +605,8 @@ NadaValue *builtin_set(NadaValue *args, NadaEnv *env) {
     return val;
 }
 
-// Fixed apply implementation
+// Updated implementation for builtin_apply to better handle function objects
+
 NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
     // Check argument count
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
@@ -614,62 +615,56 @@ NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
         return nada_create_nil();
     }
 
-    // Get the function value
-    NadaValue *func_val = nada_eval(nada_car(args), env);
+    // Get the function value without evaluating it first
+    NadaValue *func_val = nada_car(args);
     NadaValue *true_func = NULL;
 
-    // Handle different function representations
-    if (func_val->type == NADA_FUNC) {
-        // Already a function value - don't deep copy, just use it directly
-        true_func = func_val;
-    } else if (func_val->type == NADA_SYMBOL) {
-        // Symbol that needs to be resolved to a function
-        const char *symbol_name = func_val->data.symbol;
+    // First try direct evaluation - this handles when op is passed in
+    NadaValue *eval_func_val = nada_eval(func_val, env);
 
-        // Try looking up built-in arithmetic operators (special case)
+    // If evaluation gives us a function, use it directly
+    if (eval_func_val->type == NADA_FUNC) {
+        true_func = eval_func_val;
+    }
+    // Otherwise check if it's a symbol we can resolve
+    else if (eval_func_val->type == NADA_SYMBOL) {
+        const char *symbol_name = eval_func_val->data.symbol;
+
+        // Check for arithmetic operators by name
         if (strcmp(symbol_name, "+") == 0) {
+            nada_free(eval_func_val);
             true_func = nada_create_builtin_function(builtin_add);
         } else if (strcmp(symbol_name, "-") == 0) {
+            nada_free(eval_func_val);
             true_func = nada_create_builtin_function(builtin_subtract);
         } else if (strcmp(symbol_name, "*") == 0) {
+            nada_free(eval_func_val);
             true_func = nada_create_builtin_function(builtin_multiply);
         } else if (strcmp(symbol_name, "/") == 0) {
+            nada_free(eval_func_val);
             true_func = nada_create_builtin_function(builtin_divide);
         } else {
             // Try environment lookup
-            NadaValue *env_func = nada_env_get(env, symbol_name, 0);
-            if (env_func && env_func->type == NADA_FUNC) {
-                true_func = env_func;
-            } else if (env_func) {
-                nada_free(env_func);
-            }
-
-            // If environment lookup failed, try built-in lookup
-            if (!true_func) {
-                BuiltinFunc builtin = get_builtin_func(symbol_name);
-                if (builtin) {
-                    true_func = nada_create_builtin_function(builtin);
-                }
-            }
+            nada_free(eval_func_val);
+            true_func = nada_env_get(env, symbol_name, 0);
         }
-
-        nada_free(func_val);
     } else {
-        // Not a function - report the type using nada_type_name
+        // Not a function or symbol - clean up and report error
+        nada_free(eval_func_val);
         nada_report_error(NADA_ERROR_TYPE_ERROR,
                           "apply requires a function as first argument (got %s)",
                           nada_type_name(func_val->type));
-        nada_free(func_val);
         return nada_create_nil();
     }
 
-    // Check if we have a valid function
-    if (!true_func) {
-        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply requires a function as first argument (got nil)");
+    // Check if we found a valid function
+    if (!true_func || true_func->type != NADA_FUNC) {
+        if (true_func) nada_free(true_func);
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply requires a function as first argument");
         return nada_create_nil();
     }
 
-    // Get the argument list
+    // Get the argument list - now we can evaluate it
     NadaValue *arg_list = nada_eval(nada_car(nada_cdr(args)), env);
     if (!nada_is_nil(arg_list) && arg_list->type != NADA_PAIR) {
         nada_report_error(NADA_ERROR_TYPE_ERROR, "apply requires a list as second argument");
