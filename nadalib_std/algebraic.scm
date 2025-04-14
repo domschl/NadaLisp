@@ -65,11 +65,6 @@
 ;; Update process-tokens to use eval-op
 (define process-tokens
   (lambda (tokens)
-    (begin
-       (display "tokens: >")
-       (display tokens)
-        (display "<\n")
-        
     (cond
       ;; Empty expression
       ((null? tokens) '())
@@ -96,7 +91,6 @@
                     (expt-op left right)  ; Special handling for exponentiation
                     (list (string->symbol op) left right)))
               tokens))))))
-)
 
 ;; Process a token into a value or symbol
 (define process-token
