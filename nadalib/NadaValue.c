@@ -275,7 +275,20 @@ void nada_print(NadaValue *val) {
         printf(")");
         break;
     case NADA_FUNC:
-        printf("#<function>");
+        if (val->data.function.builtin) {
+            // For builtin functions, try to get the function name
+            const char *name = get_builtin_name(val->data.function.builtin);
+            if (name) {
+                printf("#<builtin-function:%s>", name);
+            } else {
+                printf("#<builtin-function>");
+            }
+        } else {
+            // For user-defined functions, show parameter info
+            printf("#<lambda ");
+            nada_print(val->data.function.params);
+            printf(">");
+        }
         break;
     case NADA_BOOL:
         printf("%s", val->data.boolean ? "#t" : "#f");

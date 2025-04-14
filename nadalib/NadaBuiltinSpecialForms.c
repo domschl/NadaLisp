@@ -626,33 +626,46 @@ NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
         // Symbol that needs to be resolved to a function
         const char *symbol_name = func_val->data.symbol;
 
-        // Try environment lookup first
-        NadaValue *env_func = nada_env_get(env, symbol_name, 0);
-        if (env_func && env_func->type == NADA_FUNC) {
-            true_func = env_func;  // env_get already returns a new copy
-        } else if (env_func) {
-            nada_free(env_func);
-        }
+        // Try looking up built-in arithmetic operators (special case)
+        if (strcmp(symbol_name, "+") == 0) {
+            true_func = nada_create_builtin_function(builtin_add);
+        } else if (strcmp(symbol_name, "-") == 0) {
+            true_func = nada_create_builtin_function(builtin_subtract);
+        } else if (strcmp(symbol_name, "*") == 0) {
+            true_func = nada_create_builtin_function(builtin_multiply);
+        } else if (strcmp(symbol_name, "/") == 0) {
+            true_func = nada_create_builtin_function(builtin_divide);
+        } else {
+            // Try environment lookup
+            NadaValue *env_func = nada_env_get(env, symbol_name, 0);
+            if (env_func && env_func->type == NADA_FUNC) {
+                true_func = env_func;
+            } else if (env_func) {
+                nada_free(env_func);
+            }
 
-        // If environment lookup failed, try built-in lookup
-        if (!true_func) {
-            BuiltinFunc builtin = get_builtin_func(symbol_name);
-            if (builtin) {
-                true_func = nada_create_builtin_function(builtin);
+            // If environment lookup failed, try built-in lookup
+            if (!true_func) {
+                BuiltinFunc builtin = get_builtin_func(symbol_name);
+                if (builtin) {
+                    true_func = nada_create_builtin_function(builtin);
+                }
             }
         }
 
         nada_free(func_val);
     } else {
-        // Not a function - free and report error
+        // Not a function - report the type using nada_type_name
+        nada_report_error(NADA_ERROR_TYPE_ERROR,
+                          "apply requires a function as first argument (got %s)",
+                          nada_type_name(func_val->type));
         nada_free(func_val);
-        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply requires a function as first argument");
         return nada_create_nil();
     }
 
     // Check if we have a valid function
     if (!true_func) {
-        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply requires a function as first argument");
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply requires a function as first argument (got nil)");
         return nada_create_nil();
     }
 

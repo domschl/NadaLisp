@@ -42,7 +42,41 @@
   (begin
     (define op-list (list + - * /))
     (define op (car op-list))
-    (assert-equal (symbol? op) #t) ;; Check if op is a symbol
-    (assert-equal (apply + '(10 5)) 15) ;; Regular apply works
-    (assert-equal (apply op '(10 5)) 15))) ;; Apply with op from list
-    
+    (assert-equal (procedure? op) #t)  ; Check if op is a procedure 
+    (assert-equal (apply + '(10 5)) 15)  ; Regular apply works
+    (assert-equal (apply op '(10 5)) 15)))  ; Apply with op from list
+
+;; Test 1: Check identity mapping of operators
+(define-test "map-identity-operators"
+  (begin
+    (define op-list (list + - * /))
+    (define result (map (lambda (x) x) op-list))
+    (assert-equal (car result) +)))
+
+;; Test 2: Print type of operators inside map
+(define-test "map-print-operator-type"
+  (begin
+    (define op-list (list + - * /))
+    (define result (map (lambda (x) (symbol? x)) op-list))
+    (display result)
+    (assert-equal result '(#t #t #t #t))))
+
+;; Test 3: Use apply directly on captured operator
+(define-test "map-direct-apply"
+  (begin
+    (define op-list (list + - * /))
+    (define result (map (lambda (x) 
+                          (if (procedure? x)  ; Check if it's a procedure/function
+                              (apply x '(10 5)) ; If so, apply it to arguments
+                              "not-function")) 
+                        op-list))
+    (display result)
+    (assert-equal result '(15 5 50 2))))
+
+;; Test 4: Extract and use operators one at a time
+(define-test "step-by-step-apply"
+  (begin
+    (define op-list (list + - * /))
+    (define op1 (car op-list))
+    (define result1 (apply op1 '(10 5)))
+    (assert-equal result1 15)))

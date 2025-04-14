@@ -550,12 +550,33 @@ BuiltinFunc get_builtin_func(const char *name) {
     return NULL;
 }
 
+// Enhanced function to get the name of a builtin function
+
+const char *get_builtin_name(BuiltinFunc func) {
+    // Add additional special case handling for arithmetic operators
+    if (func == builtin_add) return "+";
+    if (func == builtin_subtract) return "-";
+    if (func == builtin_multiply) return "*";
+    if (func == builtin_divide) return "/";
+
+    // Loop through the builtins array to find a match
+    for (int i = 0; builtins[i].name != NULL; i++) {
+        if (builtins[i].func == func) {
+            return builtins[i].name;
+        }
+    }
+
+    // No match found
+    return NULL;
+}
+
 // Evaluate an expression in an environment
 NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
-    // Self-evaluating expressions: numbers, strings, booleans, nil, and errors
+    // Self-evaluating expressions: numbers, strings, booleans, nil, functions, and errors
     if (expr->type == NADA_NUM || expr->type == NADA_STRING ||
         expr->type == NADA_BOOL || expr->type == NADA_NIL ||
-        expr->type == NADA_ERROR) {
+        expr->type == NADA_ERROR || expr->type == NADA_FUNC) {
+
         // Make a copy to avoid double-freeing
         switch (expr->type) {
         case NADA_NUM:
@@ -568,8 +589,17 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
             return nada_create_nil();
         case NADA_ERROR:
             return nada_create_error(expr->data.error);
+        case NADA_FUNC:
+            // For built-in functions
+            if (expr->data.function.builtin) {
+                return nada_create_builtin_function(expr->data.function.builtin);
+            }
+            // For user-defined functions, use deep_copy instead of individual components
+            else {
+                return nada_deep_copy(expr);
+            }
         default:
-            return nada_create_nil();  // Should never happen
+            return nada_create_nil();
         }
     }
 

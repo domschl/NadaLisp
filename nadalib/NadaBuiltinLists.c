@@ -436,17 +436,17 @@ NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
         current = nada_cdr(current);
     }
 
-    // Process each set of elements from all lists
+    // Initialize the result to an empty list
     NadaValue *result = nada_create_nil();
 
-    // Special case for car/cdr family when used with a single list argument
-    if (list_count == 1 &&
-        (func->data.function.builtin == builtin_car ||
+    // Special handling for list functions (car, cdr, etc.)
+    if ((func->data.function.builtin == builtin_car ||
          func->data.function.builtin == builtin_cdr ||
          func->data.function.builtin == builtin_cadr ||
-         func->data.function.builtin == builtin_caddr)) {
+         func->data.function.builtin == builtin_caddr) &&
+        list_count == 1) {
 
-        // Process elements from the first list
+        // Process each element of the list
         current = list_args[0];
         for (int i = 0; i < count; i++) {
             NadaValue *element = nada_car(current);
@@ -495,7 +495,7 @@ NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
                 }
             }
 
-            // Add result to our list (in reverse)
+            // Add the result to our list (in reverse)
             NadaValue *new_result = nada_cons(mapped_result, result);
             nada_free(mapped_result);
             nada_free(result);
@@ -510,7 +510,7 @@ NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
             // Build argument list for the function call
             NadaValue *call_args = nada_create_nil();
 
-            // For each list, get the ith element and add it to the call args (in REVERSED order)
+            // For each list, get the ith element and add it to the call args
             for (int j = list_count - 1; j >= 0; j--) {
                 // Get the ith element of list j
                 NadaValue *list_j = list_args[j];
@@ -521,17 +521,11 @@ NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
                 if (list_j->type == NADA_PAIR) {
                     NadaValue *element = nada_car(list_j);
 
-                    // For the apply-nested case, we need to evaluate operators but not arg lists
-                    if (j == 0 && func->data.function.env != NULL) {  // User-defined lambda function
-                        // If mapping (lambda (op args) (apply op args)) over op-list and arg-lists
-                        NadaValue *new_args = nada_cons(element, call_args);
-                        nada_free(call_args);
-                        call_args = new_args;
-                    } else {
-                        NadaValue *new_args = nada_cons(element, call_args);
-                        nada_free(call_args);
-                        call_args = new_args;
-                    }
+                    // Simply pass the element without modification
+                    // This is critical for function objects in op-list
+                    NadaValue *new_args = nada_cons(element, call_args);
+                    nada_free(call_args);
+                    call_args = new_args;
                 } else {
                     // If any list is too short, stop processing
                     nada_free(call_args);
