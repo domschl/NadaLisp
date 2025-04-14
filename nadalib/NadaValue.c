@@ -141,7 +141,7 @@ NadaValue *nada_create_function(NadaValue *params, NadaValue *body, NadaEnv *env
 
     // Add a reference to the environment
     if (env) {
-        printf("FUNC CREATE with env #%d\n", env->id);
+        // printf("FUNC CREATE with env #%d\n", env->id);
         nada_env_add_ref(env);
     }
 

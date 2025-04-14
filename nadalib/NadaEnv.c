@@ -7,33 +7,34 @@
 #include "NadaError.h"
 
 static int env_id_counter = 0;
+static bool show_env_debug = false;
 
 // Increment the reference count for an environment
 void nada_env_add_ref(NadaEnv *env) {
     if (!env) return;
     env->ref_count++;
-    printf("ENV ADD_REF #%d -> %d\n", env->id, env->ref_count);
+    if (show_env_debug) printf("ENV ADD_REF #%d -> %d\n", env->id, env->ref_count);
 }
 
 // Decrement the reference count and free if zero
 void nada_env_release(NadaEnv *env) {
     if (!env) return;
-    printf("ENV RELEASE #%d %d->%d\n", env->id, env->ref_count, env->ref_count - 1);
+    if (show_env_debug) printf("ENV RELEASE #%d %d->%d\n", env->id, env->ref_count, env->ref_count - 1);
     env->ref_count--;
 
     if (env->ref_count <= 0) {
-        printf("ENV FREE #%d (bindings: ", env->id);
+        if (show_env_debug) printf("ENV FREE #%d (bindings: ", env->id);
         struct NadaBinding *b = env->bindings;
         while (b) {
-            printf("%s ", b->name);
+            if (show_env_debug) printf("%s ", b->name);
             b = b->next;
         }
-        printf(")\n");
+        if (show_env_debug) printf(")\n");
 
         nada_env_free(env);
     } else if (env->ref_count == 1) {
         // If down to the last reference, check for potential circular references
-        printf("ENV FINAL REF CHECK #%d\n", env->id);
+        if (show_env_debug) printf("ENV FINAL REF CHECK #%d\n", env->id);
 
         // Check for any circular references in bindings
         int found_circular = 0;
@@ -41,8 +42,8 @@ void nada_env_release(NadaEnv *env) {
         while (binding != NULL) {
             if (binding->value && binding->value->type == NADA_FUNC &&
                 binding->value->data.function.env == env) {
-                printf("Breaking circular reference in env #%d function: %s\n",
-                       env->id, binding->name);
+                if (show_env_debug) printf("Breaking circular reference in env #%d function: %s\n",
+                                           env->id, binding->name);
 
                 // Break the circular reference
                 binding->value->data.function.env = env->parent;
@@ -59,7 +60,7 @@ void nada_env_release(NadaEnv *env) {
 
         // If we found and broke a circular reference, force cleanup
         if (found_circular) {
-            printf("Forcing cleanup of env #%d\n", env->id);
+            if (show_env_debug) printf("Forcing cleanup of env #%d\n", env->id);
             // Force reference count to 0 and free the environment
             env->ref_count = 0;
             nada_env_free(env);
@@ -75,10 +76,10 @@ NadaEnv *nada_env_create(NadaEnv *parent) {
     env->ref_count = 1;          // Start with ref count of 1
     env->id = ++env_id_counter;  // Assign unique ID
 
-    printf("ENV CREATE #%d (parent: %s) ref=%d\n",
-           env->id,
-           parent ? "yes" : "no",
-           env->ref_count);
+    if (show_env_debug) printf("ENV CREATE #%d (parent: %s) ref=%d\n",
+                               env->id,
+                               parent ? "yes" : "no",
+                               env->ref_count);
 
     // Add a reference to the parent if it exists
     if (parent) {

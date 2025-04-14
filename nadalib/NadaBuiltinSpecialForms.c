@@ -441,7 +441,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
         }
 
         // Force let_env to be fully cleaned up
-        printf("Forcing cleanup of named let_env #%d\n", loop_env->id);
+        // printf("Forcing cleanup of named let_env #%d\n", loop_env->id);
         loop_env->ref_count = 1;  // Set to 1 so next release will free it
         nada_env_release(loop_env);
 
@@ -523,7 +523,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
         }
 
         // Force let_env to be fully cleaned up
-        printf("Forcing cleanup of let_env #%d\n", let_env->id);
+        // printf("Forcing cleanup of let_env #%d\n", let_env->id);
         let_env->ref_count = 1;  // Set to 1 so next release will free it
         nada_env_release(let_env);
 

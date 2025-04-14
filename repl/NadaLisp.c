@@ -12,36 +12,6 @@
 // Global environment
 static NadaEnv *global_env;
 
-// Process a single line of Lisp code
-void process_line(const char *line) {
-    printf("Processing: %s\n", line);
-
-    // Initialize tokenizer
-    Tokenizer tokenizer;
-    tokenizer_init(&tokenizer, line);
-
-    if (get_next_token(&tokenizer)) {
-        // Parse the expression
-        NadaValue *expr = parse_expr(&tokenizer);
-
-        printf("Parsed: ");
-        nada_print(expr);
-        printf("\n");
-
-        // Evaluate the expression
-        NadaValue *result = nada_eval(expr, global_env);
-
-        // Print the result
-        printf("Result: ");
-        nada_print(result);
-        printf("\n");
-
-        // Free the memory
-        nada_free(expr);
-        nada_free(result);
-    }
-}
-
 // Run an interactive REPL (Read-Eval-Print Loop)
 void run_repl(void) {
     printf("NadaLisp REPL (Ctrl+D to exit)\n");
