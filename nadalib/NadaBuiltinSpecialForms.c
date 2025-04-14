@@ -429,7 +429,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             if (strcmp(binding->name, func_name) == 0 &&
                 binding->value && binding->value->type == NADA_FUNC &&
                 binding->value->data.function.env == loop_env) {
-                printf("Breaking circular reference in named let function: %s\n", func_name);
+                // printf("Breaking circular reference in named let function: %s\n", func_name);
 
                 // Set function's env pointer to parent env and increment parent's ref count
                 binding->value->data.function.env = loop_env->parent;
@@ -511,7 +511,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
         while (binding != NULL) {
             if (binding->value && binding->value->type == NADA_FUNC &&
                 binding->value->data.function.env == let_env) {
-                printf("Breaking circular reference in let-bound function: %s\n", binding->name);
+                // printf("Breaking circular reference in let-bound function: %s\n", binding->name);
 
                 // Set function's env pointer to parent env and increment parent's ref count
                 binding->value->data.function.env = let_env->parent;
@@ -603,4 +603,52 @@ NadaValue *builtin_set(NadaValue *args, NadaEnv *env) {
 
     // Return the new value
     return val;
+}
+
+// Fixed apply implementation
+NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
+    // Check that we have at least two arguments
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "apply requires at least 2 arguments");
+        return nada_create_nil();
+    }
+
+    // Get the procedure
+    NadaValue *proc = nada_eval(nada_car(args), env);
+
+    // Check that the first argument is a function
+    if (proc->type != NADA_FUNC) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply: first argument must be a function");
+        nada_free(proc);
+        return nada_create_nil();
+    }
+
+    // Get the list of arguments (second arg to apply)
+    NadaValue *arg_list = nada_eval(nada_car(nada_cdr(args)), env);
+
+    // Validate the argument list
+    if (!nada_is_nil(arg_list) && arg_list->type != NADA_PAIR) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "apply: second argument must be a list");
+        nada_free(proc);
+        nada_free(arg_list);
+        return nada_create_nil();
+    }
+
+    // Apply the function directly
+    NadaValue *result;
+
+    // Handle built-in functions differently from user-defined functions
+    if (proc->data.function.builtin != NULL) {
+        // For built-ins, pass the argument list directly
+        result = proc->data.function.builtin(arg_list, env);
+    } else {
+        // For user-defined functions, use apply_function which handles the environment binding
+        result = apply_function(proc, arg_list, env);
+    }
+
+    // Clean up
+    nada_free(proc);
+    nada_free(arg_list);
+
+    return result;
 }

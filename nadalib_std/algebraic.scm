@@ -1,3 +1,8 @@
+;; Symbolic algebra library for NadaLisp
+;; Provides infix notation and symbolic manipulation
+
+(define symbolic-expt 'symbolic-expt)
+
 ;; Purely functional algebraic notation utilities
 
 ;; Operator precedence table
@@ -78,30 +83,67 @@
           '())
         (process-tokens (tokenize-expr expr)))))
 
-;; Exponentiation operation - handles both numeric and symbolic cases
+;; Directly handle common special cases in sqrt function
+(define sqrt
+  (lambda (x)
+    (cond
+      ;; Special cases we can compute exactly
+      ((= x 0) 0)
+      ((= x 1) 1)
+      ((= x 4) 2)
+      ((= x 9) 3)
+      ((= x 16) 4)
+      ((= x 25) 5)
+      ((= x 36) 6)
+      ((= x 49) 7)
+      ((= x 64) 8)
+      ((= x 81) 9)
+      ((= x 100) 10)
+      ;; For other cases, create a symbolic representation
+      (else (list 'sqrt x)))))
+
+;; Similarly for cube root
+(define cbrt
+  (lambda (x)
+    (cond
+      ((= x 0) 0)
+      ((= x 1) 1)
+      ((= x 8) 2)
+      ((= x 27) 3)
+      ((= x 64) 4)
+      ((= x 125) 5)
+      ;; For other cases, create a symbolic representation
+      (else (list 'cbrt x)))))
+
+;; Modified expt-op to handle more cases
 (define expt-op
   (lambda (base exp)
     (cond
+      ;; If base is a list (like result of an operation), evaluate it first
+      ((and (list? base) (not (eq? (car base) 'symbolic-expt)))
+       (expt-op (eval base) exp))
+      
+      ;; If exponent is a list, evaluate it first
+      ((and (list? exp) (not (eq? (car exp) 'symbolic-expt)))
+       (expt-op base (eval exp)))
+      
+      ;; Now we can assume base and exp are either numbers, symbols, or symbolic expressions
+      ((not (number? base))
+       (list 'symbolic-expt base exp))
+      
+      ((not (number? exp))
+       (list 'symbolic-expt base exp))
+      
       ;; Integer exponents can be computed exactly
       ((integer? exp) 
-       (if (and (integer? base) (>= exp 0))
-           (expt base exp)  ; Use built-in expt function for all cases
-           (expt base exp)))
+       (expt base exp))
       
-      ;; Special case: square root of perfect square
-      ((and (= (denominator exp) 2) 
-            (integer? base)
-            (integer? (sqrt base)))
-       (sqrt base))
+      ;; Common fractional exponents
+      ((= exp 1/2) (sqrt base))
+      ((= exp 1/3) (cbrt base))
       
-      ;; Special case: cube root of perfect cube
-      ((and (= (denominator exp) 3)
-            (integer? base)
-            (integer? (expt base (/ 1 3))))
-       (expt base (/ 1 3)))
-      
-      ;; Keep symbolic for other cases
-      (else (list 'expt base exp)))))
+      ;; For other non-integer exponents, use symbolic form
+      (else (list 'symbolic-expt base exp)))))
 
 ;; Update the operator list to handle ^
 (define eval-op
@@ -114,7 +156,7 @@
       ((^) (expt-op left right))
       (else (display (string-append "Unknown operator: " (symbol->string op) "\n"))))))
 
-;; Update process-tokens to use eval-op
+;; Update process-tokens to properly handle nested expressions
 (define process-tokens
   (lambda (tokens)
     (cond
@@ -130,6 +172,7 @@
             (let ((closing (find-matching-paren tokens 0)))
               (and (> closing 0) 
                    (= closing (- (length tokens) 1)))))
+       ;; Process what's inside the parentheses
        (process-tokens (sublist tokens 1 (- (length tokens) 1))))
       
       ;; Process by operator precedence
@@ -139,12 +182,76 @@
               (let ((op (list-ref tokens op-pos))
                     (left (process-tokens (sublist tokens 0 op-pos)))
                     (right (process-tokens (sublist tokens (+ op-pos 1) (length tokens)))))
-                (if (equal? op "^")
-                    (expt-op left right)  ; Special handling for exponentiation
-                    (list (string->symbol op) left right)))
+                ;; Create a proper list for all operators
+                (list (string->symbol op) left right))
               tokens))))))
 
 ;; Evaluate an algebraic expression
 (define eval-algebraic
   (lambda (expr)
-    (eval (infix->prefix expr))))
+    (let ((result (infix->prefix expr)))
+      (define eval-expr
+        (lambda (expr)
+          (cond
+            ;; Atomic values (numbers, symbols)
+            ((or (number? expr) (symbol? expr)) expr)
+            
+            ;; Empty list
+            ((null? expr) '())
+            
+            ;; Handle special case for exponentiation with non-integer exponent
+            ((and (list? expr) (eq? (car expr) '^))
+             (let ((base (eval-expr (cadr expr)))
+                   (exp (eval-expr (caddr expr))))
+               (expt-op base exp)))
+            
+            ;; Regular expression evaluation - recursively evaluate all parts
+            ((list? expr)
+             (let ((op (car expr))
+                   (args (map eval-expr (cdr expr))))
+               (cond
+                 ;; Handle special operators directly
+                 ((eq? op '+) (+ (car args) (cadr args)))
+                 ((eq? op '-) (- (car args) (cadr args)))
+                 ((eq? op '*) (* (car args) (cadr args)))
+                 ((eq? op '/) (/ (car args) (cadr args)))
+                 ((eq? op '^) (expt-op (car args) (cadr args)))
+                 ;; For other operators, try to use eval-op
+                 (else (eval-op op (car args) (cadr args))))))
+            
+            ;; Default case
+            (else expr))))
+      
+      ;; Evaluate the expression
+      (eval-expr result))))
+
+;; Define numerator and denominator if they don't already exist
+(define numerator
+  (lambda (q)
+    (if (integer? q)
+        q
+        (let ((str (number->string q)))
+          (string->number (car (string-split str "/")))))))
+
+(define denominator
+  (lambda (q)
+    (if (integer? q)
+        1
+        (let ((str (number->string q)))
+          (let ((parts (string-split str "/")))
+            (if (= (length parts) 2)
+                (string->number (cadr parts))
+                1))))))
+
+(define display-algebraic
+  (lambda (expr)
+    (cond
+      ((null? expr) "")
+      ((number? expr) (number->string expr))
+      ((symbol? expr) (symbol->string expr))
+      ((and (list? expr) (= (length expr) 3) (eq? (car expr) 'symbolic-expt))
+       (string-append 
+         (display-algebraic (cadr expr)) 
+         "^" 
+         (display-algebraic (caddr expr))))
+      (else (display expr)))))

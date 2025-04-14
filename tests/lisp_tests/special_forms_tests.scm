@@ -53,3 +53,44 @@
           n
           (+ (fib (- n 1)) (fib (- n 2)))))
     (assert-equal (fib 7) 13)))
+
+; ----- Apply Tests -----
+(define-test "apply-basic-addition"
+  (assert-equal (apply + '(1 2 3 4 5)) 15))
+
+(define-test "apply-basic-multiplication"
+  (assert-equal (apply * '(2 3 4)) 24))
+
+(define-test "apply-with-empty-list"
+  (assert-equal (apply + '()) 0))
+
+(define-test "apply-with-user-defined-function"
+  (begin
+    (define (sum-squares lst)
+      (apply + (map (lambda (x) (* x x)) lst)))
+    (assert-equal (sum-squares '(1 2 3 4)) 30)))
+
+(define-test "apply-with-lambda"
+  (assert-equal (apply (lambda (x y) (+ x (* y 2))) '(5 7)) 19))
+
+(define-test "apply-nested"
+  (begin
+    (define op-list (list + - * /))
+    (define arg-lists '((10 5) (10 5) (10 5) (10 5)))
+    (assert-equal 
+      (map (lambda (op args) (apply op args)) op-list arg-lists)
+      '(15 5 50 2))))
+
+(define-test "apply-with-varargs-function"
+  (begin
+    (define (sum-and-multiply first . rest)
+      (* first (apply + rest)))
+    (assert-equal (apply sum-and-multiply '(2 3 4 5)) 24)))
+
+(define-test "apply-higher-order"
+  (begin
+    (define (compose f g)
+      (lambda args 
+        (f (apply g args))))
+    (define add-then-square (compose (lambda (x) (* x x)) +))
+    (assert-equal (apply add-then-square '(1 2 3 4)) 100)))

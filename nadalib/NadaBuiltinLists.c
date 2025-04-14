@@ -2,10 +2,11 @@
 #include <stdlib.h>
 
 #include "NadaError.h"
+#include "NadaValue.h"
 #include "NadaEval.h"
 #include "NadaBuiltinLists.h"
 
-// Built-in function: car
+// Simple, straightforward car implementation
 NadaValue *builtin_car(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "car requires exactly 1 argument");
@@ -13,18 +14,18 @@ NadaValue *builtin_car(NadaValue *args, NadaEnv *env) {
     }
 
     // Evaluate the argument
-    NadaValue *val = nada_eval(nada_car(args), env);
+    NadaValue *arg = nada_eval(nada_car(args), env);
 
     // Check that it's a pair
-    if (val->type != NADA_PAIR) {
+    if (arg->type != NADA_PAIR) {
         nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "car called on non-pair");
-        nada_free(val);
+        nada_free(arg);
         return nada_create_nil();
     }
 
-    // Return a copy of the car value to prevent modification
-    NadaValue *result = nada_deep_copy(val->data.pair.car);
-    nada_free(val);
+    // Return a copy of the car value
+    NadaValue *result = nada_deep_copy(arg->data.pair.car);
+    nada_free(arg);
     return result;
 }
 
@@ -284,158 +285,145 @@ NadaValue *builtin_list_ref(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
-// Map function: Apply a function to each element of a list
+// Special map-car function that doesn't evaluate its argument
+NadaValue *builtin_map_car(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "car requires exactly 1 argument");
+        return nada_create_nil();
+    }
+
+    // Don't evaluate - just get the argument directly
+    NadaValue *arg = nada_car(args);
+
+    // Check that it's a pair
+    if (arg->type != NADA_PAIR) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "car called on non-pair");
+        return nada_create_nil();
+    }
+
+    // Return a copy of the car value
+    return nada_deep_copy(arg->data.pair.car);
+}
+
+// Fixed map implementation that handles multiple lists correctly
 NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
+    // Check that we have at least two arguments
     if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
-                          "map requires at least 2 arguments: function and list");
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "map requires a function and at least one list");
         return nada_create_nil();
     }
 
-    // Get the function (first argument)
-    NadaValue *func_arg = nada_eval(nada_car(args), env);
+    // Get and evaluate the function argument
+    NadaValue *func = nada_eval(nada_car(args), env);
+    if (func->type != NADA_FUNC) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "map: first argument must be a function");
+        nada_free(func);
+        return nada_create_nil();
+    }
 
-    // Check that it's a function
-    if (func_arg->type != NADA_FUNC) {
-        // If it's a symbol, try looking it up
-        if (func_arg->type == NADA_SYMBOL) {
-            NadaValue *func_val = nada_env_get(env, func_arg->data.symbol, 0);
-            nada_free(func_arg);
-            func_arg = func_val;
+    // Count the number of list arguments
+    int list_count = 0;
+    NadaValue *list_args = nada_cdr(args);
+    NadaValue *current_list_arg = list_args;
 
-            // Check again if it's a function
-            if (func_arg->type != NADA_FUNC) {
-                nada_report_error(NADA_ERROR_TYPE_ERROR,
-                                  "map requires a function as first argument");
-                nada_free(func_arg);
-                return nada_create_nil();
+    while (!nada_is_nil(current_list_arg)) {
+        list_count++;
+        current_list_arg = nada_cdr(current_list_arg);
+    }
+
+    // Evaluate all list arguments
+    NadaValue **lists = malloc(list_count * sizeof(NadaValue *));
+    if (!lists) {
+        nada_report_error(NADA_ERROR_MEMORY, "Failed to allocate memory for map");
+        nada_free(func);
+        return nada_create_nil();
+    }
+
+    current_list_arg = list_args;
+    for (int i = 0; i < list_count; i++) {
+        lists[i] = nada_eval(nada_car(current_list_arg), env);
+        current_list_arg = nada_cdr(current_list_arg);
+    }
+
+    // Check that all arguments are lists
+    for (int i = 0; i < list_count; i++) {
+        if (!nada_is_nil(lists[i]) && lists[i]->type != NADA_PAIR) {
+            nada_report_error(NADA_ERROR_TYPE_ERROR, "map: all arguments after the function must be lists");
+
+            // Clean up
+            for (int j = 0; j < list_count; j++) {
+                nada_free(lists[j]);
             }
-        } else {
-            nada_report_error(NADA_ERROR_TYPE_ERROR,
-                              "map requires a function as first argument");
-            nada_free(func_arg);
+            free(lists);
+            nada_free(func);
+
             return nada_create_nil();
         }
     }
 
-    // Evaluate the list argument
-    NadaValue *list_arg = nada_eval(nada_car(nada_cdr(args)), env);
+    // Create result list
+    NadaValue *result = nada_create_nil();
+    NadaValue *result_last = NULL;
 
-    // Check that it's a list (or nil)
-    if (list_arg->type != NADA_PAIR && list_arg->type != NADA_NIL) {
-        nada_report_error(NADA_ERROR_TYPE_ERROR, "map requires a list as second argument");
-        nada_free(func_arg);
-        nada_free(list_arg);
-        return nada_create_nil();
-    }
-
-    // Empty list case
-    if (list_arg->type == NADA_NIL) {
-        nada_free(func_arg);
-        nada_free(list_arg);
-        return nada_create_nil();
-    }
-
-    // Map the function over the list
-    NadaValue *current = list_arg;
-    NadaValue *mapped_items = nada_create_nil();
-
-    while (current->type == NADA_PAIR) {
-        // Get the current element
-        NadaValue *element = nada_car(current);
-        NadaValue *mapped_value = NULL;
-
-        if (func_arg->data.function.builtin) {
-            // Check if the function is car, cdr, or similar list operations
-            int is_list_op = 0;
-            const char *func_name = NULL;
-
-            func_name = get_builtin_name(func_arg->data.function.builtin);
-            if (func_name != NULL) {
-                if (strcmp(func_name, "car") == 0 ||
-                    strcmp(func_name, "cdr") == 0 ||
-                    strcmp(func_name, "cadr") == 0 ||
-                    strcmp(func_name, "caddr") == 0 ||
-                    strcmp(func_name, "list-ref") == 0) {
-                    is_list_op = 1;
-                }
+    // Process elements until any list is exhausted
+    int continue_mapping = 1;
+    while (continue_mapping) {
+        // Check if we need to stop (any list is empty)
+        for (int i = 0; i < list_count; i++) {
+            if (nada_is_nil(lists[i])) {
+                continue_mapping = 0;
+                break;
             }
+        }
 
-            if (is_list_op) {
-                // For list operations, construct a quoted version of the element
-                NadaValue *quote_sym = nada_create_symbol("quote");
-                NadaValue *element_copy = nada_deep_copy(element);
-                NadaValue *nil_value1 = nada_create_nil();
-                NadaValue *quote_tail = nada_cons(element_copy, nil_value1);
-                NadaValue *quoted_elem = nada_cons(quote_sym, quote_tail);
-                NadaValue *nil_value2 = nada_create_nil();
-                NadaValue *func_args = nada_cons(quoted_elem, nil_value2);
+        if (!continue_mapping) break;
 
-                // Apply the function
-                mapped_value = func_arg->data.function.builtin(func_args, env);
+        // Build argument list for this iteration
+        NadaValue *call_args = nada_create_nil();
 
-                // Free all temporary values in reverse order of creation
-                nada_free(func_args);
-                nada_free(nil_value2);
-                nada_free(quoted_elem);
-                nada_free(quote_tail);
-                nada_free(nil_value1);
-                nada_free(element_copy);
-                nada_free(quote_sym);
-            } else {
-                // For other built-in functions, evaluate the element first
-                NadaValue *eval_element = nada_eval(element, env);
-                NadaValue *nil_value = nada_create_nil();
-                NadaValue *func_args = nada_cons(eval_element, nil_value);
+        // Add one element from each list to the function arguments
+        for (int i = list_count - 1; i >= 0; i--) {
+            NadaValue *element = nada_car(lists[i]);
+            NadaValue *new_call_args = nada_cons(element, call_args);
+            nada_free(call_args);
+            call_args = new_call_args;
 
-                // Apply the function
-                mapped_value = func_arg->data.function.builtin(func_args, env);
+            // Move to next element in this list
+            NadaValue *next_list = nada_cdr(lists[i]);
+            nada_free(lists[i]);
+            lists[i] = next_list;
+        }
 
-                // Free all temporary values
-                nada_free(func_args);
-                nada_free(nil_value);
-                nada_free(eval_element);
-            }
+        // Call the function with these arguments
+        NadaValue *mapped_value;
+
+        // Special handling for car
+        if (func->data.function.builtin == builtin_car) {
+            mapped_value = builtin_map_car(call_args, env);
+        } else if (func->data.function.builtin != NULL) {
+            mapped_value = func->data.function.builtin(call_args, env);
         } else {
-            // For user-defined functions
-            NadaValue *element_copy = nada_deep_copy(element);
-            NadaValue *nil_value = nada_create_nil();
-            NadaValue *func_call = nada_cons(element_copy, nil_value);
-
-            // Apply the function
-            mapped_value = apply_function(func_arg, func_call, env);
-
-            // Free all temporary values
-            nada_free(func_call);
-            nada_free(nil_value);
-            nada_free(element_copy);
+            mapped_value = apply_function(func, call_args, env);
         }
 
-        // Handle error conditions
-        if (mapped_value == NULL) {
-            nada_free(mapped_items);
-            nada_free(func_arg);
-            nada_free(list_arg);
-            return nada_create_nil();
+        nada_free(call_args);
+
+        // Add to result list
+        if (nada_is_nil(result)) {
+            result = nada_cons(mapped_value, nada_create_nil());
+            result_last = result;
+        } else {
+            NadaValue *new_pair = nada_cons(mapped_value, nada_create_nil());
+            result_last->data.pair.cdr = new_pair;
+            result_last = new_pair;
         }
 
-        // Add the result to our collected items (in reverse order for now)
-        NadaValue *new_mapped_items = nada_cons(mapped_value, mapped_items);
         nada_free(mapped_value);
-        nada_free(mapped_items);
-        mapped_items = new_mapped_items;
-
-        // Move to next element
-        current = nada_cdr(current);
     }
 
-    // Reverse the list to get correct order
-    NadaValue *result = nada_reverse(mapped_items);
-
-    // Free intermediate values
-    nada_free(mapped_items);
-    nada_free(func_arg);
-    nada_free(list_arg);
+    // Clean up remaining lists
+    free(lists);
+    nada_free(func);
 
     return result;
 }
