@@ -50,3 +50,21 @@
         (reduce func
                 (func init (car lst))
                 (cdr lst)))))
+
+;; member: Check if an item is a member of a list
+;; Returns the sublist starting with the first occurrence of the item if found, #f otherwise
+(define member
+  (lambda (item lst)
+    (cond
+      ;; Empty list - item not found
+      ((null? lst) #f)
+      ;; First element matches - return the list
+      ((equal? item (car lst)) lst)
+      ;; Otherwise, recursively check the rest
+      (else (member item (cdr lst))))))
+
+;; member?: Check if an item is a member of a list (boolean version)
+(define member?
+  (lambda (item lst)
+    (if (member item lst) #t #f)))
+    
