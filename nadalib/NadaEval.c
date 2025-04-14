@@ -779,7 +779,6 @@ NadaValue *builtin_string_to_symbol(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
-// Updated tokenize-expr function
 NadaValue *builtin_tokenize_expr(NadaValue *args, NadaEnv *env) {
     // Check args
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
