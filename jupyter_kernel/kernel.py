@@ -112,6 +112,10 @@ class NadaKernel(Kernel):
         self.lib.nada_create_standard_env.restype = c_void_p
         self.lib.nada_cleanup_env.argtypes = [c_void_p]
         
+        # Add function prototype for loading standard libraries
+        self.lib.nada_load_libraries.argtypes = [c_void_p]
+        self.lib.nada_load_libraries.restype = None
+        
         # Update the nada_eval prototype to correctly match its signature
         self.lib.nada_eval.argtypes = [c_void_p, c_void_p]
         self.lib.nada_eval.restype = c_void_p
@@ -137,6 +141,23 @@ class NadaKernel(Kernel):
             self.lib.nada_free_string.argtypes = [c_char_p]
             self.lib.nada_free_string.restype = None
         
+        # Add new Jupyter output function prototypes
+        self.lib.nada_jupyter_use_output.argtypes = []
+        self.lib.nada_jupyter_use_output.restype = None
+        
+        self.lib.nada_jupyter_get_buffer.argtypes = []
+        self.lib.nada_jupyter_get_buffer.restype = c_char_p
+        
+        self.lib.nada_jupyter_clear_buffer.argtypes = []
+        self.lib.nada_jupyter_clear_buffer.restype = None
+        
+        self.lib.nada_jupyter_cleanup.argtypes = []
+        self.lib.nada_jupyter_cleanup.restype = None
+
+        # Add these function prototypes
+        self.lib.nada_jupyter_get_output_type.argtypes = []
+        self.lib.nada_jupyter_get_output_type.restype = c_int
+        
         self.log.info("Function prototypes defined successfully")
         
     def _init_nada_env(self):
@@ -147,6 +168,16 @@ class NadaKernel(Kernel):
             error_msg = "Failed to initialize NadaLisp environment"
             self.log.error(error_msg)
             raise RuntimeError(error_msg)
+            
+        # Initialize Jupyter output
+        self.lib.nada_jupyter_use_output()
+        self.log.info("NadaLisp Jupyter output initialized")
+        
+        # Load standard libraries (just like the REPL does)
+        self.log.info("Loading standard libraries...")
+        self.lib.nada_load_libraries(self.env)
+        self.log.info("Standard libraries loaded")
+        
         self.log.info(f"NadaLisp environment initialized, handle: {self.env}")
         self.log.info("NadaLisp environment initialized")
         
@@ -180,78 +211,83 @@ class NadaKernel(Kernel):
                 
                 def evaluation_thread():
                     try:
-                        # Create temporary files for stdout redirection
-                        stdout_fd = sys.stdout.fileno()
-                        # Save a copy of the original stdout fd
-                        stdout_fd_copy = os.dup(stdout_fd)
+                        # Clear the Jupyter output buffer before evaluation
+                        self.lib.nada_jupyter_clear_buffer()
                         
-                        # Create a temporary file to redirect C-level output
-                        with tempfile.TemporaryFile(mode='w+') as temp_stdout:
-                            # Redirect C stdout to our temp file
-                            temp_stdout_fd = temp_stdout.fileno()
-                            os.dup2(temp_stdout_fd, stdout_fd)
+                        try:
+                            # Parse and evaluate the input code
+                            self.log.info(f"Calling nada_parse_eval_multi for: {expr}")
+                            value_ptr = self.lib.nada_parse_eval_multi(c_code, self.env)
+                            self.log.info(f"Result pointer: {value_ptr}")
                             
-                            try:
-                                # Parse and evaluate the input code
-                                self.log.info(f"Calling nada_parse_eval_multi for: {expr}")
-                                value_ptr = self.lib.nada_parse_eval_multi(c_code, self.env)
-                                self.log.info(f"Result pointer: {value_ptr}")
+                            # Check if it's an error
+                            if value_ptr:
+                                self.lib.nada_is_error.argtypes = [c_void_p]
+                                self.lib.nada_is_error.restype = c_int
                                 
-                                # Check if it's an error
-                                if value_ptr:
-                                    self.lib.nada_is_error.argtypes = [c_void_p]
-                                    self.lib.nada_is_error.restype = c_int
-                                    
-                                    if self.lib.nada_is_error(value_ptr):
-                                        # Get the error message
-                                        string_ptr = self.lib.nada_value_to_string(value_ptr)
-                                        error_msg = ctypes.string_at(string_ptr).decode('utf-8')
-                                        
-                                        # Free resources
-                                        if hasattr(self.lib, 'nada_free_string'):
-                                            self.lib.nada_free_string(string_ptr)
-                                        self.lib.nada_free(value_ptr)
-                                        
-                                        # Store error
-                                        error[0] = RuntimeError(error_msg)
-                                        return
-                                
-                                # Flush to ensure all output is written
-                                sys.stdout.flush()
-                                
-                                # Restore original stdout
-                                os.dup2(stdout_fd_copy, stdout_fd)
-                                
-                                # Get captured output
-                                temp_stdout.seek(0)
-                                stdout_output = temp_stdout.read()
-                                
-                                # Send captured output to frontend
-                                if stdout_output:
-                                    self.send_response(self.iopub_socket, 'stream', {
-                                        'name': 'stdout',
-                                        'text': stdout_output
-                                    })
-                                
-                                # Convert result to string
-                                if value_ptr:
+                                if self.lib.nada_is_error(value_ptr):
+                                    # Get the error message
                                     string_ptr = self.lib.nada_value_to_string(value_ptr)
-                                    if string_ptr:
-                                        result_ptr[0] = ctypes.string_at(string_ptr).decode('utf-8')
-                                        self.log.info(f"Got result: {result_ptr[0]}")
-                                        
-                                        # Free the string if needed
-                                        if hasattr(self.lib, 'nada_free_string'):
-                                            self.lib.nada_free_string(string_ptr)
+                                    error_msg = ctypes.string_at(string_ptr).decode('utf-8')
                                     
-                                    # Free the result value
+                                    # Free resources
+                                    if hasattr(self.lib, 'nada_free_string'):
+                                        self.lib.nada_free_string(string_ptr)
                                     self.lib.nada_free(value_ptr)
+                                    
+                                    # Store error
+                                    error[0] = RuntimeError(error_msg)
+                                    return
                                 
-                            finally:
-                                # Ensure we restore stdout
-                                os.dup2(stdout_fd_copy, stdout_fd)
-                                os.close(stdout_fd_copy)
+                            # Get captured output from buffer
+                            output_ptr = self.lib.nada_jupyter_get_buffer()
+                            if output_ptr:
+                                output_text = ctypes.string_at(output_ptr).decode('utf-8')
                                 
+                                # Get the output type
+                                output_type = self.lib.nada_jupyter_get_output_type()
+                                
+                                # Send captured output to frontend with appropriate MIME type
+                                if output_text:
+                                    if output_type == 1:  # NADA_OUTPUT_MARKDOWN
+                                        self.send_response(self.iopub_socket, 'display_data', {
+                                            'data': {
+                                                'text/markdown': output_text
+                                            },
+                                            'metadata': {}
+                                        })
+                                    elif output_type == 2:  # NADA_OUTPUT_HTML
+                                        self.send_response(self.iopub_socket, 'display_data', {
+                                            'data': {
+                                                'text/html': output_text
+                                            },
+                                            'metadata': {}
+                                        })
+                                    else:  # Default to plain text
+                                        self.send_response(self.iopub_socket, 'stream', {
+                                            'name': 'stdout',
+                                            'text': output_text
+                                        })
+                            
+                            # Convert result to string
+                            if value_ptr:
+                                string_ptr = self.lib.nada_value_to_string(value_ptr)
+                                if string_ptr:
+                                    result_ptr[0] = ctypes.string_at(string_ptr).decode('utf-8')
+                                    self.log.info(f"Got result: {result_ptr[0]}")
+                                    
+                                    # Free the string if needed
+                                    if hasattr(self.lib, 'nada_free_string'):
+                                        self.lib.nada_free_string(string_ptr)
+                                
+                                # Free the result value
+                                self.lib.nada_free(value_ptr)
+                            
+                        except Exception as e:
+                            error[0] = e
+                            self.log.error(f"Exception in evaluation: {str(e)}")
+                            self.log.error(traceback.format_exc())
+                            
                     except Exception as e:
                         error[0] = e
                         self.log.error(f"Exception in evaluation thread: {str(e)}")
@@ -376,7 +412,11 @@ class NadaKernel(Kernel):
         """Clean up resources when the kernel is shut down"""
         if hasattr(self, 'env') and self.env:
             self.log.info("Releasing NadaLisp environment...")
+            
+            # Clean up Jupyter output system
+            self.lib.nada_jupyter_cleanup()
+            self.log.info("NadaLisp Jupyter output cleanup complete")
+            
             self.lib.nada_cleanup_env(self.env)
-            self.log.info("NadaLisp environment released")
             self.log.info("NadaLisp environment released")
         return {'status': 'ok', 'restart': restart}

@@ -1,8 +1,10 @@
-#include "NadaValue.h"
-#include "NadaEval.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
+#include "NadaValue.h"
+#include "NadaEval.h"
+#include "NadaOutput.h"
 
 // Initialize counters
 static int value_allocations = 0;
@@ -233,70 +235,7 @@ void nada_free(NadaValue *val) {
 
 // Print a value (for debugging and REPL output)
 void nada_print(NadaValue *val) {
-    if (val == NULL) {
-        printf("NULL");
-        return;
-    }
-
-    switch (val->type) {
-    case NADA_NUM: {
-        char *str = nada_num_to_string(val->data.number);
-        printf("%s", str);
-        free(str);
-        break;
-    }
-    case NADA_STRING:
-        printf("\"%s\"", val->data.string);
-        break;
-    case NADA_SYMBOL:
-        printf("%s", val->data.symbol);
-        break;
-    case NADA_NIL:
-        printf("()");
-        break;
-    case NADA_PAIR:
-        printf("(");
-        nada_print(val->data.pair.car);
-
-        // Print rest of the list
-        NadaValue *rest = val->data.pair.cdr;
-        while (rest->type == NADA_PAIR) {
-            printf(" ");
-            nada_print(rest->data.pair.car);
-            rest = rest->data.pair.cdr;
-        }
-
-        // Handle improper lists
-        if (rest->type != NADA_NIL) {
-            printf(" . ");
-            nada_print(rest);
-        }
-
-        printf(")");
-        break;
-    case NADA_FUNC:
-        if (val->data.function.builtin) {
-            // For builtin functions, try to get the function name
-            const char *name = get_builtin_name(val->data.function.builtin);
-            if (name) {
-                printf("#<builtin-function:%s>", name);
-            } else {
-                printf("#<builtin-function>");
-            }
-        } else {
-            // For user-defined functions, show parameter info
-            printf("#<lambda ");
-            nada_print(val->data.function.params);
-            printf(">");
-        }
-        break;
-    case NADA_BOOL:
-        printf("%s", val->data.boolean ? "#t" : "#f");
-        break;
-    case NADA_ERROR:
-        printf("Error: %s", val->data.error);
-        break;
-    }
+    nada_write_value(val);
 }
 
 // Deep copy a value and all its children
@@ -369,24 +308,6 @@ int nada_is_error(const NadaValue *value) {
     return value->type == NADA_ERROR;
 }
 
-/*
-// Reverse a list in-place
-NadaValue *nada_reverse(NadaValue *list) {
-    NadaValue *result = nada_create_nil();
-
-    while (!nada_is_nil(list)) {
-        NadaValue *head = nada_car(list);
-        NadaValue *tail = nada_cdr(list);
-
-        result = nada_cons(head, result);
-        list = tail;
-    }
-
-    return result;
-}
-*/
-
-// Fix for nada_reverse function
 NadaValue *nada_reverse(NadaValue *list) {
     // Create a temporary variable for the nil value instead of passing directly
     NadaValue *result = nada_create_nil();
