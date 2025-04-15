@@ -1,5 +1,13 @@
 ;; Purely functional algebraic notation utilities
 
+;; Define variables for testing
+(define x 'x)
+(define y 'y)
+(define z 'z)
+(define a 'a)
+(define b 'b)
+(define c 'c)
+
 ;; Example implementation for special constants
 (define pi-value 'pi)  ;; Symbolic representation
 (define e-value 'e)
@@ -172,18 +180,129 @@
       ;; Keep symbolic for other cases
       (else (list 'expt base exp)))))
 
-;; Update the operator list to handle ^
-(define eval-op
-  (lambda (op left right)
-    (case op
-      ((+) (+ left right))
-      ((-) (- left right))
-      ((*) (* left right))
-      ((/) (/ left right))
-      ((^) (expt-op left right))
-      (else (display (string-append "Unknown operator: " (symbol->string op) "\n"))))))
+;; Add a variable? predicate to check if something is a variable
+(define variable?
+  (lambda (expr)
+    (and (symbol? expr) 
+         (not (irrational? expr))
+         (not (complex? expr)))))
 
-;; Evaluate an algebraic expression
+;; Helper function to check for multiplication by zero pattern
+(define multiply-by-zero?
+  (lambda (expr)
+    (and (list? expr)
+         (= (length expr) 3)
+         (eq? (car expr) '*)
+         (or (and (number? (cadr expr)) (= (cadr expr) 0))
+             (and (number? (caddr expr)) (= (caddr expr) 0))))))
+
+;; Improved simplification function
+(define simplify
+  (lambda (expr)
+    (cond
+      ;; Base cases
+      ((constant? expr) expr)
+      ((variable? expr) expr)
+      ((symbol? expr) expr)
+      ((not (list? expr)) expr)
+      ((null? expr) expr)
+      
+      ;; Early pattern matching for special cases
+      ((multiply-by-zero? expr) 0)
+      
+      ;; Recursively process lists
+      ((list? expr)
+       (let ((op (car expr))
+             (simplified-args (map simplify (cdr expr))))
+         (cond
+           ;; Addition
+           ((eq? op '+)
+            (cond
+              ((= (length simplified-args) 0) 0)
+              ((= (length simplified-args) 1) (car simplified-args))
+              ((and (= (length simplified-args) 2)
+                    (number? (car simplified-args))
+                    (number? (cadr simplified-args)))
+               (+ (car simplified-args) (cadr simplified-args)))
+              ((and (= (length simplified-args) 2)
+                    (or (and (number? (car simplified-args)) (= (car simplified-args) 0))
+                        (and (number? (cadr simplified-args)) (= (cadr simplified-args) 0))))
+               (if (and (number? (car simplified-args)) (= (car simplified-args) 0))
+                   (cadr simplified-args)
+                   (car simplified-args)))
+              (else (cons '+ simplified-args))))
+           
+           ;; Multiplication
+           ((eq? op '*)
+            (cond
+              ((= (length simplified-args) 0) 1)
+              ((= (length simplified-args) 1) (car simplified-args))
+              ;; Check again for zero pattern after simplifying arguments
+              ((or (and (number? (car simplified-args)) (= (car simplified-args) 0))
+                   (and (= (length simplified-args) 2) 
+                        (number? (cadr simplified-args)) 
+                        (= (cadr simplified-args) 0)))
+               0)
+              ((and (= (length simplified-args) 2)
+                    (number? (car simplified-args))
+                    (number? (cadr simplified-args)))
+               (* (car simplified-args) (cadr simplified-args)))
+              ((and (= (length simplified-args) 2)
+                    (or (and (number? (car simplified-args)) (= (car simplified-args) 1))
+                        (and (number? (cadr simplified-args)) (= (cadr simplified-args) 1))))
+               (if (and (number? (car simplified-args)) (= (car simplified-args) 1))
+                   (cadr simplified-args)
+                   (car simplified-args)))
+              (else (cons '* simplified-args))))
+           
+           ;; Handle exponentiation expressions
+           ((eq? op 'expt)
+            (cond
+              ;; x^0 = 1 for any x
+              ((and (= (length simplified-args) 2)
+                    (number? (cadr simplified-args))
+                    (= (cadr simplified-args) 0))
+               1)
+              
+              ;; x^1 = x
+              ((and (= (length simplified-args) 2)
+                    (number? (cadr simplified-args))
+                    (= (cadr simplified-args) 1))
+               (car simplified-args))
+              
+              ;; 0^x = 0 (where x is positive)
+              ((and (= (length simplified-args) 2)
+                    (number? (car simplified-args))
+                    (= (car simplified-args) 0)
+                    (or (not (number? (cadr simplified-args)))  ;; symbolic exponent
+                        (and (number? (cadr simplified-args))   ;; numeric positive exponent
+                             (> (cadr simplified-args) 0))))
+               0)
+              
+              ;; 1^x = 1 for any x
+              ((and (= (length simplified-args) 2)
+                    (number? (car simplified-args))
+                    (= (car simplified-args) 1))
+               1)
+              
+              ;; Numeric evaluation for constant expressions
+              ((and (= (length simplified-args) 2)
+                    (number? (car simplified-args))
+                    (number? (cadr simplified-args))
+                    (integer? (cadr simplified-args))
+                    (>= (cadr simplified-args) 0))
+               (expt (car simplified-args) (cadr simplified-args)))
+              
+              ;; Default: rebuilt expt expression
+              (else (cons 'expt simplified-args))))
+           
+           ;; Other operators (keep the same structure)
+           (else (cons op simplified-args)))))
+      
+      ;; Default case
+      (else expr))))
+
+;; Update eval-algebraic to include simplification
 (define eval-algebraic
   (lambda (expr)
-    (eval (infix->prefix expr))))
+    (eval (simplify (infix->prefix expr)))))
