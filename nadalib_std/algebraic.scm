@@ -196,112 +196,135 @@
          (or (and (number? (cadr expr)) (= (cadr expr) 0))
              (and (number? (caddr expr)) (= (caddr expr) 0))))))
 
-;; Improved simplification function
+;; Modular simplification system
+
+;; Main simplify function - entry point
 (define simplify
   (lambda (expr)
     (cond
       ;; Base cases
-      ((constant? expr) expr)
-      ((variable? expr) expr)
-      ((symbol? expr) expr)
-      ((not (list? expr)) expr)
-      ((null? expr) expr)
+      ((atomic? expr) expr)
       
-      ;; Early pattern matching for special cases
+      ;; Special pattern matching
       ((multiply-by-zero? expr) 0)
       
-      ;; Recursively process lists
-      ((list? expr)
+      ;; Dispatch based on operation
+      ((and (list? expr) (not (null? expr)))
        (let ((op (car expr))
              (simplified-args (map simplify (cdr expr))))
          (cond
-           ;; Addition
-           ((eq? op '+)
-            (cond
-              ((= (length simplified-args) 0) 0)
-              ((= (length simplified-args) 1) (car simplified-args))
-              ((and (= (length simplified-args) 2)
-                    (number? (car simplified-args))
-                    (number? (cadr simplified-args)))
-               (+ (car simplified-args) (cadr simplified-args)))
-              ((and (= (length simplified-args) 2)
-                    (or (and (number? (car simplified-args)) (= (car simplified-args) 0))
-                        (and (number? (cadr simplified-args)) (= (cadr simplified-args) 0))))
-               (if (and (number? (car simplified-args)) (= (car simplified-args) 0))
-                   (cadr simplified-args)
-                   (car simplified-args)))
-              (else (cons '+ simplified-args))))
-           
-           ;; Multiplication
-           ((eq? op '*)
-            (cond
-              ((= (length simplified-args) 0) 1)
-              ((= (length simplified-args) 1) (car simplified-args))
-              ;; Check again for zero pattern after simplifying arguments
-              ((or (and (number? (car simplified-args)) (= (car simplified-args) 0))
-                   (and (= (length simplified-args) 2) 
-                        (number? (cadr simplified-args)) 
-                        (= (cadr simplified-args) 0)))
-               0)
-              ((and (= (length simplified-args) 2)
-                    (number? (car simplified-args))
-                    (number? (cadr simplified-args)))
-               (* (car simplified-args) (cadr simplified-args)))
-              ((and (= (length simplified-args) 2)
-                    (or (and (number? (car simplified-args)) (= (car simplified-args) 1))
-                        (and (number? (cadr simplified-args)) (= (cadr simplified-args) 1))))
-               (if (and (number? (car simplified-args)) (= (car simplified-args) 1))
-                   (cadr simplified-args)
-                   (car simplified-args)))
-              (else (cons '* simplified-args))))
-           
-           ;; Handle exponentiation expressions
-           ((eq? op 'expt)
-            (cond
-              ;; x^0 = 1 for any x
-              ((and (= (length simplified-args) 2)
-                    (number? (cadr simplified-args))
-                    (= (cadr simplified-args) 0))
-               1)
-              
-              ;; x^1 = x
-              ((and (= (length simplified-args) 2)
-                    (number? (cadr simplified-args))
-                    (= (cadr simplified-args) 1))
-               (car simplified-args))
-              
-              ;; 0^x = 0 (where x is positive)
-              ((and (= (length simplified-args) 2)
-                    (number? (car simplified-args))
-                    (= (car simplified-args) 0)
-                    (or (not (number? (cadr simplified-args)))  ;; symbolic exponent
-                        (and (number? (cadr simplified-args))   ;; numeric positive exponent
-                             (> (cadr simplified-args) 0))))
-               0)
-              
-              ;; 1^x = 1 for any x
-              ((and (= (length simplified-args) 2)
-                    (number? (car simplified-args))
-                    (= (car simplified-args) 1))
-               1)
-              
-              ;; Numeric evaluation for constant expressions
-              ((and (= (length simplified-args) 2)
-                    (number? (car simplified-args))
-                    (number? (cadr simplified-args))
-                    (integer? (cadr simplified-args))
-                    (>= (cadr simplified-args) 0))
-               (expt (car simplified-args) (cadr simplified-args)))
-              
-              ;; Default: rebuilt expt expression
-              (else (cons 'expt simplified-args))))
-           
-           ;; Other operators (keep the same structure)
+           ((eq? op '+) (simplify-addition simplified-args))
+           ((eq? op '*) (simplify-multiplication simplified-args))
+           ((eq? op 'expt) (simplify-exponentiation simplified-args))
+           ((eq? op '-) (simplify-subtraction simplified-args))
+           ((eq? op '/) (simplify-division simplified-args))
            (else (cons op simplified-args)))))
       
       ;; Default case
       (else expr))))
 
+;; Helper predicates
+(define atomic?
+  (lambda (expr)
+    (or (constant? expr)
+        (variable? expr)
+        (symbol? expr)
+        (not (list? expr))
+        (null? expr))))
+
+;; Simplification rule for addition
+(define simplify-addition
+  (lambda (args)
+    (cond
+      ((null? args) 0)
+      ((null? (cdr args)) (car args))
+      
+      ;; Constant folding
+      ((and (= (length args) 2)
+            (number? (car args))
+            (number? (cadr args)))
+       (+ (car args) (cadr args)))
+       
+      ;; x + 0 = x
+      ((and (= (length args) 2)
+            (or (and (number? (car args)) (= (car args) 0))
+                (and (number? (cadr args)) (= (cadr args) 0))))
+       (if (and (number? (car args)) (= (car args) 0))
+           (cadr args)
+           (car args)))
+           
+      ;; Default
+      (else (cons '+ args)))))
+
+;; Simplification rule for multiplication
+(define simplify-multiplication
+  (lambda (args)
+    (cond
+      ((null? args) 1)
+      ((null? (cdr args)) (car args))
+      
+      ;; 0 * x = 0
+      ((or (and (number? (car args)) (= (car args) 0))
+           (and (= (length args) 2) 
+                (number? (cadr args)) 
+                (= (cadr args) 0)))
+       0)
+       
+      ;; Constant folding
+      ((and (= (length args) 2)
+            (number? (car args))
+            (number? (cadr args)))
+       (* (car args) (cadr args)))
+       
+      ;; x * 1 = x
+      ((and (= (length args) 2)
+            (or (and (number? (car args)) (= (car args) 1))
+                (and (number? (cadr args)) (= (cadr args) 1))))
+       (if (and (number? (car args)) (= (car args) 1))
+           (cadr args)
+           (car args)))
+           
+      ;; Default
+      (else (cons '* args)))))
+
+;; Simplification rule for exponentiation
+(define simplify-exponentiation
+  (lambda (args)
+    (cond
+      ;; Not enough arguments
+      ((< (length args) 2) (cons 'expt args))
+      
+      ;; Too many arguments
+      ((> (length args) 2) (cons 'expt args))
+      
+      ;; x^0 = 1
+      ((and (number? (cadr args)) (= (cadr args) 0)) 1)
+      
+      ;; x^1 = x
+      ((and (number? (cadr args)) (= (cadr args) 1)) (car args))
+      
+      ;; 0^x = 0 (x > 0)
+      ((and (number? (car args)) 
+            (= (car args) 0)
+            (or (not (number? (cadr args)))
+                (and (number? (cadr args)) (> (cadr args) 0))))
+       0)
+       
+      ;; 1^x = 1
+      ((and (number? (car args)) (= (car args) 1)) 1)
+      
+      ;; Constant folding
+      ((and (number? (car args))
+            (number? (cadr args))
+            (integer? (cadr args))
+            (>= (cadr args) 0))
+       (expt (car args) (cadr args)))
+       
+      ;; Default: keep symbolic form
+      (else (list 'expt (car args) (cadr args))))))
+
+;; Additional operation simplifiers can be added here
+;; ...
 ;; Update eval-algebraic to include simplification
 (define eval-algebraic
   (lambda (expr)
