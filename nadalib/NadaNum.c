@@ -565,6 +565,138 @@ char *nada_num_to_string(const NadaNum *num) {
     return result;
 }
 
+// Add this function declaration to the forward declarations section
+static char *divide_with_precision(const char *numerator, const char *denominator, int precision);
+
+// Add this function to the public interface section
+// Convert a rational number to a floating-point string with specified precision
+char *nada_num_to_float_string(const NadaNum *num, int precision) {
+    if (!num || precision < 0) return NULL;
+
+    // Special case for zero
+    if (strcmp(num->numerator, "0") == 0) {
+        char *result = malloc(precision + 3);  // "0." + precision zeros + null
+        if (!result) return NULL;
+
+        strcpy(result, "0.");
+        for (int i = 0; i < precision; i++) {
+            result[i + 2] = '0';
+        }
+        result[precision + 2] = '\0';
+        return result;
+    }
+
+    // Do the division with specified precision
+    char *abs_result = divide_with_precision(num->numerator, num->denominator, precision);
+    if (!abs_result) return NULL;
+
+    // Add sign if negative
+    if (num->sign < 0) {
+        char *signed_result = malloc(strlen(abs_result) + 2);
+        if (!signed_result) {
+            free(abs_result);
+            return NULL;
+        }
+        sprintf(signed_result, "-%s", abs_result);
+        free(abs_result);
+        return signed_result;
+    }
+
+    return abs_result;
+}
+
+// Helper function to perform division with specified decimal precision
+static char *divide_with_precision(const char *numerator, const char *denominator, int precision) {
+    if (!numerator || !denominator || strcmp(denominator, "0") == 0) return NULL;
+
+    // First compute the integer part
+    char *remainder = NULL;
+    char *quotient = divide_integers(numerator, denominator, &remainder);
+    if (!quotient || !remainder) {
+        free(quotient);
+        free(remainder);
+        return NULL;
+    }
+
+    // Check if remainder is zero - exact division
+    if (strcmp(remainder, "0") == 0) {
+        char *result = malloc(strlen(quotient) + precision + 3);
+        if (!result) {
+            free(quotient);
+            free(remainder);
+            return NULL;
+        }
+
+        sprintf(result, "%s.", quotient);
+        for (int i = 0; i < precision; i++) {
+            strcat(result, "0");
+        }
+
+        free(quotient);
+        free(remainder);
+        return result;
+    }
+
+    // Calculate fractional part via long division
+    char *fractional = malloc(precision + 1);
+    if (!fractional) {
+        free(quotient);
+        free(remainder);
+        return NULL;
+    }
+
+    for (int i = 0; i < precision; i++) {
+        // Multiply remainder by 10
+        char *temp = multiply_integers(remainder, "10");
+        free(remainder);
+        remainder = temp;
+
+        // Divide by denominator, storing the new remainder in a different variable
+        char *new_remainder = NULL;
+        char *digit_quotient = divide_integers(remainder, denominator, &new_remainder);
+
+        // Free the old remainder now that we have a new one
+        free(remainder);
+
+        // Update our remainder pointer to the newly allocated one
+        remainder = new_remainder;
+
+        // Extract the first digit
+        fractional[i] = digit_quotient[0];
+
+        // Free the quotient now that we've used it
+        free(digit_quotient);
+
+        // If remainder becomes zero, we can stop early
+        if (strcmp(remainder, "0") == 0) {
+            // Pad the rest with zeros
+            for (int j = i + 1; j < precision; j++) {
+                fractional[j] = '0';
+            }
+            break;
+        }
+    }
+    fractional[precision] = '\0';
+
+    // Combine integer and fractional parts
+    char *result = malloc(strlen(quotient) + precision + 3);  // Integer + "." + fractional + null
+    if (!result) {
+        free(quotient);
+        free(remainder);
+        free(fractional);
+        return NULL;
+    }
+
+    sprintf(result, "%s.%s", quotient, fractional);
+
+    // Clean up
+    free(quotient);
+    free(remainder);
+    free(fractional);
+
+    return result;
+}
+
 // Convert a rational number to an integer
 int nada_num_to_int(const NadaNum *num) {
     if (!num) return 0;

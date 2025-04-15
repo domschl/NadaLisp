@@ -538,6 +538,47 @@ NadaValue *builtin_number_to_string(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
+// float: Convert number to floating-point string with precision
+NadaValue *builtin_float(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args)) ||
+        !nada_is_nil(nada_cdr(nada_cdr(args)))) {
+        fprintf(stderr, "Error: float requires exactly 2 arguments\n");
+        return nada_create_nil();
+    }
+
+    // Evaluate number argument
+    NadaValue *num_val = nada_eval(nada_car(args), env);
+    if (num_val->type != NADA_NUM) {
+        fprintf(stderr, "Error: float requires a number as first argument\n");
+        nada_free(num_val);
+        return nada_create_nil();
+    }
+
+    // Evaluate precision argument
+    NadaValue *prec_val = nada_eval(nada_car(nada_cdr(args)), env);
+    if (prec_val->type != NADA_NUM || !nada_num_is_integer(prec_val->data.number)) {
+        fprintf(stderr, "Error: float requires an integer precision as second argument\n");
+        nada_free(num_val);
+        nada_free(prec_val);
+        return nada_create_nil();
+    }
+
+    int precision = nada_num_to_int(prec_val->data.number);
+    if (precision < 0) {
+        fprintf(stderr, "Error: float precision must be non-negative\n");
+        nada_free(num_val);
+        nada_free(prec_val);
+        return nada_create_nil();
+    }
+
+    char *str = nada_num_to_float_string(num_val->data.number, precision);
+    NadaValue *result = nada_create_string(str);
+
+    free(str);
+    nada_free(num_val);
+    nada_free(prec_val);
+    return result;
+}
 // Built-in function: read-from-string
 NadaValue *builtin_read_from_string(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {

@@ -42,3 +42,6 @@
 
 (define-test "number-to-string-fraction"
   (assert-equal (number->string 3/4) "3/4"))
+
+(define-test "number-to-float-approx"
+  (assert-equal (float 1/3 3) "0.333"))

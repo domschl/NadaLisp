@@ -40,6 +40,7 @@ bool nada_num_is_negative(const NadaNum *num);
 
 // Conversion functions
 char *nada_num_to_string(const NadaNum *num);
+char *nada_num_to_float_string(const NadaNum *num, int precision);
 int nada_num_to_int(const NadaNum *num);
 double nada_num_to_double(const NadaNum *num);
 
