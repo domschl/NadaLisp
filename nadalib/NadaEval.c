@@ -452,6 +452,7 @@ static BuiltinFuncInfo builtins[] = {
     {"string-join", builtin_string_join},
     {"string->number", builtin_string_to_number},
     {"number->string", builtin_number_to_string},
+    {"float", builtin_float},
     {"tokenize-expr", builtin_tokenize_expr},  // Add this line
     {"read-from-string", builtin_read_from_string},
     {"write-to-string", builtin_write_to_string},

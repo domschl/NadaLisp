@@ -19,6 +19,7 @@ NadaValue *builtin_string_split(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_string_join(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_string_to_number(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_number_to_string(NadaValue *args, NadaEnv *env);
+NadaValue *builtin_float(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_read_from_string(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_write_to_string(NadaValue *args, NadaEnv *env);
 
