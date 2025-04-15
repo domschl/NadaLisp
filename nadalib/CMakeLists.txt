@@ -17,6 +17,8 @@ set(LIB_SOURCES
     NadaBuiltinPredicates.c
     NadaBuiltinBoolOps.c
     NadaBuiltinIO.c
+    NadaOutput.c
+    NadaJupyter.c
 )
 
 # Add the library target

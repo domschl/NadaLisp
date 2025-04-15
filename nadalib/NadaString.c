@@ -1,12 +1,14 @@
-#include "NadaString.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>  // Add this for isdigit, isalpha, isspace
+#include <ctype.h>
+
+#include "NadaString.h"
 #include "NadaValue.h"
 #include "NadaEval.h"
 #include "NadaParser.h"
 #include "NadaError.h"
+#include "NadaOutput.h"
 
 // Calculate the number of UTF-8 characters in a string
 int utf8_strlen(const char *str) {
@@ -569,30 +571,22 @@ NadaValue *builtin_read_from_string(NadaValue *args, NadaEnv *env) {
 // write-to-string: Convert a Lisp expression to a string
 NadaValue *builtin_write_to_string(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
-        fprintf(stderr, "Error: write-to-string requires exactly 1 argument\n");
-        return nada_create_nil();
+        nada_write_string("Error: write-to-string requires exactly 1 argument\n");
+        return nada_create_error("write-to-string requires exactly 1 argument");
     }
 
     NadaValue *expr = nada_eval(nada_car(args), env);
 
-    // Write to a string buffer
-    char buffer[4096];  // Fixed size for simplicity
-    FILE *memstream = fmemopen(buffer, sizeof(buffer), "w");
-
-    if (!memstream) {
-        fprintf(stderr, "Error: Failed to create memory stream\n");
+    // Use the new abstraction to convert to string
+    char *str = nada_value_to_string(expr);
+    if (!str) {
         nada_free(expr);
-        return nada_create_nil();
+        return nada_create_error("Failed to convert value to string");
     }
 
-    FILE *old_stdout = stdout;
-    stdout = memstream;
-
-    nada_print(expr);
-
-    stdout = old_stdout;
-    fclose(memstream);
-
+    NadaValue *result = nada_create_string(str);
+    free(str);
     nada_free(expr);
-    return nada_create_string(buffer);
+
+    return result;
 }

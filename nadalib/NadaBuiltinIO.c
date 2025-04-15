@@ -7,6 +7,7 @@
 #include "NadaError.h"
 #include "NadaParser.h"
 #include "NadaBuiltinIO.h"
+#include "NadaOutput.h"
 
 // Built-in function: save-environment
 NadaValue *builtin_save_environment(NadaValue *args, NadaEnv *env) {
@@ -329,7 +330,7 @@ NadaValue *builtin_write_file(NadaValue *args, NadaEnv *env) {
 // display: Output a string to console without adding newlines
 NadaValue *builtin_display(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args)) {
-        fprintf(stderr, "Error: display requires at least 1 argument\n");
+        nada_write_format("Error: display requires at least 1 argument\n");
         return nada_create_nil();
     }
 
@@ -338,44 +339,44 @@ NadaValue *builtin_display(NadaValue *args, NadaEnv *env) {
         NadaValue *val = nada_eval(nada_car(curr), env);
 
         if (val->type == NADA_STRING) {
-            // Process the string to handle escape sequences
+            // Process escape sequences
             const char *str = val->data.string;
             while (*str) {
                 if (*str == '\\' && *(str + 1) != '\0') {
                     // Handle escape sequences
                     switch (*(str + 1)) {
                     case 'n':
-                        printf("\n");
+                        nada_write_string("\n");
                         break;
                     case 't':
-                        printf("\t");
+                        nada_write_string("\t");
                         break;
                     case 'r':
-                        printf("\r");
+                        nada_write_string("\r");
                         break;
                     case '\\':
-                        printf("\\");
+                        nada_write_string("\\");
                         break;
                     case '"':
-                        printf("\"");
+                        nada_write_string("\"");
                         break;
                     default:
-                        printf("\\%c", *(str + 1));
+                        nada_write_format("\\%c", *(str + 1));
                         break;
                     }
                     str += 2;
                 } else {
-                    printf("%c", *str++);
+                    char tmp[2] = {*str++, '\0'};
+                    nada_write_string(tmp);
                 }
             }
         } else {
-            nada_print(val);  // Use regular printer for non-strings
+            nada_write_value(val);
         }
 
         nada_free(val);
         curr = nada_cdr(curr);
     }
 
-    // Remove the automatic newline at the end
     return nada_create_nil();
 }

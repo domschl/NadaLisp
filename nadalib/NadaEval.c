@@ -7,6 +7,7 @@
 #include "NadaParser.h"
 #include "NadaString.h"
 #include "NadaError.h"
+#include "NadaJupyter.h"
 
 // Forward declaration of the builtins array
 static BuiltinFuncInfo builtins[];
@@ -460,6 +461,8 @@ static BuiltinFuncInfo builtins[] = {
     {"read-file", builtin_read_file},
     {"write-file", builtin_write_file},
     {"display", builtin_display},
+    {"display-markdown", builtin_display_markdown},
+    {"display-html", builtin_display_html},
     {"read-line", builtin_read_line},
 
     // Evaluation

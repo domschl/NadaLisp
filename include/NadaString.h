@@ -10,7 +10,7 @@ const char *utf8_index(const char *str, int index);
 int utf8_charlen(const char *str);
 
 // Convert a NadaValue to a string representation
-char *nada_value_to_string(NadaValue *val);
+// char *nada_value_to_string(NadaValue *val);
 
 // Exported string manipulation functions
 NadaValue *builtin_string_length(NadaValue *args, NadaEnv *env);

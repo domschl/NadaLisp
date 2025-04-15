@@ -4,6 +4,7 @@
 #include "NadaValue.h"
 #include "NadaError.h"
 #include "NadaConfig.h"
+#include "NadaOutput.h"  // Add the new output header
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,17 +16,23 @@ static void error_handler(NadaErrorType type, const char *message, void *user_da
     // Print the error message
     if (!nada_is_global_silent_symbol_lookup()) {
         // Do NOT error out if we are in silent mode, used for testing handling of undefined symbols
-        fprintf(stderr, "Leak-Error-Handler: %s\n", message);
+        nada_write_format("Leak-Error-Handler: %s\n", message);
     } else {
-        printf("Suppressing lookup-error: %s\n", message);
+        nada_write_string("Suppressing lookup-error: ");
+        nada_write_string(message);
+        nada_write_string("\n");
     }
 }
 
 static NadaEnv *global_env = NULL;
 
 int main(int argc, char *argv[]) {
+    // Initialize output system
+    nada_output_init();
+
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <script_file>\n", argv[0]);
+        nada_write_format("Usage: %s <script_file>\n", argv[0]);
+        nada_output_cleanup();
         return 1;
     }
 
@@ -38,7 +45,7 @@ int main(int argc, char *argv[]) {
     // Load standard libraries
     nada_load_libraries(global_env);
 
-    printf("Running memory test on %s\n", argv[1]);
+    nada_write_format("Running memory test on %s\n", argv[1]);
 
     // nada_set_silent_symbol_lookup(1);  // Suppress symbol lookup errors
     //  Use the proper file loading function to handle multi-line expressions
@@ -47,8 +54,10 @@ int main(int argc, char *argv[]) {
 
     // Clean up
     nada_free(result);
-
     nada_cleanup_env(global_env);
+
+    // Clean up output system before exiting
+    nada_output_cleanup();
 
     return 0;
 }
