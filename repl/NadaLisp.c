@@ -30,8 +30,6 @@ void run_repl(void) {
     }
     buffer[0] = '\0';
 
-    int paren_balance = 0;
-    int in_string = 0;
     char prompt[32] = "nada> ";
 
     while (1) {
@@ -58,7 +56,7 @@ void run_repl(void) {
             add_history(line);
         }
 
-        // Check if buffer needs to be resized before appending
+        // Resize buffer if needed
         size_t current_len = strlen(buffer);
         size_t line_len = strlen(line);
         size_t required_size = current_len + line_len + 2;  // +2 for space and null terminator
@@ -86,32 +84,29 @@ void run_repl(void) {
         strcat(buffer, line);
         strcat(buffer, " ");  // Add space for readability
 
-        // Count parentheses and track strings
-        for (char *p = line; *p; p++) {
-            if (*p == '"') in_string = !in_string;
-            if (!in_string) {
-                if (*p == '(')
-                    paren_balance++;
-                else if (*p == ')')
-                    paren_balance--;
-            }
-        }
-
         free(line);
+
+        // Check balance using the library function
+        int error_pos = -1;
+        int paren_balance = nada_validate_parentheses(buffer, &error_pos);
 
         // If balanced, process the expression
         if (paren_balance == 0) {
             if (strlen(buffer) > 0) {
                 NadaValue *result = nada_parse_eval_multi(buffer, global_env);
 
-                // Print the result using the new output system
+                // Print the result using the output system
                 nada_write_value(result);
                 nada_write_string("\n");
 
-                // No need for special handling in REPL - just continue after errors
                 nada_free(result);
             }
             buffer[0] = '\0';  // Reset buffer but keep allocated memory
+            strcpy(prompt, "nada> ");
+        } else if (paren_balance < 0) {
+            // Unbalanced closing parenthesis - syntax error
+            nada_write_format("Error: Unexpected closing bracket at position %d\n", error_pos);
+            buffer[0] = '\0';  // Reset buffer
             strcpy(prompt, "nada> ");
         } else {
             // Change prompt to show we're awaiting more input
