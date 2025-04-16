@@ -4,17 +4,10 @@ NadaLisp Jupyter Kernel - Implementation
 """
 import sys
 import json
-import re
-import ctypes
-import tempfile
-import threading
-import time
 import traceback
-import io
 import os
-from contextlib import redirect_stdout
 from ipykernel.kernelbase import Kernel
-from ctypes import cdll, CDLL, c_void_p, c_int, c_char_p, c_buffer
+from ctypes import CDLL, c_void_p, c_int, c_char_p
 
 # The Kernel base class already provides a self.log logger
 
@@ -157,7 +150,7 @@ class NadaKernel(Kernel):
         # Add these function prototypes
         self.lib.nada_jupyter_get_output_type.argtypes = []
         self.lib.nada_jupyter_get_output_type.restype = c_int
-        
+
         self.log.info("Function prototypes defined successfully")
         
     def _init_nada_env(self):
@@ -192,222 +185,83 @@ class NadaKernel(Kernel):
             }
         
         try:
-            # Split code into separate expressions
-            expressions = self.split_expressions(code)
-            self.log.info(f"Split code into {len(expressions)} expressions")
+            # Convert Python string to C string
+            c_code = code.encode('utf-8')
+            result_ptr = None
+            error_occurred = False
+            output = ""
             
-            # Execute each expression and keep only the final result
-            final_result = None
-
-            for idx, expr in enumerate(expressions):
-                self.log.info(f"Executing expression {idx+1}/{len(expressions)}: {expr}")
+            # Clear the Jupyter output buffer before evaluation
+            self.lib.nada_jupyter_clear_buffer()
+            
+            # Parse and evaluate all input code at once
+            self.log.info(f"Calling nada_parse_eval_multi for all expressions")
+            value_ptr = self.lib.nada_parse_eval_multi(c_code, self.env)
+            self.log.info(f"Result pointer: {value_ptr}")
+            
+            # Get any output captured during evaluation
+            output_buffer = self.lib.nada_jupyter_get_buffer()
+            if output_buffer:
+                output = output_buffer.decode('utf-8', errors='replace')
+                self.log.info(f"Output from evaluation: {output}")
+            
+            # Convert the result to a string
+            if value_ptr:
+                result_str = self.lib.nada_value_to_string(value_ptr).decode('utf-8', errors='replace')
+                self.lib.nada_free(value_ptr)  # Free the NadaValue
+            else:
+                result_str = "nil"
                 
-                # Convert Python string to C string
-                c_code = expr.encode('utf-8')
-                
-                # Use a thread-based timeout instead of signals
-                result_ptr = [None]
-                error = [None]
-                
-                def evaluation_thread():
-                    try:
-                        # Clear the Jupyter output buffer before evaluation
-                        self.lib.nada_jupyter_clear_buffer()
-                        
-                        try:
-                            # Parse and evaluate the input code
-                            self.log.info(f"Calling nada_parse_eval_multi for: {expr}")
-                            value_ptr = self.lib.nada_parse_eval_multi(c_code, self.env)
-                            self.log.info(f"Result pointer: {value_ptr}")
-                            
-                            # Check if it's an error
-                            if value_ptr:
-                                self.lib.nada_is_error.argtypes = [c_void_p]
-                                self.lib.nada_is_error.restype = c_int
-                                
-                                if self.lib.nada_is_error(value_ptr):
-                                    # Get the error message
-                                    string_ptr = self.lib.nada_value_to_string(value_ptr)
-                                    error_msg = ctypes.string_at(string_ptr).decode('utf-8')
-                                    
-                                    # Free resources
-                                    if hasattr(self.lib, 'nada_free_string'):
-                                        self.lib.nada_free_string(string_ptr)
-                                    self.lib.nada_free(value_ptr)
-                                    
-                                    # Store error
-                                    error[0] = RuntimeError(error_msg)
-                                    return
-                                
-                            # Get captured output from buffer
-                            output_ptr = self.lib.nada_jupyter_get_buffer()
-                            if output_ptr:
-                                output_text = ctypes.string_at(output_ptr).decode('utf-8')
-                                
-                                # Get the output type
-                                output_type = self.lib.nada_jupyter_get_output_type()
-                                
-                                # Send captured output to frontend with appropriate MIME type
-                                if output_text:
-                                    if output_type == 1:  # NADA_OUTPUT_MARKDOWN
-                                        self.send_response(self.iopub_socket, 'display_data', {
-                                            'data': {
-                                                'text/markdown': output_text
-                                            },
-                                            'metadata': {}
-                                        })
-                                    elif output_type == 2:  # NADA_OUTPUT_HTML
-                                        self.send_response(self.iopub_socket, 'display_data', {
-                                            'data': {
-                                                'text/html': output_text
-                                            },
-                                            'metadata': {}
-                                        })
-                                    else:  # Default to plain text
-                                        self.send_response(self.iopub_socket, 'stream', {
-                                            'name': 'stdout',
-                                            'text': output_text
-                                        })
-                            
-                            # Convert result to string
-                            if value_ptr:
-                                string_ptr = self.lib.nada_value_to_string(value_ptr)
-                                if string_ptr:
-                                    result_ptr[0] = ctypes.string_at(string_ptr).decode('utf-8')
-                                    self.log.info(f"Got result: {result_ptr[0]}")
-                                    
-                                    # Free the string if needed
-                                    if hasattr(self.lib, 'nada_free_string'):
-                                        self.lib.nada_free_string(string_ptr)
-                                
-                                # Free the result value
-                                self.lib.nada_free(value_ptr)
-                            
-                        except Exception as e:
-                            error[0] = e
-                            self.log.error(f"Exception in evaluation: {str(e)}")
-                            self.log.error(traceback.format_exc())
-                            
-                    except Exception as e:
-                        error[0] = e
-                        self.log.error(f"Exception in evaluation thread: {str(e)}")
-                        self.log.error(traceback.format_exc())
-                
-                # Start the evaluation thread...
-                thread = threading.Thread(target=evaluation_thread)
-                thread.daemon = True
-                thread.start()
-                
-                # Wait for the thread to finish with timeout
-                timeout_seconds = 10
-                thread.join(timeout_seconds)
-                
-                # Check if the thread is still alive (timeout occurred)
-                if thread.is_alive():
-                    error_content = {
-                        'ename': 'Timeout Error',
-                        'evalue': f"NadaLisp evaluation timed out after {timeout_seconds} seconds",
-                        'traceback': [f"Execution timed out after {timeout_seconds} seconds. The NadaLisp interpreter may be stuck."],
-                    }
-                    self.log.error(f"Timeout after {timeout_seconds} seconds")
-                    self.send_response(self.iopub_socket, 'error', error_content)
-                    return {
-                        'status': 'error',
-                        'execution_count': self.execution_count,
-                        'ename': 'Timeout Error', 
-                        'evalue': f"Execution timed out after {timeout_seconds} seconds",
-                        'traceback': [f"The NadaLisp interpreter may be stuck or the C library may have crashed"],
-                    }
-                
-                # Check if there was an error in the thread
-                if error[0] is not None:
-                    error_content = {
-                        'ename': type(error[0]).__name__,
-                        'evalue': str(error[0]),
-                        'traceback': [str(error[0])],
-                    }
-                    self.send_response(self.iopub_socket, 'error', error_content)
-                    return {
-                        'status': 'error',
-                        'execution_count': self.execution_count,
-                        'ename': type(error[0]).__name__,
-                        'evalue': str(error[0]),
-                        'traceback': [str(error[0])],
-                    }
-                
-            # Return the final result...
-            self.log.info(f"Processing result_ptr: {result_ptr[0]}")
-            if result_ptr[0]:
-                if not silent:
-                    stream_content = {'name': 'stdout', 'text': str(result_ptr[0])}
-                    self.send_response(self.iopub_socket, 'stream', stream_content)
+            # Prepare the response payload
+            payload = [{
+                'source': 'execute_result',
+                'data': {
+                    'text/plain': result_str
+                },
+                'metadata': {},
+                'execution_count': self.execution_count,
+            }]
+            
+            # Try to add JSON representation if possible
+            try:
+                # Only attempt JSON parsing if the result looks like it might be JSON
+                if (result_str.startswith('{') and result_str.endswith('}')) or \
+                   (result_str.startswith('[') and result_str.endswith(']')):
+                    payload[0]['data']['application/vnd.nada+json'] = json.loads(result_str)
+            except json.JSONDecodeError:
+                # If JSON parsing fails, just use the text representation
+                self.log.info(f"Result string is not valid JSON: {result_str}")
+            
+            # Handle errors if any
+            if error_occurred:
+                self.log.error(f"Error during execution: {output}")
+                self.log.error(traceback.format_exc())
+                self.send_response(self.iopub_socket, 'stream', {
+                    'name': 'stderr',
+                    'text': output
+                })
+            else:
+                # Send the output to the client
+                self.send_response(self.iopub_socket, 'execute_result', payload[0])
                 
             return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
-                'payload': [],
+                'payload': payload,
                 'user_expressions': {},
             }
-            
+        
         except Exception as e:
-            self.log.error(f"Error in do_execute: {str(e)}")
+            self.log.error(f"Exception in do_execute: {str(e)}")
             self.log.error(traceback.format_exc())
-            error_content = {
-                'ename': type(e).__name__,
-                'evalue': str(e),
-                'traceback': traceback.format_exc().split('\n'),
-            }
-            self.send_response(self.iopub_socket, 'error', error_content)
             return {
                 'status': 'error',
                 'execution_count': self.execution_count,
-                'ename': type(e).__name__,
+                'ename': 'Exception',
                 'evalue': str(e),
-                'traceback': traceback.format_exc().split('\n'),
+                'traceback': traceback.format_exc().splitlines(),
             }
 
-    def split_expressions(self, code):
-        """Split code into separate scheme expressions based on balanced parentheses"""
-        expressions = []
-        current_expr = ""
-        paren_count = 0
-        in_string = False
-        
-        # Skip initial whitespace
-        code = code.strip()
-        if not code:
-            return []
-        
-        for i, char in enumerate(code):
-            # Handle string literals
-            if char == '"' and (i == 0 or code[i-1] != '\\'):
-                in_string = not in_string
-                
-            if not in_string:
-                if char == '(':
-                    paren_count += 1
-                elif char == ')':
-                    paren_count -= 1
-                    
-            current_expr += char
-            
-            # When we've found a complete top-level expression
-            if paren_count == 0 and current_expr.strip() and not in_string:
-                # If expression starts with (, we have a complete S-expression
-                if current_expr.strip()[0] == '(':
-                    expressions.append(current_expr.strip())
-                    current_expr = ""
-                # Otherwise, it might be a non-parenthesized expression
-                elif i == len(code) - 1 or code[i+1].isspace():
-                    expressions.append(current_expr.strip())
-                    current_expr = ""
-        
-        # Add any remaining expression
-        if current_expr.strip():
-            expressions.append(current_expr.strip())
-            
-        return expressions
-    
     def do_shutdown(self, restart):
         """Clean up resources when the kernel is shut down"""
         if hasattr(self, 'env') and self.env:
