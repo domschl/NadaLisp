@@ -51,9 +51,11 @@ static int next_token(Tokenizer *t) {
     }
 
     // Rest of the function remains the same
-    // Special characters (parentheses and quote)
+    // Special characters (parentheses, square brackets, and quote)
     if (t->input[t->position] == '(' ||
         t->input[t->position] == ')' ||
+        t->input[t->position] == '[' ||
+        t->input[t->position] == ']' ||
         t->input[t->position] == '\'') {
         t->token[0] = t->input[t->position++];
         t->token[1] = '\0';
@@ -86,8 +88,10 @@ static int next_token(Tokenizer *t) {
     size_t i = 0;
     while (t->input[t->position] != '\0' &&
            !isspace(t->input[t->position]) &&
-           t->input[t->position] != '(' &&  // Fixed the syntax error
-           t->input[t->position] != ')') {
+           t->input[t->position] != '(' &&
+           t->input[t->position] != ')' &&
+           t->input[t->position] != '[' &&  // Add square bracket checks
+           t->input[t->position] != ']') {  // for token termination
         t->token[i++] = t->input[t->position++];
     }
     t->token[i] = '\0';
@@ -162,10 +166,10 @@ NadaValue *parse_expr(Tokenizer *t) {
     }
 
     // Handle regular expressions
-    if (strcmp(t->token, "(") == 0) {
+    if (strcmp(t->token, "(") == 0 || strcmp(t->token, "[") == 0) {
         // Move to the first token inside the list
         if (!get_next_token(t)) {
-            fprintf(stderr, "Error: unterminated list, missing closing parenthesis\n");
+            fprintf(stderr, "Error: unterminated list, missing closing parenthesis/bracket\n");
             return nada_create_nil();
         }
 
@@ -180,8 +184,8 @@ NadaValue *parse_expr(Tokenizer *t) {
 // Parse a list (sequence of expressions inside parentheses)
 static NadaValue *parse_list(Tokenizer *t) {
     // Check for empty list
-    if (strcmp(t->token, ")") == 0) {
-        get_next_token(t);  // Consume closing parenthesis
+    if (strcmp(t->token, ")") == 0 || strcmp(t->token, "]") == 0) {
+        get_next_token(t);  // Consume closing parenthesis/bracket
         return nada_create_nil();
     }
 
@@ -235,12 +239,14 @@ static NadaValue *parse_list(Tokenizer *t) {
     return result;
 }
 
-// Count and validate parentheses in a string
-static int validate_parentheses(const char *input, int *error_pos) {
+// Rename from static to public:
+int nada_validate_parentheses(const char *input, int *error_pos) {
     int balance = 0;
     int in_string = 0;
     int in_comment = 0;
     int i = 0;
+    char stack[1000];  // Simple stack to track bracket types
+    int stack_pos = 0;
 
     while (input[i] != '\0') {
         // Handle comments
@@ -259,15 +265,33 @@ static int validate_parentheses(const char *input, int *error_pos) {
 
             // Only count parentheses outside of strings
             if (!in_string) {
-                if (input[i] == '(') {
+                if (input[i] == '(' || input[i] == '[') {
                     balance++;
-                } else if (input[i] == ')') {
+                    // Push the bracket type onto the stack
+                    if (stack_pos < 999) {
+                        stack[stack_pos++] = input[i];
+                    }
+                } else if (input[i] == ')' || input[i] == ']') {
                     balance--;
 
-                    // Detect too many closing parentheses
+                    // Detect too many closing brackets
                     if (balance < 0) {
                         if (error_pos) *error_pos = i;
                         return -1;
+                    }
+
+                    // Validate matching bracket types
+                    if (stack_pos > 0) {
+                        stack_pos--;
+                        char opening = stack[stack_pos];
+                        char closing = input[i];
+
+                        // Check for mismatched brackets
+                        if ((opening == '(' && closing != ')') ||
+                            (opening == '[' && closing != ']')) {
+                            if (error_pos) *error_pos = i;
+                            return -2;  // New error code for mismatched bracket types
+                        }
                     }
                 }
             }
@@ -285,9 +309,8 @@ static int validate_parentheses(const char *input, int *error_pos) {
 
 // Parse from a string
 NadaValue *nada_parse(const char *input) {
-    // First validate parentheses
     int error_pos = -1;
-    int paren_balance = validate_parentheses(input, &error_pos);
+    int paren_balance = nada_validate_parentheses(input, &error_pos);
 
     if (paren_balance != 0) {
         fprintf(stderr, "Input: %s\n", input);
@@ -334,9 +357,8 @@ NadaValue *nada_parse(const char *input) {
 
 // Parse multiple expressions from a string
 NadaValue *nada_parse_multi(const char *input) {
-    // First validate parentheses
     int error_pos = -1;
-    int paren_balance = validate_parentheses(input, &error_pos);
+    int paren_balance = nada_validate_parentheses(input, &error_pos);
 
     if (paren_balance != 0) {
         fprintf(stderr, "Input: %s\n", input);
@@ -399,7 +421,7 @@ NadaValue *nada_parse_multi(const char *input) {
 NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
     // First validate parentheses
     int error_pos = -1;
-    int paren_balance = validate_parentheses(input, &error_pos);
+    int paren_balance = nada_validate_parentheses(input, &error_pos);
 
     if (paren_balance != 0) {
         // Error handling code (unchanged)
@@ -427,6 +449,7 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
     NadaValue *expr = NULL;
     NadaValue *last_valid_result = NULL;
 
+    // Continue until we've processed all input
     while (t.token[0] != '\0') {
         // Parse the next expression
         expr = parse_expr(&t);
@@ -441,7 +464,6 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
 
         // Check if result is an error
         if (nada_is_error(result)) {
-            // Error handling code (unchanged)
             nada_free(expr);
             if (last_valid_result != NULL) {
                 nada_free(last_valid_result);
@@ -458,46 +480,10 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
         }
         last_valid_result = nada_deep_copy(result);
 
-        // Skip whitespace
-        skip_whitespace(&t);
-
-        // If we've reached the end of input, we're done
-        if (t.input[t.position] == '\0') {
+        // Token handling is already done by parse_expr - no need to skip whitespace again
+        // If t.token is empty, we're done parsing
+        if (t.token[0] == '\0') {
             break;
-        }
-
-        // Check for comments and handle them properly
-        if (t.input[t.position] == ';') {
-            // Skip to end of line or end of input
-            while (t.input[t.position] != '\0' && t.input[t.position] != '\n') {
-                t.position++;
-            }
-
-            // If we've reached end of input after a comment, we're done
-            if (t.input[t.position] == '\0') {
-                break;
-            }
-
-            // Skip newline and continue
-            if (t.input[t.position] == '\n') {
-                t.position++;
-            }
-
-            // Skip any more whitespace
-            skip_whitespace(&t);
-
-            // If we're at the end of input now, we're done
-            if (t.input[t.position] == '\0') {
-                break;
-            }
-        }
-
-        // Only try to get the next token if we haven't already reached the end
-        // and we're not currently at a comment
-        if (t.input[t.position] != '\0' && t.input[t.position] != ';') {
-            if (!get_next_token(&t)) {
-                break;  // No more tokens
-            }
         }
     }
 

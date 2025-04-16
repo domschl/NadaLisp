@@ -14,6 +14,7 @@ typedef struct {
 // Tokenizer functions
 void tokenizer_init(Tokenizer *t, const char *input);
 int get_next_token(Tokenizer *t);
+int nada_validate_parentheses(const char *input, int *error_pos);
 
 // Parse a string into a NadaValue expression
 NadaValue *nada_parse(const char *input);
