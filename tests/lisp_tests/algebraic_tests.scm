@@ -148,3 +148,37 @@
 
 (define-test "simplify-nested-expression"
   (assert-equal (simplify '(+ (* 2 3) (* x 0))) 6))
+
+;; Test expansion functionality
+
+(define-test "expand-distribution-right"
+  (assert-equal (expand '(* 2 (+ x y)))
+                '(+ (* 2 x) (* 2 y))))
+
+(define-test "expand-distribution-left"
+  (assert-equal (expand '(* (+ x y) 2))
+                '(+ (* x 2) (* y 2))))
+
+(define-test "expand-nested-expression"
+  (assert-equal (expand '(* 2 (+ x (+ y z))))
+                '(+ (* 2 x) (* 2 y) (* 2 z))))
+
+;; Test collection of like terms
+
+(define-test "collect-like-terms-simple"
+  (assert-equal (collect-like-terms '(+ (* 2 x) (* 3 x)))
+                '(* 5 x)))
+
+(define-test "collect-like-terms-mixed"
+  (assert-equal (collect-like-terms '(+ (* 2 x) (* 3 y) (* 4 x)))
+                '(+ (* 6 x) (* 3 y))))
+
+(define-test "collect-like-terms-with-constants"
+  (assert-equal (collect-like-terms '(+ (* 2 x) 3 (* 4 x) 5))
+                '(+ (* 6 x) 8)))
+
+;; Test integration of expansion and collection
+
+(define-test "full-simplify-distribution-and-collection"
+  (assert-equal (full-simplify '(* 2 (+ x (* 3 x))))
+                '(* 8 x)))
