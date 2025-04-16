@@ -449,6 +449,7 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
     NadaValue *expr = NULL;
     NadaValue *last_valid_result = NULL;
 
+    // Continue until we've processed all input
     while (t.token[0] != '\0') {
         // Parse the next expression
         expr = parse_expr(&t);
@@ -463,7 +464,6 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
 
         // Check if result is an error
         if (nada_is_error(result)) {
-            // Error handling code (unchanged)
             nada_free(expr);
             if (last_valid_result != NULL) {
                 nada_free(last_valid_result);
@@ -480,46 +480,10 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
         }
         last_valid_result = nada_deep_copy(result);
 
-        // Skip whitespace
-        skip_whitespace(&t);
-
-        // If we've reached the end of input, we're done
-        if (t.input[t.position] == '\0') {
+        // Token handling is already done by parse_expr - no need to skip whitespace again
+        // If t.token is empty, we're done parsing
+        if (t.token[0] == '\0') {
             break;
-        }
-
-        // Check for comments and handle them properly
-        if (t.input[t.position] == ';') {
-            // Skip to end of line or end of input
-            while (t.input[t.position] != '\0' && t.input[t.position] != '\n') {
-                t.position++;
-            }
-
-            // If we've reached end of input after a comment, we're done
-            if (t.input[t.position] == '\0') {
-                break;
-            }
-
-            // Skip newline and continue
-            if (t.input[t.position] == '\n') {
-                t.position++;
-            }
-
-            // Skip any more whitespace
-            skip_whitespace(&t);
-
-            // If we're at the end of input now, we're done
-            if (t.input[t.position] == '\0') {
-                break;
-            }
-        }
-
-        // Only try to get the next token if we haven't already reached the end
-        // and we're not currently at a comment
-        if (t.input[t.position] != '\0' && t.input[t.position] != ';') {
-            if (!get_next_token(&t)) {
-                break;  // No more tokens
-            }
         }
     }
 
