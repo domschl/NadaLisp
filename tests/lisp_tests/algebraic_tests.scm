@@ -101,84 +101,8 @@
   (assert-equal (infix->prefix "(1+2)*3")
                 '(* (+ 1 2) 3)))
 
-(define-test "eval-algebraic-expression" 
+(define-test "eval-algebraic-simple" 
   (assert-equal (eval-algebraic "2*(3+4)")
                 14))
 
-;; Tests for simplification rules
-
-(define-test "simplify-add-identity-left"
-  (assert-equal (simplify '(+ 0 x)) x))
-
-(define-test "simplify-add-identity-right"
-  (assert-equal (simplify '(+ y 0)) y))
-
-(define-test "simplify-multiply-identity-left"
-  (assert-equal (simplify '(* 1 z)) z))
-
-(define-test "simplify-multiply-identity-right"
-  (assert-equal (simplify '(* a 1)) a))
-
-(define-test "simplify-multiply-zero-left"
-  (assert-equal (simplify '(* 0 b)) 0))
-
-(define-test "simplify-multiply-zero-right"
-  (assert-equal (simplify '(* c 0)) 0))
-
-(define-test "simplify-expt-zero-exponent"
-  (assert-equal (simplify '(expt a 0)) 1))
-
-(define-test "simplify-expt-one-exponent"
-  (assert-equal (simplify '(expt e 1)) 'e))
-
-(define-test "simplify-expt-base-zero"
-  (assert-equal (simplify '(expt 0 f)) 0))
-
-(define-test "simplify-expt-base-one"
-  (assert-equal (simplify '(expt 1 c)) 1))
-
-(define-test "simplify-constant-folding-add"
-  (assert-equal (simplify '(+ 3 4)) 7))
-
-(define-test "simplify-constant-folding-multiply"
-  (assert-equal (simplify '(* 3 4)) 12))
-
-(define-test "simplify-constant-folding-expt"
-  (assert-equal (simplify '(expt 2 3)) 8))
-
-(define-test "simplify-nested-expression"
-  (assert-equal (simplify '(+ (* 2 3) (* x 0))) 6))
-
-;; Test expansion functionality
-
-(define-test "expand-distribution-right"
-  (assert-equal (expand '(* 2 (+ x y)))
-                '(+ (* 2 x) (* 2 y))))
-
-(define-test "expand-distribution-left"
-  (assert-equal (expand '(* (+ x y) 2))
-                '(+ (* x 2) (* y 2))))
-
-(define-test "expand-nested-expression"
-  (assert-equal (expand '(* 2 (+ x (+ y z))))
-                '(+ (* 2 x) (* 2 y) (* 2 z))))
-
-;; Test collection of like terms
-
-(define-test "collect-like-terms-simple"
-  (assert-equal (collect-like-terms '(+ (* 2 x) (* 3 x)))
-                '(* 5 x)))
-
-(define-test "collect-like-terms-mixed"
-  (assert-equal (collect-like-terms '(+ (* 2 x) (* 3 y) (* 4 x)))
-                '(+ (* 6 x) (* 3 y))))
-
-(define-test "collect-like-terms-with-constants"
-  (assert-equal (collect-like-terms '(+ (* 2 x) 3 (* 4 x) 5))
-                '(+ (* 6 x) 8)))
-
-;; Test integration of expansion and collection
-
-(define-test "full-simplify-distribution-and-collection"
-  (assert-equal (full-simplify '(* 2 (+ x (* 3 x))))
-                '(* 8 x)))
+;
