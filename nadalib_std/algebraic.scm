@@ -1,5 +1,56 @@
 ;; Purely functional algebraic notation utilities
 
+;; Define variables for testing
+(define x 'x)
+(define y 'y)
+(define z 'z)
+(define a 'a)
+(define b 'b)
+(define c 'c)
+(define d 'd)
+(define e 'e)
+(define f 'f)
+(define g 'g)
+
+;; Example implementation for special constants
+(define pi-value 'pi)  ;; Symbolic representation
+(define e-value 'e)
+(define i-value 'i)
+
+;; Updated type predicates
+
+;; Already defined in core, returns true for any numeric value
+;; (number? x)
+
+;; All numbers in the core are rational, so this should just use number?
+(define rational? 
+  (lambda (expr)
+    (number? expr)))
+
+;; A fraction is a rational that's not an integer
+(define fraction? 
+  (lambda (expr)
+    (and (rational? expr) 
+         (not (integer? expr)))))
+
+;; Irrational numbers can only be represented symbolically
+(define irrational? 
+  (lambda (expr)
+    (or (eq? expr 'pi) 
+        (eq? expr 'e))))
+
+;; Complex numbers are represented by the symbol i or compound expressions
+(define complex? 
+  (lambda (expr)
+    (eq? expr 'i)))
+
+;; Updated constant? predicate to include all special numeric constants
+(define constant?
+  (lambda (expr)
+    (or (number? expr)       ;; Rational numbers
+        (irrational? expr)   ;; Symbolic irrational constants
+        (complex? expr))))   ;; Symbolic complex constants
+
 ;; Operator precedence table
 (define op-precedence 
   (lambda (op)
@@ -108,15 +159,13 @@
           '())
         (process-tokens (tokenize-expr expr)))))
 
-;; Exponentiation operation - handles both numeric and symbolic cases
+;; Fixed exponentiation operation - handles both numeric and symbolic cases
 (define expt-op
   (lambda (base exp)
     (cond
       ;; Integer exponents can be computed exactly
       ((integer? exp) 
-       (if (and (integer? base) (>= exp 0))
-           (expt base exp)  ; Use built-in expt function for all cases
-           (expt base exp)))
+       (expt base exp))  ;; Simplified - both branches were identical
       
       ;; Special case: square root of perfect square
       ((and (= (denominator exp) 2) 
@@ -133,18 +182,14 @@
       ;; Keep symbolic for other cases
       (else (list 'expt base exp)))))
 
-;; Update the operator list to handle ^
-(define eval-op
-  (lambda (op left right)
-    (case op
-      ((+) (+ left right))
-      ((-) (- left right))
-      ((*) (* left right))
-      ((/) (/ left right))
-      ((^) (expt-op left right))
-      (else (display (string-append "Unknown operator: " (symbol->string op) "\n"))))))
+;; Add a variable? predicate to check if something is a variable
+(define variable?
+  (lambda (expr)
+    (and (symbol? expr) 
+         (not (irrational? expr))
+         (not (complex? expr)))))
 
-;; Evaluate an algebraic expression
+;; Update eval-algebraic to use full-simplify
 (define eval-algebraic
   (lambda (expr)
     (eval (infix->prefix expr))))

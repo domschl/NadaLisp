@@ -68,3 +68,30 @@
   (lambda (item lst)
     (if (member item lst) #t #f)))
     
+;; Access functions for nested lists
+(define caar
+  (lambda (lst)
+    (car (car lst))))
+
+(define cdar
+  (lambda (lst)
+    (cdr (car lst))))
+
+(define cddr
+  (lambda (lst)
+    (cdr (cdr lst))))
+
+;; Move fold-left from algebraic.scm to here
+(define fold-left
+  (lambda (f init lst)
+    (if (null? lst)
+        init
+        (fold-left f (f init (car lst)) (cdr lst)))))
+
+;; Move assoc from algebraic.scm to here
+(define assoc
+  (lambda (key alist)
+    (cond
+      ((null? alist) #f)
+      ((equal? key (caar alist)) (car alist))
+      (else (assoc key (cdr alist))))))
