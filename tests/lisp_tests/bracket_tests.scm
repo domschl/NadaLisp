@@ -43,3 +43,9 @@
 
 ;; Map with square brackets
 (define-test "bracket-map" (assert-equal (map [lambda (x) [* x x]] '(1 2 3)) '(1 4 9)))
+
+;; Multi-line test
+(define ml-1 1) (define ml-2 2) (define ml-3 3)
+(define-test "multi-line-define"
+  (assert-equal (+ ml-1 ml-2 ml-3) 6))
+  
