@@ -159,15 +159,13 @@
           '())
         (process-tokens (tokenize-expr expr)))))
 
-;; Exponentiation operation - handles both numeric and symbolic cases
+;; Fixed exponentiation operation - handles both numeric and symbolic cases
 (define expt-op
   (lambda (base exp)
     (cond
       ;; Integer exponents can be computed exactly
       ((integer? exp) 
-       (if (and (integer? base) (>= exp 0))
-           (expt base exp)  ; Use built-in expt function for all cases
-           (expt base exp)))
+       (expt base exp))  ;; Simplified - both branches were identical
       
       ;; Special case: square root of perfect square
       ((and (= (denominator exp) 2) 
@@ -218,7 +216,7 @@
        (list 'quote expr))
       (else expr))))
 
-;; Modified expand-step function that prevents evaluation
+;; Modified expand-step function with balanced parentheses
 (define expand-step
   (lambda (expr)
     (cond
@@ -233,12 +231,13 @@
             (eq? (car (caddr expr)) '+))
        (let ((factor (expand-step (cadr expr)))
              (sum-terms (cdr (caddr expr))))
-         ;; Build a list structure directly without evaluation
-         (cons '+ 
-               (map (lambda (term)
-                      ;; Create the multiplication structure
-                      (list '* factor (expand-step term)))
-                    sum-terms))))
+         ;; Use apply list to construct proper flat list structure
+         (apply list 
+                (append 
+                 (list '+)
+                 (map (lambda (term)
+                        (list '* factor (expand-step term)))
+                      sum-terms)))))
       
       ;; Distribution pattern: (a + b) * c -> (a * c) + (b * c)
       ((and (list? expr) 
@@ -248,12 +247,13 @@
             (eq? (car (cadr expr)) '+))
        (let ((sum-terms (cdr (cadr expr)))
              (factor (expand-step (caddr expr))))
-         ;; Build a list structure directly without evaluation
-         (cons '+ 
-               (map (lambda (term)
-                      ;; Create the multiplication structure
-                      (list '* (expand-step term) factor))
-                    sum-terms))))
+         ;; Use apply list to construct proper flat list structure
+         (apply list
+                (append
+                 (list '+)
+                 (map (lambda (term)
+                        (list '* (expand-step term) factor))
+                      sum-terms)))))
       
       ;; Recursive case for other expressions
       ((list? expr)
@@ -406,53 +406,53 @@
 
 ;; Modular simplification system
 
-;; Main simplify function - entry point
+;; Main simplify function with square bracket notation for improved readability
 (define simplify
   (lambda (expr)
     ;; Special direct pattern matching for nested zero multiplication
     (define direct-zero-mult?
       (lambda (e)
-        (and (list? e) 
+        [and (list? e) 
              (= (length e) 3)
              (eq? (car e) '*)
-             (or (and (number? (cadr e)) (= (cadr e) 0))
-                 (and (number? (caddr e)) (= (caddr e) 0))))))
+             [or (and (number? (cadr e)) (= (cadr e) 0))
+                 (and (number? (caddr e)) (= (caddr e) 0))]]))
     
-    (cond
+    [cond
       ;; Base cases
-      ((atomic? expr) expr)
+      [(atomic? expr) expr]
       
       ;; Direct pattern matching for zero multiplication
-      ((direct-zero-mult? expr) 0)
+      [(direct-zero-mult? expr) 0]
       
       ;; Addition with zero multiplication inside
-      ((and (list? expr) 
+      [(and (list? expr) 
             (eq? (car expr) '+)
             (= (length expr) 3)
-            (or (direct-zero-mult? (cadr expr))
-                (direct-zero-mult? (caddr expr))))
-       (let ((left (if (direct-zero-mult? (cadr expr)) 
+            [or (direct-zero-mult? (cadr expr))
+                (direct-zero-mult? (caddr expr))])
+       [let [(left (if (direct-zero-mult? (cadr expr)) 
                       0 
                       (simplify (cadr expr))))
              (right (if (direct-zero-mult? (caddr expr))
                        0
-                       (simplify (caddr expr)))))
-         (simplify (list '+ left right))))
+                       (simplify (caddr expr))))]
+         (simplify (list '+ left right))]]
       
       ;; Regular simplification for other expressions
-      ((and (list? expr) (not (null? expr)))
-       (let ((op (car expr))
-             (simplified-args (map simplify (cdr expr))))
-         (cond
-           ((eq? op '+) (simplify-addition simplified-args))
-           ((eq? op '*) (simplify-multiplication simplified-args))
-           ((eq? op 'expt) (simplify-exponentiation simplified-args))
-           ((eq? op '-) (simplify-subtraction simplified-args))
-           ((eq? op '/) (simplify-division simplified-args))
-           (else (cons op simplified-args)))))
+      [(and (list? expr) (not (null? expr)))
+       [let [(op (car expr))
+             (simplified-args (map simplify (cdr expr)))]
+         [cond
+           [(eq? op '+) (simplify-addition simplified-args)]
+           [(eq? op '*) (simplify-multiplication simplified-args)]
+           [(eq? op 'expt) (simplify-exponentiation simplified-args)]
+           [(eq? op '-) (simplify-subtraction simplified-args)]
+           [(eq? op '/) (simplify-division simplified-args)]
+           [else (cons op simplified-args)]]]]
       
       ;; Default case
-      (else expr))))
+      [else expr]]))
 
 ;; Helper predicates
 (define atomic?
@@ -567,4 +567,4 @@
 ;; Update eval-algebraic to use full-simplify
 (define eval-algebraic
   (lambda (expr)
-    (eval (full-simplify (infix->prefix expr)))))
+    (eval (full-simplify (infix->prefix expr))))))
