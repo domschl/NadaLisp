@@ -319,29 +319,34 @@
 ;; Group terms by their variable part
 (define group-by-variable
   (lambda (terms)
-    (letrec ((helper 
+    (letrec ((helper
                (lambda (terms groups)
                  (if (null? terms)
                      groups
-                     (let* ((term (car terms))
-                            (parts (extract-parts term))
-                            (coef (car parts))
-                            (var (cadr parts))
-                            (existing (assoc var groups)))
-                       (if existing
-                           ;; Add to existing group
-                           (helper (cdr terms)
-                                  (map (lambda (g)
-                                         (if (equal? (car g) var)
-                                             (list var (+ (cadr g) coef))
-                                             g))
-                                       groups))
-                           ;; Create new group
-                           (helper (cdr terms)
-                                  (cons (list var coef) groups))))))))
-      (helper terms '()))))
+-                    (let* ((term (car terms))
+-                           (parts (extract-parts term))
+-                           (coef (car parts))
+-                           (var (cadr parts))
+-                           (existing (assoc var groups)))
++                    (let ((term (car terms)))
++                      (let ((parts (extract-parts term)))
++                        (let ((coef (car parts))
++                              (var (cadr parts)))
++                          (let ((existing (assoc var groups)))
+                        (if existing
+                            ;; Add to existing group
+                            (helper (cdr terms)
+                                    (map (lambda (g)
+                                           (if (equal? (car g) var)
+                                               (list var (+ (cadr g) coef))
+                                               g))
+                                         groups))
+                            ;; Create new group
+                            (helper (cdr terms)
+                                    (cons (list var coef) groups)))))))))))
+       (helper terms '()))))
 
-;; Simplified groups->expr function
+ ;; Simplified groups->expr function
 (define groups->expr
   (lambda (groups)
     (let ((terms (map (lambda (group)
