@@ -103,3 +103,44 @@
 (define-test "expt-large" (assert-equal (expt 2 10) 1024))
 (define-test "expt-fraction-base" (assert-equal (expt 1/2 3) 1/8))
 
+;; Tests for number components and factorization
+
+;; Numerator tests
+(define-test "numerator-int" (assert-equal (numerator 42) 42))
+(define-test "numerator-negative" (assert-equal (numerator -5) -5))
+(define-test "numerator-fraction" (assert-equal (numerator 3/4) 3))
+(define-test "numerator-zero" (assert-equal (numerator 0) 0))
+
+;; Denominator tests
+(define-test "denominator-int" (assert-equal (denominator 42) 1))
+(define-test "denominator-negative" (assert-equal (denominator -5) 1))
+(define-test "denominator-fraction" (assert-equal (denominator 3/4) 4))
+(define-test "denominator-zero" (assert-equal (denominator 0) 1))
+
+;; Sign tests
+(define-test "sign-positive" (assert-equal (sign 42) 1))
+(define-test "sign-negative" (assert-equal (sign -5) -1))
+(define-test "sign-zero" (assert-equal (sign 0) 1))
+(define-test "sign-fraction-pos" (assert-equal (sign 3/4) 1))
+(define-test "sign-fraction-neg" (assert-equal (sign -3/4) -1))
+
+;; Factor tests
+(define-test "factor-prime" (assert-equal (factor 13) '(13)))
+(define-test "factor-composite" (assert-equal (factor 12) '(2 2 3)))
+(define-test "factor-negative" (assert-equal (factor -15) '(-1 3 5)))
+(define-test "factor-big" (assert-equal (factor 36) '(2 2 3 3)))
+(define-test "factor-zero" (assert-equal (factor 0) '()))
+(define-test "factor-one" (assert-equal (factor 1) '()))
+(define-test "factor-negative-one" (assert-equal (factor -1) '(-1)))
+
+;; Helper function to check prime factorization
+(define check-factorization
+  (lambda (n factors)
+    (= n (apply * factors))))
+
+;; More complex factor test using the helper
+(define-test "factor-check-product" 
+  (let ((n 210)
+        (factors (factor 210)))
+    (assert-equal (check-factorization n factors) #t)))
+

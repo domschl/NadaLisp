@@ -1199,3 +1199,127 @@ static char *strip_leading_zeros(const char *num) {
 
     return strdup(p);
 }
+
+// Get the numerator as a string (caller must free)
+char *nada_num_get_numerator(const NadaNum *num) {
+    if (!num) return NULL;
+    return strdup(num->numerator);
+}
+
+// Get the denominator as a string (caller must free)
+char *nada_num_get_denominator(const NadaNum *num) {
+    if (!num) return NULL;
+    return strdup(num->denominator);
+}
+
+// Get the sign of the number (1 for positive, -1 for negative)
+int nada_num_get_sign(const NadaNum *num) {
+    if (!num) return 1;  // Default to positive
+    return num->sign;
+}
+
+// Helper function to check if a number is prime
+static bool is_prime(unsigned long n) {
+    if (n <= 1) return false;
+    if (n <= 3) return true;
+    if (n % 2 == 0 || n % 3 == 0) return false;
+
+    for (unsigned long i = 5; i * i <= n; i += 6) {
+        if (n % i == 0 || n % (i + 2) == 0)
+            return false;
+    }
+
+    return true;
+}
+
+// Helper function to find the next prime after n
+static unsigned long next_prime(unsigned long n) {
+    if (n < 2) return 2;
+
+    // Start with odd number higher than n
+    unsigned long candidate = (n % 2 == 0) ? n + 1 : n + 2;
+
+    while (!is_prime(candidate)) {
+        candidate += 2;
+    }
+
+    return candidate;
+}
+
+// Factor the numerator of an integer into prime factors
+// Returns array of NadaNum* (caller must free each element and the array)
+NadaNum **nada_num_factor_numerator(const NadaNum *num, size_t *count) {
+    if (!num || !count) return NULL;
+
+    *count = 0;
+
+    // Check if this is an integer
+    if (!nada_num_is_integer(num)) return NULL;
+
+    // Special cases: 0, 1, -1
+    if (nada_num_is_zero(num) ||
+        (strcmp(num->numerator, "1") == 0)) {
+        return NULL;  // No prime factors
+    }
+
+    // Convert numerator to unsigned long for factorization
+    char *end;
+    unsigned long n = strtoul(num->numerator, &end, 10);
+    if (*end != '\0') {
+        // Conversion failed or number too large
+        return NULL;
+    }
+
+    // Allocate an initial array (will resize as needed)
+    size_t capacity = 10;
+    NadaNum **factors = malloc(capacity * sizeof(NadaNum *));
+    if (!factors) return NULL;
+
+    // Find prime factors
+    unsigned long p = 2;
+
+    while (n > 1) {
+        if (n % p == 0) {
+            // p is a factor
+            if (*count >= capacity) {
+                // Need to resize
+                capacity *= 2;
+                NadaNum **new_factors = realloc(factors, capacity * sizeof(NadaNum *));
+                if (!new_factors) {
+                    // Free existing factors on error
+                    for (size_t i = 0; i < *count; i++) {
+                        nada_num_free(factors[i]);
+                    }
+                    free(factors);
+                    return NULL;
+                }
+                factors = new_factors;
+            }
+
+            // Add p to the factors list
+            factors[*count] = nada_num_from_int((int)p);
+            if (!factors[*count]) {
+                // Handle allocation error
+                for (size_t i = 0; i < *count; i++) {
+                    nada_num_free(factors[i]);
+                }
+                free(factors);
+                return NULL;
+            }
+
+            (*count)++;
+            n /= p;
+        } else {
+            // Move to next prime
+            p = next_prime(p);
+        }
+    }
+
+    // If no factors were found (shouldn't happen for valid inputs)
+    if (*count == 0) {
+        free(factors);
+        return NULL;
+    }
+
+    return factors;
+}

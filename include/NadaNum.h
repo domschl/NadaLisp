@@ -1,6 +1,7 @@
 #ifndef NADA_NUM_H
 #define NADA_NUM_H
 
+#include <stdlib.h>
 #include <stdbool.h>
 
 // Forward declaration of the rational number type
@@ -46,5 +47,13 @@ double nada_num_to_double(const NadaNum *num);
 
 // Parsing functions
 bool nada_is_valid_number_string(const char *str);
+
+// Number component access functions (NEW)
+char *nada_num_get_numerator(const NadaNum *num);
+char *nada_num_get_denominator(const NadaNum *num);
+int nada_num_get_sign(const NadaNum *num);
+
+// Number factorization (NEW)
+NadaNum **nada_num_factor_numerator(const NadaNum *num, size_t *count);
 
 #endif /* NADA_NUM_H */

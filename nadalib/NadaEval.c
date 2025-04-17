@@ -414,6 +414,10 @@ static BuiltinFuncInfo builtins[] = {
     {"modulo", builtin_modulo},  // Add modulo as alias
     {"remainder", builtin_remainder},
     {"expt", builtin_expt},
+    {"numerator", builtin_numerator},      // Add numerator function
+    {"denominator", builtin_denominator},  // Add denominator function
+    {"sign", builtin_sign},                // Add sign function
+    {"factor", builtin_factor},            // Add factor function
     {"define", builtin_define},
     {"lambda", builtin_lambda},
     {"<", builtin_less_than},

@@ -1,5 +1,5 @@
 #include <stdlib.h>
-// #include <string.h>
+#include <string.h>
 
 #include "NadaEval.h"
 // #include "NadaNum.h"
@@ -354,5 +354,216 @@ NadaValue *builtin_expt(NadaValue *args, NadaEnv *env) {
     nada_free(base);
     nada_free(exponent);
 
+    return result;
+}
+
+// Return the numerator of a rational number
+NadaValue *builtin_numerator(NadaValue *args, NadaEnv *env) {
+    // Check argument count
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "numerator requires exactly one argument");
+        return nada_create_nil();
+    }
+
+    // Evaluate the argument
+    NadaValue *arg = nada_eval(nada_car(args), env);
+    if (arg->type != NADA_NUM) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "numerator requires a number argument");
+        nada_free(arg);
+        return nada_create_nil();
+    }
+
+    // Get the numerator as a string
+    char *num_str = nada_num_get_numerator(arg->data.number);
+    if (!num_str) {
+        nada_free(arg);
+        return nada_create_nil();
+    }
+
+    // Create a new number with the numerator and denominator 1
+    NadaNum *num = nada_num_from_fraction(num_str, "1");
+    free(num_str);
+
+    // Get the sign from the original number
+    int sign = nada_num_get_sign(arg->data.number);
+    nada_free(arg);
+
+    // Create the result value
+    NadaValue *result = nada_create_num(num);
+
+    // Apply the sign (positive numerator is already handled)
+    if (sign < 0 && !nada_num_is_zero(num)) {
+        // Create a negative number
+        NadaNum *neg_num = nada_num_negate(num);
+        nada_num_free(num);
+
+        // Update the result
+        nada_free(result);
+        result = nada_create_num(neg_num);
+        nada_num_free(neg_num);
+    } else {
+        nada_num_free(num);
+    }
+
+    return result;
+}
+
+// Return the denominator of a rational number
+NadaValue *builtin_denominator(NadaValue *args, NadaEnv *env) {
+    // Check argument count
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "denominator requires exactly one argument");
+        return nada_create_nil();
+    }
+
+    // Evaluate the argument
+    NadaValue *arg = nada_eval(nada_car(args), env);
+    if (arg->type != NADA_NUM) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "denominator requires a number argument");
+        nada_free(arg);
+        return nada_create_nil();
+    }
+
+    // Get the denominator as a string
+    char *denom_str = nada_num_get_denominator(arg->data.number);
+    if (!denom_str) {
+        nada_free(arg);
+        return nada_create_nil();
+    }
+
+    // Create a new number with the denominator
+    NadaNum *num = nada_num_from_int(atoi(denom_str));
+    free(denom_str);
+    nada_free(arg);
+
+    // Create the result value
+    NadaValue *result = nada_create_num(num);
+    nada_num_free(num);
+
+    return result;
+}
+
+// Return the sign of a number (1 for positive, -1 for negative)
+NadaValue *builtin_sign(NadaValue *args, NadaEnv *env) {
+    // Check argument count
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "sign requires exactly one argument");
+        return nada_create_nil();
+    }
+
+    // Evaluate the argument
+    NadaValue *arg = nada_eval(nada_car(args), env);
+    if (arg->type != NADA_NUM) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "sign requires a number argument");
+        nada_free(arg);
+        return nada_create_nil();
+    }
+
+    // Get the sign
+    int sign = nada_num_get_sign(arg->data.number);
+    nada_free(arg);
+
+    // Create the result value (integer)
+    NadaValue *result = nada_create_num_from_int(sign);
+    return result;
+}
+
+// Return a list of prime factors of the numerator (if the number is an integer)
+NadaValue *builtin_factor(NadaValue *args, NadaEnv *env) {
+    // Check argument count
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "factor requires exactly one argument");
+        return nada_create_nil();
+    }
+
+    // Evaluate the argument
+    NadaValue *arg = nada_eval(nada_car(args), env);
+    if (arg->type != NADA_NUM) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "factor requires a number argument");
+        nada_free(arg);
+        return nada_create_nil();
+    }
+
+    // Check if the number is an integer
+    if (!nada_num_is_integer(arg->data.number)) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "factor requires an integer argument");
+        nada_free(arg);
+        return nada_create_nil();
+    }
+
+    // Get the numerator as string (need to free this)
+    char *num_str = nada_num_get_numerator(arg->data.number);
+    if (!num_str) {
+        nada_free(arg);
+        return nada_create_nil();
+    }
+
+    // If the number is 0 or 1, return an empty list
+    if (nada_num_is_zero(arg->data.number) ||
+        (strcmp(num_str, "1") == 0 && nada_num_get_sign(arg->data.number) > 0)) {
+        free(num_str);  // Free the numerator string
+        nada_free(arg);
+        return nada_create_nil();  // Empty list for 0 and 1
+    }
+
+    // Handle -1 specifically
+    if (strcmp(num_str, "1") == 0 && nada_num_get_sign(arg->data.number) < 0) {
+        free(num_str);  // Free the numerator string
+        nada_free(arg);
+        // Return a list containing just -1
+        NadaValue *neg_one = nada_create_num_from_int(-1);
+        // Create nil separately so we can free it
+        NadaValue *nil = nada_create_nil();
+        NadaValue *cons = nada_cons(neg_one, nil);
+        nada_free(neg_one);
+        nada_free(nil);  // Free the nil we created
+        return cons;
+    }
+
+    // Remember if the number is negative
+    int is_negative = nada_num_get_sign(arg->data.number) < 0;
+
+    // We're done with the numerator string
+    free(num_str);
+
+    // Factor the number
+    size_t factor_count = 0;
+    NadaNum **factors = nada_num_factor_numerator(arg->data.number, &factor_count);
+
+    // Create the result list
+    NadaValue *result = nada_create_nil();
+
+    // If factors is NULL, return the empty list
+    if (!factors) {
+        nada_free(arg);
+        return result;
+    }
+
+    // Build the list from the array of factors (in reverse to get correct order)
+    for (int i = (int)factor_count - 1; i >= 0; i--) {
+        NadaValue *factor = nada_create_num(factors[i]);
+        NadaValue *new_result = nada_cons(factor, result);
+        nada_free(factor);
+        nada_free(result);
+        result = new_result;
+
+        // Free the factor
+        nada_num_free(factors[i]);
+    }
+
+    // Free the array itself
+    free(factors);
+
+    // Now, if the number was negative, prepend -1 to the list
+    if (is_negative) {
+        // Add -1 as the first factor (BEFORE other factors)
+        NadaValue *neg_one = nada_create_num_from_int(-1);
+        NadaValue *new_result = nada_cons(neg_one, result);
+        nada_free(neg_one);
+        nada_free(result);
+        result = new_result;
+    }
+
+    nada_free(arg);
     return result;
 }
