@@ -74,9 +74,10 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
 
             // Evaluate each argument and build a new list
             while (current->type == NADA_PAIR) {
-                NadaValue *arg_evaluated = nada_eval(current->data.pair.car, env);
-                NadaValue *new_args = nada_cons(arg_evaluated, evaluated_args);
-                nada_free(arg_evaluated);   // Free after it's been copied
+                // NadaValue *arg_evaluated = nada_eval(current->data.pair.car, env);
+                // NadaValue *new_args = nada_cons(arg_evaluated, evaluated_args);
+                NadaValue *new_args = nada_cons(current->data.pair.car, evaluated_args);
+                // nada_free(arg_evaluated);   // Free after it's been copied
                 nada_free(evaluated_args);  // Free the old list
                 evaluated_args = new_args;  // Update our list pointer
                 current = current->data.pair.cdr;
@@ -152,12 +153,12 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
                 return nada_create_nil();
             }
 
-            // Evaluate the argument before binding it to the parameter
-            NadaValue *arg_evaluated = nada_eval(current_arg->data.pair.car, env);
+            // NadaValue *arg_evaluated = nada_eval(current_arg->data.pair.car, env);
             nada_env_set(func_env,
                          current_param->data.pair.car->data.symbol,
-                         arg_evaluated);
-            nada_free(arg_evaluated);  // Free after it's been stored
+                         current_arg->data.pair.car);
+            //             arg_evaluated);
+            // nada_free(arg_evaluated);  // Free after it's been stored
 
             // Move to next param and arg
             current_param = current_param->data.pair.cdr;
