@@ -638,6 +638,7 @@ NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
     NadaValue *true_func = NULL;
 
     bool temp_fn = false;
+    bool env_fn = false;
 
     // First try direct evaluation - this handles when op is passed in
     NadaValue *eval_func_val = nada_eval(func_val, env);
@@ -667,6 +668,7 @@ NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
         } else {
             // Try environment lookup
             true_func = nada_env_get(env, symbol_name, 0);
+            env_fn = true;
         }
     } else {
         // Not a function or symbol - clean up and report error
@@ -697,7 +699,7 @@ NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
     NadaValue *result = apply_function(true_func, arg_list, env);
 
     // Clean up
-    if (temp_fn) {
+    if (temp_fn || env_fn) {
         nada_free(true_func);  // Free the temporary function
     }
     nada_free(arg_list);

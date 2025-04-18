@@ -197,14 +197,15 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
     }
 
     // Make a deep copy before cleaning up
-    NadaValue *result_copy = nada_deep_copy(result);
-    nada_free(result);
+    // NadaValue *result_copy = nada_deep_copy(result);
+    // nada_free(result);
 
     // Clean up
     // func_env->ref_count = 1;  // Set to 1 so next release will free it
     nada_env_release(func_env);
 
-    return result_copy;
+    //    return result_copy;
+    return result;
 }
 
 // Helper to check if a name is a built-in function
