@@ -13,6 +13,38 @@
 // Global environment
 static NadaEnv *global_env;
 
+// Add this helper function before run_repl()
+static void clean_buffer_whitespace(char *buffer) {
+    if (!buffer || buffer[0] == '\0') return;  // Handle empty buffer
+
+    int in_string = 0;
+    int i = 0, j = 0;
+
+    // Compress the buffer in-place
+    while (buffer[i]) {
+        // Track string state (toggle when we see a quotation mark)
+        if (buffer[i] == '"' && (i == 0 || buffer[i - 1] != '\\')) {
+            in_string = !in_string;
+        }
+
+        // Handle spaces: skip consecutive spaces unless in string
+        if (buffer[i] == ' ' && !in_string) {
+            // Add one space, then skip any following spaces
+            buffer[j++] = ' ';
+            while (buffer[i + 1] == ' ')
+                i++;
+        } else {
+            // Copy the character
+            buffer[j++] = buffer[i];
+        }
+
+        i++;
+    }
+
+    // Null-terminate the potentially shortened buffer
+    buffer[j] = '\0';
+}
+
 // Run an interactive REPL (Read-Eval-Print Loop)
 void run_repl(void) {
     // Initialize output system
@@ -49,11 +81,6 @@ void run_repl(void) {
         if (strlen(line) == 0) {
             free(line);
             continue;
-        }
-
-        // Add to history only if we're at the start of an expression
-        if (buffer[0] == '\0') {
-            add_history(line);
         }
 
         // Resize buffer if needed
@@ -100,8 +127,12 @@ void run_repl(void) {
                 nada_write_string("\n");
 
                 nada_free(result);
+                // Remove double spaces in buffer before adding to history
+                clean_buffer_whitespace(buffer);
+                add_history(buffer);  // Add to history only if balanced
             }
             buffer[0] = '\0';  // Reset buffer but keep allocated memory
+
             strcpy(prompt, "nada> ");
         } else if (paren_balance < 0) {
             // Unbalanced closing parenthesis - syntax error
