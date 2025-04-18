@@ -32,6 +32,9 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
         return func->data.function.builtin(args, env);
     }
 
+    fprintf(stderr,
+            "APPLY: closure.env = %p\n",
+            (void *)func->data.function.env);
     // For user-defined functions, create a new environment
     NadaEnv *func_env = nada_env_create(func->data.function.env);
 
@@ -101,7 +104,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
                 if (nada_is_nil(current_arg)) {
                     // Not enough arguments
                     nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
-                    func_env->ref_count = 1;  // Set to 1 so next release will free it
+                    // func_env->ref_count = 1;  // Set to 1 so next release will free it
                     nada_env_release(func_env);
                     return nada_create_nil();
                 }
@@ -125,7 +128,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
                 if (nada_is_nil(current_arg)) {
                     // Not enough arguments
                     nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
-                    func_env->ref_count = 1;  // Set to 1 so next release will free it
+                    // func_env->ref_count = 1;  // Set to 1 so next release will free it
                     nada_env_release(func_env);
                     return nada_create_nil();
                 }
@@ -150,7 +153,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
         while (!nada_is_nil(current_param) && !nada_is_nil(current_arg)) {
             if (current_param->type != NADA_PAIR || current_param->data.pair.car->type != NADA_SYMBOL) {
                 nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "invalid parameter list");
-                func_env->ref_count = 1;  // Set to 1 so next release will free it
+                // func_env->ref_count = 1;  // Set to 1 so next release will free it
                 nada_env_release(func_env);
                 return nada_create_nil();
             }
@@ -170,14 +173,14 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
         // Check for parameter/argument count mismatch
         if (!nada_is_nil(current_param)) {
             nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
-            func_env->ref_count = 1;  // Set to 1 so next release will free it
+            // func_env->ref_count = 1;  // Set to 1 so next release will free it
             nada_env_release(func_env);
             return nada_create_nil();
         }
 
         if (!nada_is_nil(current_arg)) {
             nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too many arguments");
-            func_env->ref_count = 1;  // Set to 1 so next release will free it
+            // func_env->ref_count = 1;  // Set to 1 so next release will free it
             nada_env_release(func_env);
             return nada_create_nil();
         }
@@ -198,7 +201,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
     nada_free(result);
 
     // Clean up
-    func_env->ref_count = 1;  // Set to 1 so next release will free it
+    // func_env->ref_count = 1;  // Set to 1 so next release will free it
     nada_env_release(func_env);
 
     return result_copy;

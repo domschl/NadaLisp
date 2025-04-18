@@ -167,6 +167,9 @@ NadaValue *builtin_lambda(NadaValue *args, NadaEnv *env) {
     NadaValue *body = nada_cdr(args);
 
     nada_env_add_ref(env);  // Add a reference to the current environment
+    fprintf(stderr,
+            "LAMBDA: capturing env %p (id=%d) at %s:%d\n",
+            (void *)env, env->id, __FILE__, __LINE__);
     // Create and return a new function value
     return nada_create_function(
         nada_deep_copy(params),

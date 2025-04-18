@@ -9,6 +9,11 @@
 static int env_id_counter = 0;
 static bool show_env_debug = false;
 
+// keep track of every top‑level env for automatic cleanup
+#define MAX_ROOT_ENVS 128
+static NadaEnv *g_root_envs[MAX_ROOT_ENVS];
+static int g_root_env_count = 0;
+
 // Increment the reference count for an environment
 void nada_env_add_ref(NadaEnv *env) {
     if (!env) return;
@@ -85,8 +90,19 @@ NadaEnv *nada_env_create(NadaEnv *parent) {
     if (parent) {
         nada_env_add_ref(parent);
     }
+    if (parent == NULL && g_root_env_count < MAX_ROOT_ENVS) {
+        g_root_envs[g_root_env_count++] = env;
+    }
 
     return env;
+}
+
+// run at process exit (after main returns) to free every root env
+__attribute__((destructor)) static void __cleanup_all_root_envs(void) {
+    for (int i = 0; i < g_root_env_count; i++) {
+        // each was created with ref_count == 1, so this release will free it
+        nada_env_release(g_root_envs[i]);
+    }
 }
 
 // Free an environment and all its bindings
