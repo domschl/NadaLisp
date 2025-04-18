@@ -61,12 +61,13 @@
     (if (< n 0)
         (error "Cannot compute square root of negative number")
         (let loop ((low 0) (high (+ n 1)))
-          (let ((mid (quotient (+ low high) 2)))
-            (if (= mid low)
-                low
-                (if (> (* mid mid) n)
-                    (loop low mid)
-                    (loop mid high))))))))
+          (begin                        ; <-- add this
+            (let ((mid (quotient (+ low high) 2)))
+              (if (= mid low)
+                  low
+                  (if (> (* mid mid) n)
+                      (loop low mid)
+                      (loop mid high)))))))))
 
 (define zero?
   (lambda (x)

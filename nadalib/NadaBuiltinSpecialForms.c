@@ -347,6 +347,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
                 nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
                                   "named let binding must be (var value)");
                 nada_env_release(loop_env);
+                loop_env->ref_count = 1;     // Set to 1 so next release will free it
                 nada_env_release(loop_env);  // 'extra' scope reference
                 return nada_create_nil();
             }
@@ -356,6 +357,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             nada_env_set(loop_env, var_name, val);
             if (val->type == NADA_ERROR) {   // Check for eval errors
                 nada_env_release(loop_env);  // Release extra scope ref
+                loop_env->ref_count = 1;     // Set to 1 so next release will free it
                 nada_env_release(loop_env);  // Release initial ref
                 return val;                  // Propagate error
             }
@@ -417,6 +419,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
                                                // Error occurred, result holds the error value.
                                                // Need to release env before returning.
                 nada_env_release(loop_env);    // Release our scope reference
+                loop_env->ref_count = 1;       // Set to 1 so next release will free it
                 nada_env_release(loop_env);    // Release the 'extra' scope
                 return result;                 // Propagate error
             }
@@ -470,6 +473,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
                 !nada_is_nil(nada_cdr(nada_cdr(binding)))) {
                 nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
                                   "let binding must be (variable value)");
+                let_env->ref_count = 1;
                 nada_env_release(let_env);
                 return nada_create_nil();
             }
@@ -479,6 +483,7 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
 
             nada_env_set(let_env, var_name, val);
             if (val->type == NADA_ERROR) {
+                let_env->ref_count = 1;
                 nada_env_release(let_env);  // Release env before returning
                 return val;                 // Propagate error
             }
