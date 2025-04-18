@@ -91,6 +91,9 @@
 (define sqrt-op
   (lambda (x)
     (cond
+      ;; negative case: factor out i
+      ((and (number? x) (< x 0))
+       (list '* i-value (sqrt-op (- x))))
       ;; integer case
       ((integer? x)
        (let ((f (largest-square-divisor x)))
