@@ -1,26 +1,9 @@
 ;; Purely functional algebraic notation utilities
 
-;; Define variables for testing
-(define x 'x)
-(define y 'y)
-(define z 'z)
-(define a 'a)
-(define b 'b)
-(define c 'c)
-(define d 'd)
-(define e 'e)
-(define f 'f)
-(define g 'g)
-
 ;; Example implementation for special constants
 (define pi-value 'pi)  ;; Symbolic representation
 (define e-value 'e)
 (define i-value 'i)
-
-;; Updated type predicates
-
-;; Already defined in core, returns true for any numeric value
-;; (number? x)
 
 ;; All numbers in the core are rational, so this should just use number?
 (define rational? 
@@ -51,137 +34,6 @@
         (irrational? expr)   ;; Symbolic irrational constants
         (complex? expr))))   ;; Symbolic complex constants
 
-;; Operator precedence table
-(define op-precedence 
-  (lambda (op)
-    (cond
-      ((equal? op "+") 1)
-      ((equal? op "-") 1)
-      ((equal? op "*") 2)
-      ((equal? op "/") 2)
-      ((equal? op "^") 3)
-      (else 0))))
-
-;; Check if a token is an operator
-(define operator? 
-  (lambda (token)
-    (or (equal? token "+")
-        (equal? token "-")
-        (equal? token "*")
-        (equal? token "/")
-        (equal? token "^"))))
-
-;; Find matching closing parenthesis - recursive version
-(define find-matching-paren
-  (lambda (tokens start)
-    (define find-match
-      (lambda (pos depth)
-        (cond
-          ((>= pos (length tokens)) -1)
-          ((equal? (list-ref tokens pos) "(") 
-           (find-match (+ pos 1) (+ depth 1)))
-          ((equal? (list-ref tokens pos) ")")
-           (if (= depth 1) 
-               pos
-               (find-match (+ pos 1) (- depth 1))))
-          (else (find-match (+ pos 1) depth)))))
-    (find-match (+ start 1) 1)))
-
-;; Find the operator with lowest precedence - recursive version
-(define find-lowest-precedence-op
-  (lambda (tokens)
-    (define find-op
-      (lambda (pos lowest-idx lowest-prec paren-level)
-        (cond
-          ((>= pos (length tokens)) lowest-idx)
-          
-          ((equal? (list-ref tokens pos) "(")
-           (let ((match (find-matching-paren tokens pos)))
-             (if (> match pos)
-                 (find-op (+ match 1) lowest-idx lowest-prec paren-level)
-                 (find-op (+ pos 1) lowest-idx lowest-prec (+ paren-level 1)))))
-          
-          ((equal? (list-ref tokens pos) ")")
-           (find-op (+ pos 1) lowest-idx lowest-prec (- paren-level 1)))
-          
-          ((and (= paren-level 0)
-                (operator? (list-ref tokens pos))
-                (or (= lowest-idx -1)
-                    (<= (op-precedence (list-ref tokens pos)) lowest-prec)))
-           (find-op (+ pos 1) pos (op-precedence (list-ref tokens pos)) paren-level))
-          
-          (else (find-op (+ pos 1) lowest-idx lowest-prec paren-level)))))
-    (find-op 0 -1 999 0)))
-
-;; Update process-tokens to use eval-op
-(define process-tokens
-  (lambda (tokens)
-    (cond
-      ;; Empty expression
-      ((null? tokens) '())
-      
-      ;; Single token
-      ((= (length tokens) 1) 
-       (process-token (car tokens)))
-      
-      ;; Parenthesized expression
-      ((and (equal? (car tokens) "(")
-            (let ((closing (find-matching-paren tokens 0)))
-              (and (> closing 0) 
-                   (= closing (- (length tokens) 1)))))
-       (process-tokens (sublist tokens 1 (- (length tokens) 1))))
-      
-      ;; Process by operator precedence
-      (else
-        (let ((op-pos (find-lowest-precedence-op tokens)))
-          (if (>= op-pos 0)
-              (let ((op (list-ref tokens op-pos))
-                    (left (process-tokens (sublist tokens 0 op-pos)))
-                    (right (process-tokens (sublist tokens (+ op-pos 1) (length tokens)))))
-                (if (equal? op "^")
-                    (expt-op left right)  ; Special handling for exponentiation
-                    (list (string->symbol op) left right)))
-              tokens))))))
-
-;; Process a token into a value or symbol
-(define process-token
-  (lambda (token)
-    (if (string->number token)
-        (string->number token)
-        (string->symbol token))))
-
-;; Simple infix to prefix converter
-(define infix->prefix
-  (lambda (expr)
-    (if (not (string? expr))
-        (begin
-          (display "Error: infix->prefix requires a string argument\n")
-          '())
-        (process-tokens (tokenize-expr expr)))))
-
-;; Fixed exponentiation operation - handles both numeric and symbolic cases
-(define expt-op
-  (lambda (base exp)
-    (cond
-      ;; Integer exponents can be computed exactly
-      ((integer? exp) 
-       (expt base exp))  ;; Simplified - both branches were identical
-      
-      ;; Special case: square root of perfect square
-      ((and (= (denominator exp) 2) 
-            (integer? base)
-            (integer? (sqrt base)))
-       (sqrt base))
-      
-      ;; Special case: cube root of perfect cube
-      ((and (= (denominator exp) 3)
-            (integer? base)
-            (integer? (expt base (/ 1 3))))
-       (expt base (/ 1 3)))
-      
-      ;; Keep symbolic for other cases
-      (else (list 'expt base exp)))))
-
 ;; Add a variable? predicate to check if something is a variable
 (define variable?
   (lambda (expr)
@@ -193,3 +45,93 @@
 (define eval-algebraic
   (lambda (expr)
     (eval (infix->prefix expr))))
+
+;; Integer division truncated toward zero, using `remainder`
+(define quotient
+  (lambda (n d)
+    (if (= d 0)
+        (error "Division by zero in quotient")
+        (let ((r (remainder n d)))
+          ;; n = d*q + r  ⇒  q = (n – r)/d
+          (/ (- n r) d)))))
+
+;; Integer square root - returns largest integer not exceeding sqrt(n)
+(define integer-sqrt
+  (lambda (n)
+    (if (< n 0)
+        (error "Cannot compute square root of negative number")
+        (let loop ((low 0) (high (+ n 1)))
+          (let ((mid (quotient (+ low high) 2)))
+            (if (= mid low)
+                low
+                (if (> (* mid mid) n)
+                    (loop low mid)
+                    (loop mid high))))))))
+
+(define zero?
+  (lambda (x)
+    (cond ((number? x) (= x 0))
+          (else #f))))
+
+;; Extract the largest square divisor of n by walking down from integer‑sqrt(n)
+;; Extract the largest square divisor of n using mutation (`set!`)
+(define largest-square-divisor
+  (lambda (n)
+    (let ((i (integer-sqrt n)))
+      (let loop ()
+        (cond
+          ((<= i 1) 1)
+          ((zero? (remainder n (* i i))) i)
+          (else
+            (begin
+              (set! i (- i 1))   ; decrement i by 1
+              (loop))))))))
+
+;; √‑operation that pulls perfect squares out of a rational
+(define sqrt-op
+  (lambda (x)
+    (cond
+      ;; negative case: factor out i
+      ((and (number? x) (< x 0))
+       (list '* i-value (sqrt-op (- x))))
+      ;; integer case
+      ((integer? x)
+       (let ((f (largest-square-divisor x)))
+         (let ((r (/ x (* f f))))
+           (cond
+             ((= f 1)      (list 'sqrt x))         ; no square factor
+             ((= r 1)      f)                      ; perfect square
+             (else         (list '* f (list 'sqrt r)))))))
+      ;; rational case
+      ((rational? x)
+       (let ((n (numerator x)))
+         (let ((d (denominator x)))
+           (let ((fn (largest-square-divisor n)))
+             (let ((fd (largest-square-divisor d)))
+               (let ((coef (/ fn fd)))
+                 (let ((rn (/ n (* fn fn))))
+                   (let ((rd (/ d (* fd fd))))
+                     (let ((rem (if (= rd 1) rn (/ rn rd))))
+                       (let ((root (list 'sqrt rem)))
+                         (cond
+                           ((and (= rn 1) (= rd 1)) coef)   ; everything extracted
+                           ((= coef 1)           root)       ; only root remains
+                           (else                  (list '* coef root)))))))))))))
+      ;; fallback: symbolic
+      (else (list 'sqrt x)))))
+
+;; Fixed exponentiation operation - handles both numeric and symbolic cases
+(define expt-op
+  (lambda (base exp)
+    (cond
+      ;; Integer exponents can be computed exactly
+      ((integer? exp) 
+       (expt base exp))  ;; Simplified - both branches were identical
+      
+      ;; Special case: square root of perfect square
+      (if (= (denominator exp) 2) 
+       (sqrt-op (expt base (numerator exp)))
+      
+      ;; Keep symbolic for other cases
+      (else (list 'expt base exp)))))
+

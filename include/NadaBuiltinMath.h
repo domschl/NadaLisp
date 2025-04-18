@@ -18,4 +18,14 @@ NadaValue *builtin_remainder(NadaValue *args, NadaEnv *env);
 // Exponentiation (expt)
 NadaValue *builtin_expt(NadaValue *args, NadaEnv *env);
 
+// Number component access functions
+// Return the numerator of a rational number
+NadaValue *builtin_numerator(NadaValue *args, NadaEnv *env);
+// Return the denominator of a rational number
+NadaValue *builtin_denominator(NadaValue *args, NadaEnv *env);
+// Return the sign of a number (1 for positive, -1 for negative)
+NadaValue *builtin_sign(NadaValue *args, NadaEnv *env);
+// Return a list of prime factors of the numerator (if the number is an integer)
+NadaValue *builtin_factor(NadaValue *args, NadaEnv *env);
+
 #endif  // __NADA_BUILTIN_MATH_H__

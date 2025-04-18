@@ -399,6 +399,43 @@ void nada_serialize_env(NadaEnv *current_env, FILE *out) {
     // We don't save parent environments
 }
 
+// Built-in function: error
+static NadaValue *builtin_error(NadaValue *args, NadaEnv *env) {
+    // Check that we have at least one argument
+    if (nada_is_nil(args)) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "error requires at least one argument");
+        return nada_create_error("error function called with no arguments");
+    }
+
+    // Evaluate the first argument
+    NadaValue *message_val = nada_eval(nada_car(args), env);
+
+    // Convert to string if needed
+    char error_message[1024] = {0};
+
+    if (message_val->type == NADA_STRING) {
+        strncpy(error_message, message_val->data.string, sizeof(error_message) - 1);
+    } else {
+        // For other types, get a string representation
+        char *temp = nada_value_to_string(message_val);
+        if (temp) {
+            strncpy(error_message, temp, sizeof(error_message) - 1);
+            free(temp);
+        } else {
+            strcpy(error_message, "unknown error");
+        }
+    }
+
+    // Report the error so it gets registered in the global error state
+    nada_report_error(NADA_ERROR_TYPE_ERROR, "%s", error_message);
+
+    // Free the evaluated argument
+    nada_free(message_val);
+
+    // Return an error value with the same message
+    return nada_create_error(error_message);
+}
+
 // Add to the builtins table (keep all string functions here)
 static BuiltinFuncInfo builtins[] = {
     {"quote", builtin_quote},
@@ -414,6 +451,10 @@ static BuiltinFuncInfo builtins[] = {
     {"modulo", builtin_modulo},  // Add modulo as alias
     {"remainder", builtin_remainder},
     {"expt", builtin_expt},
+    {"numerator", builtin_numerator},      // Add numerator function
+    {"denominator", builtin_denominator},  // Add denominator function
+    {"sign", builtin_sign},                // Add sign function
+    {"factor", builtin_factor},            // Add factor function
     {"define", builtin_define},
     {"lambda", builtin_lambda},
     {"<", builtin_less_than},
@@ -505,6 +546,8 @@ static BuiltinFuncInfo builtins[] = {
     {"set!", builtin_set},
 
     {"apply", builtin_apply},
+
+    {"error", builtin_error},
 
     {NULL, NULL}  // Sentinel to mark end of array
 };
@@ -692,9 +735,25 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
             return result;
         }
 
+        // Save the operator name for the error message
+        char op_name[256] = "unknown";
+        if (op->type == NADA_SYMBOL) {
+            strncpy(op_name, op->data.symbol, sizeof(op_name) - 1);
+            op_name[sizeof(op_name) - 1] = '\0';  // Ensure null termination
+        } else if (eval_op->type == NADA_NIL) {
+            strcpy(op_name, "nil");
+        } else {
+            // Try to get a representation of the value
+            char *repr = nada_value_to_string(op);
+            if (repr) {
+                strncpy(op_name, repr, sizeof(op_name) - 1);
+                op_name[sizeof(op_name) - 1] = '\0';
+            }
+        }
+
         nada_free(eval_op);
         if (!nada_is_global_silent_symbol_lookup()) {
-            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "not a function");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'%s' is not a function", op_name);
         }
         return nada_create_nil();
     }

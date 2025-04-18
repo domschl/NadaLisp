@@ -1,4 +1,5 @@
 #include "NadaError.h"
+#include "NadaValue.h"
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +11,9 @@ static void *current_user_data = NULL;
 // Global error state
 static NadaErrorType current_error_type = NADA_ERROR_NONE;
 static char current_error_message[1024] = {0};
+
+// Add a global error flag
+static int error_occurred = 0;
 
 // Default error handler (just prints to stderr)
 static void default_error_handler(NadaErrorType type, const char *message, void *user_data) {
@@ -39,7 +43,7 @@ NadaErrorType nada_get_error_code() {
 }
 
 // Get the current error message
-const char* nada_get_error_message() {
+const char *nada_get_error_message() {
     return current_error_message;
 }
 
@@ -51,9 +55,12 @@ void nada_clear_error() {
 
 // Report an error
 void nada_report_error(NadaErrorType type, const char *format, ...) {
+    // Set the error flag
+    error_occurred = 1;
+
     // Save the error type
     current_error_type = type;
-    
+
     // Format the error message
     va_list args;
     va_start(args, format);
@@ -92,4 +99,23 @@ void nada_report_syntax_error(const char *filename, int line_number, const char 
             fprintf(stderr, "^\n");
         }
     }
+}
+
+void *nada_get_user_data(void) {
+    return current_user_data;
+}
+
+// Add a function to check and clear the error flag
+int nada_check_error(void) {
+    int result = error_occurred;
+    error_occurred = 0;  // Clear the flag
+    return result;
+}
+
+// Add a function to get the current error as a value
+NadaValue *nada_get_error_value(void) {
+    if (current_error_message[0] != '\0') {
+        return nada_create_error(current_error_message);
+    }
+    return NULL;
 }

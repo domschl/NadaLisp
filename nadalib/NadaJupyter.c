@@ -6,6 +6,7 @@
 #include "NadaEval.h"
 #include "NadaOutput.h"
 #include "NadaError.h"
+#include "NadaString.h"
 
 // Output markdown in Jupyter
 NadaValue *builtin_display_markdown(NadaValue *args, NadaEnv *env) {
