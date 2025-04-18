@@ -7,6 +7,7 @@
 #include "NadaValue.h"
 #include "NadaEnv.h"
 #include "NadaEval.h"
+#include "NadaError.h"
 
 // Initialize the tokenizer
 void tokenizer_init(Tokenizer *t, const char *input) {
@@ -399,13 +400,29 @@ NadaValue *nada_parse_eval_multi(const char *input, NadaEnv *env) {
         // Evaluate the expression and store the result
         result = nada_eval(expr, env);
 
-        // Check if result is an error
+        // Check if result is an error (direct return of error value)
         if (nada_is_error(result)) {
             nada_free(expr);
             if (last_valid_result != NULL) {
                 nada_free(last_valid_result);
             }
+            nada_check_error();  // Clear the error state
             return result;
+        }
+
+        // ADDED: Also check global error state for errors reported via nada_report_error()
+        if (nada_check_error()) {
+            // Get an error value representing the reported error
+            NadaValue *error_val = nada_get_error_value();
+            if (error_val) {
+                // Free resources
+                nada_free(expr);
+                nada_free(result);
+                if (last_valid_result != NULL) {
+                    nada_free(last_valid_result);
+                }
+                return error_val;
+            }
         }
 
         // Free the parsed expression

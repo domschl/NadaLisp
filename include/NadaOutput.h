@@ -34,7 +34,7 @@ void nada_write_format(const char *format, ...);
 void nada_write_value(NadaValue *val);
 
 // String conversion (returns newly allocated string)
-char *nada_value_to_string(NadaValue *val);
+// char *nada_value_to_string(NadaValue *val);
 
 // Output types
 typedef enum {

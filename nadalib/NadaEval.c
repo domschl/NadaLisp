@@ -696,9 +696,25 @@ NadaValue *nada_eval(NadaValue *expr, NadaEnv *env) {
             return result;
         }
 
+        // Save the operator name for the error message
+        char op_name[256] = "unknown";
+        if (op->type == NADA_SYMBOL) {
+            strncpy(op_name, op->data.symbol, sizeof(op_name) - 1);
+            op_name[sizeof(op_name) - 1] = '\0';  // Ensure null termination
+        } else if (eval_op->type == NADA_NIL) {
+            strcpy(op_name, "nil");
+        } else {
+            // Try to get a representation of the value
+            char *repr = nada_value_to_string(op);
+            if (repr) {
+                strncpy(op_name, repr, sizeof(op_name) - 1);
+                op_name[sizeof(op_name) - 1] = '\0';
+            }
+        }
+
         nada_free(eval_op);
         if (!nada_is_global_silent_symbol_lookup()) {
-            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "not a function");
+            nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "'%s' is not a function", op_name);
         }
         return nada_create_nil();
     }

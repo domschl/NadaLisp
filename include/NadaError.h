@@ -2,6 +2,7 @@
 #define NADA_ERROR_H
 
 #include <stdio.h>
+#include <NadaValue.h>
 
 // Define error type enum
 typedef enum {
@@ -42,5 +43,11 @@ const char *nada_get_error_message();
 
 // Clear the current error state
 void nada_clear_error();
+
+void *nada_get_user_data(void);
+
+// Another global error state function, used by parse_eval_multi()
+int nada_check_error(void);
+NadaValue *nada_get_error_value(void);
 
 #endif  // NADA_ERROR_H

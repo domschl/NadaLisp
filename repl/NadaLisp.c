@@ -8,12 +8,27 @@
 #include "NadaParser.h"
 #include "NadaEval.h"
 #include "NadaConfig.h"
+#include "NadaString.h"
+#include "NadaError.h"
 #include "NadaOutput.h"  // Include the new output header
 
 // Global environment
 static NadaEnv *global_env;
 
-// Add this helper function before run_repl()
+// Error handler declarations
+static void silent_error_handler(NadaErrorType type, const char *message, void *user_data);
+static void normal_error_handler(NadaErrorType type, const char *message, void *user_data);
+
+// Implement both handlers
+static void silent_error_handler(NadaErrorType type, const char *message, void *user_data) {
+    // Do nothing - errors will be reported through return values
+}
+
+static void normal_error_handler(NadaErrorType type, const char *message, void *user_data) {
+    // Print to stderr for non-interactive mode
+    fprintf(stderr, "Error: %s\n", message);
+}
+
 static void clean_buffer_whitespace(char *buffer) {
     if (!buffer || buffer[0] == '\0') return;  // Handle empty buffer
 
@@ -49,6 +64,11 @@ static void clean_buffer_whitespace(char *buffer) {
 void run_repl(void) {
     // Initialize output system
     nada_output_init();
+
+    // Install silent error handler for REPL mode only
+    NadaErrorHandler previous_handler = nada_get_error_handler();
+    void *previous_user_data = nada_get_user_data();  // You'll need to add this function
+    nada_set_error_handler(silent_error_handler, NULL);
 
     nada_write_string("NadaLisp REPL (Ctrl+D to exit)\n");
     nada_memory_reset();
@@ -149,8 +169,8 @@ void run_repl(void) {
     free(buffer);
     nada_write_string("\nGoodbye!\n");
 
-    // Clean up output system
-    nada_output_cleanup();
+    // Restore previous error handler when exiting REPL
+    nada_set_error_handler(previous_handler, previous_user_data);
 }
 
 void print_usage() {
@@ -164,9 +184,13 @@ void print_usage() {
 int main(int argc, char *argv[]) {
     // Initialize output system at program start
     nada_output_init();
+    int exit_code = 0;
 
     // Initialize the global environment
     global_env = nada_create_standard_env();
+
+    // Use silent error handler for all modes since we're now handling errors via return values
+    nada_set_error_handler(silent_error_handler, NULL);
 
     // Parse command-line arguments
     int load_libs = 1;  // Default: load standard libraries
@@ -232,17 +256,30 @@ int main(int argc, char *argv[]) {
     if (eval_scheme) {
         // Evaluate Scheme expression
         NadaValue *result = nada_parse_eval_multi(expression, global_env);
-        nada_write_value(result);
-        nada_write_string("\n");
 
-        // Check for errors and exit with non-zero status if there was an error
-        int exit_code = 0;
+        // Special handling for errors
         if (nada_is_error(result)) {
+            // Get the error message and format it properly
+            char *error_str = nada_value_to_string(result);
+            if (error_str) {
+                // Check if the error string already starts with "Error:"
+                if (strncmp(error_str, "Error:", 6) == 0) {
+                    nada_write_format("%s\n", error_str);
+                } else {
+                    nada_write_format("Error: %s\n", error_str);
+                }
+                free(error_str);
+            } else {
+                nada_write_string("Error: Unknown error\n");
+            }
             exit_code = 1;
+        } else {
+            // Normal value display
+            nada_write_value(result);
+            nada_write_string("\n");
         }
 
         nada_free(result);
-
         nada_output_cleanup();
         nada_cleanup_env(global_env);
         return exit_code;
@@ -252,17 +289,30 @@ int main(int argc, char *argv[]) {
         snprintf(buffer, sizeof(buffer), "(eval-algebraic \"%s\")", expression);
 
         NadaValue *result = nada_parse_eval_multi(buffer, global_env);
-        nada_write_value(result);
-        nada_write_string("\n");
 
-        // Check for errors and exit with non-zero status if there was an error
-        int exit_code = 0;
+        // Special handling for errors
         if (nada_is_error(result)) {
+            // Get the error message and format it properly
+            char *error_str = nada_value_to_string(result);
+            if (error_str) {
+                // Check if the error string already starts with "Error:"
+                if (strncmp(error_str, "Error:", 6) == 0) {
+                    nada_write_format("%s\n", error_str);
+                } else {
+                    nada_write_format("Error: %s\n", error_str);
+                }
+                free(error_str);
+            } else {
+                nada_write_string("Error: Unknown error\n");
+            }
             exit_code = 1;
+        } else {
+            // Normal value display
+            nada_write_value(result);
+            nada_write_string("\n");
         }
 
         nada_free(result);
-
         nada_output_cleanup();
         nada_cleanup_env(global_env);
         return exit_code;

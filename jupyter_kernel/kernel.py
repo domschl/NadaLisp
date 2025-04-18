@@ -151,6 +151,10 @@ class NadaKernel(Kernel):
         self.lib.nada_jupyter_get_output_type.argtypes = []
         self.lib.nada_jupyter_get_output_type.restype = c_int
 
+        # Add function prototype for checking if a value is an error
+        self.lib.nada_is_error.argtypes = [c_void_p]
+        self.lib.nada_is_error.restype = c_int
+
         self.log.info("Function prototypes defined successfully")
         
     def _init_nada_env(self):
@@ -187,69 +191,77 @@ class NadaKernel(Kernel):
         try:
             # Convert Python string to C string
             c_code = code.encode('utf-8')
-            result_ptr = None
+            value_ptr = None
+            result_str = "nil"
             error_occurred = False
-            output = ""
+            error_msg = ""
             
             # Clear the Jupyter output buffer before evaluation
             self.lib.nada_jupyter_clear_buffer()
             
-            # Parse and evaluate all input code at once
-            self.log.info(f"Calling nada_parse_eval_multi for all expressions")
-            value_ptr = self.lib.nada_parse_eval_multi(c_code, self.env)
-            self.log.info(f"Result pointer: {value_ptr}")
-            
-            # Get any output captured during evaluation
-            output_buffer = self.lib.nada_jupyter_get_buffer()
-            if output_buffer:
-                output = output_buffer.decode('utf-8', errors='replace')
-                self.log.info(f"Output from evaluation: {output}")
-            
-            # Convert the result to a string
-            if value_ptr:
-                result_str = self.lib.nada_value_to_string(value_ptr).decode('utf-8', errors='replace')
-                self.lib.nada_free(value_ptr)  # Free the NadaValue
-            else:
-                result_str = "nil"
-                
-            # Prepare the response payload
-            payload = [{
-                'source': 'execute_result',
-                'data': {
-                    'text/plain': result_str
-                },
-                'metadata': {},
-                'execution_count': self.execution_count,
-            }]
-            
-            # Try to add JSON representation if possible
             try:
-                # Only attempt JSON parsing if the result looks like it might be JSON
-                if (result_str.startswith('{') and result_str.endswith('}')) or \
-                   (result_str.startswith('[') and result_str.endswith(']')):
-                    payload[0]['data']['application/vnd.nada+json'] = json.loads(result_str)
-            except json.JSONDecodeError:
-                # If JSON parsing fails, just use the text representation
-                self.log.info(f"Result string is not valid JSON: {result_str}")
+                # Parse and evaluate all input code at once
+                self.log.info(f"Calling nada_parse_eval_multi for all expressions")
+                value_ptr = self.lib.nada_parse_eval_multi(c_code, self.env)
+                self.log.info(f"Result pointer: {value_ptr}")
+                
+                # Check if the result is an error
+                if value_ptr and self.lib.nada_is_error(value_ptr):
+                    # It's an error - get the error message and set error flag
+                    error_occurred = True
+                    result_str = self.lib.nada_value_to_string(value_ptr).decode('utf-8', errors='replace')
+                    
+                    # Don't add "Error: " if it already exists
+                    if result_str.startswith("Error:"):
+                        error_msg = result_str
+                    else:
+                        error_msg = f"Error: {result_str}"
+                        
+                    self.log.error(f"Evaluation error: {result_str}, is_error={self.lib.nada_is_error(value_ptr)}")
+                else:
+                    # Convert the result to a string
+                    if value_ptr:
+                        result_str = self.lib.nada_value_to_string(value_ptr).decode('utf-8', errors='replace')
+            finally:
+                # Always free the value pointer to prevent memory leaks
+                if value_ptr:
+                    self.lib.nada_free(value_ptr)
             
-            # Handle errors if any
+            # Handle errors or display results
             if error_occurred:
-                self.log.error(f"Error during execution: {output}")
-                self.log.error(traceback.format_exc())
+                self.log.error(f"Sending error to client: {error_msg}")
+                
+                # First send to stderr so it appears in the output area
                 self.send_response(self.iopub_socket, 'stream', {
                     'name': 'stderr',
-                    'text': output
+                    'text': error_msg
                 })
-            else:
-                # Send the output to the client
-                self.send_response(self.iopub_socket, 'execute_result', payload[0])
                 
-            return {
-                'status': 'ok',
-                'execution_count': self.execution_count,
-                'payload': payload,
-                'user_expressions': {},
-            }
+                # Then return error status with traceback for the error area
+                return {
+                    'status': 'error',
+                    'execution_count': self.execution_count,
+                    'ename': 'NadaLispError',
+                    'evalue': result_str,
+                    'traceback': [error_msg],
+                }
+            else:
+                # Only prepare JSON for non-error results
+                payload = {
+                    'data': {'text/plain': result_str},
+                    'metadata': {},
+                    'execution_count': self.execution_count,
+                }
+                
+                # Send the output to the client
+                self.send_response(self.iopub_socket, 'execute_result', payload)
+                
+                return {
+                    'status': 'ok',
+                    'execution_count': self.execution_count,
+                    'payload': [],
+                    'user_expressions': {},
+                }
         
         except Exception as e:
             self.log.error(f"Exception in do_execute: {str(e)}")
