@@ -46,8 +46,7 @@ ctest -L JupyterKernel     # Test Jupyter kernel only
 
 ### Known problems
 
-- Variadic lambdas currently generate a memory leak, the corresponding test is currently disabled in `MEMORY_TEST_EXCLUDE_LIST` in `tests/CMakeLists.txt`.
-- map apply subset with operator-lists and nested arguments lists currently not supported. (see tests/unused_tests)
+- All tests pass.
 
 ## Jupyter Kernel for NadaLisp
 

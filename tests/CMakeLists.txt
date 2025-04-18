@@ -103,7 +103,6 @@ endif()
 
 # Define list of tests to exclude from memory testing
 set(MEMORY_TEST_EXCLUDE_LIST
-#    "lists_and_variadic_tests"  # Known issue with circular references
 )
 
 # Function to check if a test is in the exclusion list
