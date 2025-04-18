@@ -108,7 +108,7 @@
         (string->number token)
         (string->symbol token))))
 
-;; Update process-tokens to use eval-op
+;; Update process-tokens to handle function calls
 (define process-tokens
   (lambda (tokens)
     (cond
@@ -119,6 +119,23 @@
       ((= (length tokens) 1) 
        (process-token (car tokens)))
       
+      ;; Function call pattern: f(x)
+      ((and (> (length tokens) 2)  ;; At least f()
+            (not (operator? (car tokens)))  ;; Not an operator
+            (equal? (cadr tokens) "("))     ;; Opening parenthesis
+       (let ((closing (find-matching-paren tokens 1)))
+         (if (and (> closing 1)
+                  (= closing (- (length tokens) 1)))
+             ;; Function call pattern confirmed
+             (let ((func (string->symbol (car tokens)))
+                   (args-tokens (sublist tokens 2 closing)))
+               ;; Process arguments between parentheses
+               (if (null? args-tokens)
+                   (list func)  ;; No arguments: (f)
+                   (list func (process-tokens args-tokens))))
+             ;; Not a complete function call, process normally
+             (process-normal-expression tokens))))
+      
       ;; Parenthesized expression
       ((and (equal? (car tokens) "(")
             (let ((closing (find-matching-paren tokens 0)))
@@ -127,16 +144,20 @@
        (process-tokens (sublist tokens 1 (- (length tokens) 1))))
       
       ;; Process by operator precedence
-      (else
-        (let ((op-pos (find-lowest-precedence-op tokens)))
-          (if (>= op-pos 0)
-              (let ((op (list-ref tokens op-pos))
-                    (left (process-tokens (sublist tokens 0 op-pos)))
-                    (right (process-tokens (sublist tokens (+ op-pos 1) (length tokens)))))
-                (if (equal? op "^")
-                    (expt-op left right)  ; Special handling for exponentiation
-                    (list (string->symbol op) left right)))
-              tokens))))))
+      (else (process-normal-expression tokens)))))
+
+;; Helper for normal expression processing (extracted from original)
+(define process-normal-expression
+  (lambda (tokens)
+    (let ((op-pos (find-lowest-precedence-op tokens)))
+      (if (>= op-pos 0)
+          (let ((op (list-ref tokens op-pos))
+                (left (process-tokens (sublist tokens 0 op-pos)))
+                (right (process-tokens (sublist tokens (+ op-pos 1) (length tokens)))))
+            (if (equal? op "^")
+                (expt-op left right)  ; Special handling for exponentiation
+                (list (string->symbol op) left right)))
+          tokens))))
 
 ;; Simple infix to prefix converter
 (define infix->prefix

@@ -105,4 +105,40 @@
   (assert-equal (eval-algebraic "2*(3+4)")
                 14))
 
-;
+;; Tests for function call conversions
+
+(define-test "infix-to-prefix-simple-function-call"
+  (assert-equal (infix->prefix "f(x)")
+                '(f x)))
+
+(define-test "infix-to-prefix-function-with-constant"
+  (assert-equal (infix->prefix "f(5)")
+                '(f 5)))
+
+(define-test "infix-to-prefix-function-with-expression"
+  (assert-equal (infix->prefix "f(x+y)")
+                '(f (+ x y))))
+
+(define-test "infix-to-prefix-nested-function-calls"
+  (assert-equal (infix->prefix "f(g(x))")
+                '(f (g x))))
+
+(define-test "infix-to-prefix-function-with-complex-expression"
+  (assert-equal (infix->prefix "f(x*y+z)")
+                '(f (+ (* x y) z))))
+
+(define-test "infix-to-prefix-function-in-expression"
+  (assert-equal (infix->prefix "a+f(x)")
+                '(+ a (f x))))
+
+(define-test "infix-to-prefix-complex-with-function"
+  (assert-equal (infix->prefix "3+4*f(x)")
+                '(+ 3 (* 4 (f x)))))
+
+(define-test "infix-to-prefix-function-with-parenthesized-expr"
+  (assert-equal (infix->prefix "f((x+y)*z)")
+                '(f (* (+ x y) z))))
+
+(define-test "infix-to-prefix-functions-with-operators"
+  (assert-equal (infix->prefix "f(x)+g(y)")
+                '(+ (f x) (g y))))
