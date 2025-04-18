@@ -198,6 +198,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
     nada_free(result);
 
     // Clean up
+    func_env->ref_count = 1;  // Set to 1 so next release will free it
     nada_env_release(func_env);
 
     return result_copy;
