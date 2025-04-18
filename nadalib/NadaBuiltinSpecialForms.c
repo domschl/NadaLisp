@@ -48,6 +48,7 @@ NadaValue *builtin_define(NadaValue *args, NadaEnv *env) {
         // Extract body (rest of the args)
         NadaValue *body = nada_cdr(args);
 
+        /*
         nada_env_add_ref(env);  // Add a reference to the current environment
         //  Create a function value
         NadaValue *func = nada_create_function(
@@ -66,6 +67,13 @@ NadaValue *builtin_define(NadaValue *args, NadaEnv *env) {
             func->data.function.env = NULL;
         }
         nada_free(func);  // Free the original func value
+        */
+        nada_env_add_ref(env);  // Add a reference to the current environment
+        NadaValue *func = nada_create_function(
+            nada_deep_copy(params),
+            nada_deep_copy(body),
+            env);  // Capture the current environment
+        nada_env_set(env, func_name->data.symbol, func);
 
         // Return the function name
         return nada_create_symbol(func_name->data.symbol);
