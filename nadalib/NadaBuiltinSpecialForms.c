@@ -48,7 +48,8 @@ NadaValue *builtin_define(NadaValue *args, NadaEnv *env) {
         // Extract body (rest of the args)
         NadaValue *body = nada_cdr(args);
 
-        // Create a function value
+        nada_env_add_ref(env);  // Add a reference to the current environment
+        //  Create a function value
         NadaValue *func = nada_create_function(
             nada_deep_copy(params),
             nada_deep_copy(body),
@@ -157,6 +158,7 @@ NadaValue *builtin_lambda(NadaValue *args, NadaEnv *env) {
     // The rest is the function body
     NadaValue *body = nada_cdr(args);
 
+    nada_env_add_ref(env);  // Add a reference to the current environment
     // Create and return a new function value
     return nada_create_function(
         nada_deep_copy(params),
@@ -624,6 +626,8 @@ NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
     NadaValue *func_val = nada_car(args);
     NadaValue *true_func = NULL;
 
+    bool temp_fn = false;
+
     // First try direct evaluation - this handles when op is passed in
     NadaValue *eval_func_val = nada_eval(func_val, env);
 
@@ -634,23 +638,23 @@ NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
     // Otherwise check if it's a symbol we can resolve
     else if (eval_func_val->type == NADA_SYMBOL) {
         const char *symbol_name = eval_func_val->data.symbol;
+        nada_free(eval_func_val);
 
         // Check for arithmetic operators by name
         if (strcmp(symbol_name, "+") == 0) {
-            nada_free(eval_func_val);
+            temp_fn = true;
             true_func = nada_create_builtin_function(builtin_add);
         } else if (strcmp(symbol_name, "-") == 0) {
-            nada_free(eval_func_val);
+            temp_fn = true;
             true_func = nada_create_builtin_function(builtin_subtract);
         } else if (strcmp(symbol_name, "*") == 0) {
-            nada_free(eval_func_val);
+            temp_fn = true;
             true_func = nada_create_builtin_function(builtin_multiply);
         } else if (strcmp(symbol_name, "/") == 0) {
-            nada_free(eval_func_val);
+            temp_fn = true;
             true_func = nada_create_builtin_function(builtin_divide);
         } else {
             // Try environment lookup
-            nada_free(eval_func_val);
             true_func = nada_env_get(env, symbol_name, 0);
         }
     } else {
@@ -682,7 +686,9 @@ NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
     NadaValue *result = apply_function(true_func, arg_list, env);
 
     // Clean up
-    nada_free(true_func);
+    if (temp_fn) {
+        nada_free(true_func);  // Free the temporary function
+    }
     nada_free(arg_list);
 
     return result;
