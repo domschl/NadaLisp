@@ -101,6 +101,13 @@
           (else (find-op (+ pos 1) lowest-idx lowest-prec paren-level)))))
     (find-op 0 -1 999 0)))
 
+;; Process a token into a value or symbol
+(define process-token
+  (lambda (token)
+    (if (string->number token)
+        (string->number token)
+        (string->symbol token))))
+
 ;; Update process-tokens to use eval-op
 (define process-tokens
   (lambda (tokens)
@@ -130,13 +137,6 @@
                     (expt-op left right)  ; Special handling for exponentiation
                     (list (string->symbol op) left right)))
               tokens))))))
-
-;; Process a token into a value or symbol
-(define process-token
-  (lambda (token)
-    (if (string->number token)
-        (string->number token)
-        (string->symbol token))))
 
 ;; Simple infix to prefix converter
 (define infix->prefix
