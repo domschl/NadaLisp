@@ -399,6 +399,43 @@ void nada_serialize_env(NadaEnv *current_env, FILE *out) {
     // We don't save parent environments
 }
 
+// Built-in function: error
+static NadaValue *builtin_error(NadaValue *args, NadaEnv *env) {
+    // Check that we have at least one argument
+    if (nada_is_nil(args)) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "error requires at least one argument");
+        return nada_create_error("error function called with no arguments");
+    }
+
+    // Evaluate the first argument
+    NadaValue *message_val = nada_eval(nada_car(args), env);
+
+    // Convert to string if needed
+    char error_message[1024] = {0};
+
+    if (message_val->type == NADA_STRING) {
+        strncpy(error_message, message_val->data.string, sizeof(error_message) - 1);
+    } else {
+        // For other types, get a string representation
+        char *temp = nada_value_to_string(message_val);
+        if (temp) {
+            strncpy(error_message, temp, sizeof(error_message) - 1);
+            free(temp);
+        } else {
+            strcpy(error_message, "unknown error");
+        }
+    }
+
+    // Report the error so it gets registered in the global error state
+    nada_report_error(NADA_ERROR_TYPE_ERROR, "%s", error_message);
+
+    // Free the evaluated argument
+    nada_free(message_val);
+
+    // Return an error value with the same message
+    return nada_create_error(error_message);
+}
+
 // Add to the builtins table (keep all string functions here)
 static BuiltinFuncInfo builtins[] = {
     {"quote", builtin_quote},
@@ -509,6 +546,8 @@ static BuiltinFuncInfo builtins[] = {
     {"set!", builtin_set},
 
     {"apply", builtin_apply},
+
+    {"error", builtin_error},
 
     {NULL, NULL}  // Sentinel to mark end of array
 };
