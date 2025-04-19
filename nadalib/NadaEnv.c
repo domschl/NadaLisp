@@ -9,7 +9,7 @@
 static int env_id_counter = 0;
 
 // Set this to true to see detailed environment operations
-static bool show_env_debug = true;
+static bool show_env_debug = false;
 
 // Increment the reference count for an environment
 void nada_env_add_ref(NadaEnv *env) {
