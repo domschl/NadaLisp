@@ -27,10 +27,10 @@ cmake -G Ninja ..
 ninja
 ```
 
-### Execute
+### Execute repl
 
 ```bash
-NadaLisp/build/repl/NadaLisp
+NadaLisp/build/repl/nada
 ```
 
 ## Tests
