@@ -7,6 +7,8 @@
 #include "NadaError.h"
 
 static int env_id_counter = 0;
+
+// Set this to true to see detailed environment operations
 static bool show_env_debug = false;
 
 // Increment the reference count for an environment
@@ -92,6 +94,16 @@ NadaEnv *nada_env_create(NadaEnv *parent) {
 // Free an environment and all its bindings
 void nada_env_free(NadaEnv *env) {
     if (!env) return;
+
+    if (show_env_debug) {
+        printf("ENV FREEING #%d (bindings: ", env->id);
+        struct NadaBinding *b = env->bindings;
+        while (b) {
+            printf("%s ", b->name);
+            b = b->next;
+        }
+        printf(")\n");
+    }
 
     // First pass: break circular references in functions
     struct NadaBinding *binding = env->bindings;

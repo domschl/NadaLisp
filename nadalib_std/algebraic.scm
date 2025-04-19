@@ -70,17 +70,17 @@
         (error "Cannot compute square root of negative number")
         (integer-sqrt-loop 0 (+ n 1) n))))
 
-;(define integer-sqrt
-;  (lambda (n)
-;    (if (< n 0)
-;        (error "Cannot compute square root of negative number")
-;        (let loop ((low 0) (high (+ n 1)))
- ;         (let ((mid (quotient (+ low high) 2)))
-;            (if (= mid low)
-;                low
-;                (if (> (* mid mid) n)
-;                    (loop low mid)
-;                    (loop mid high))))))))
+(define integer-sqrt-leak
+  (lambda (n)
+    (if (< n 0)
+        (error "Cannot compute square root of negative number")
+        (let loop ((low 0) (high (+ n 1)))
+          (let ((mid (quotient (+ low high) 2)))
+            (if (= mid low)
+                low
+                (if (> (* mid mid) n)
+                    (loop low mid)
+                    (loop mid high))))))))
 
 (define zero?
   (lambda (x)
@@ -144,7 +144,7 @@
       
       ;; Special case: square root of perfect square
       (if (= (denominator exp) 2) 
-       (sqrt-op (expt base (numerator exp)))
+       (sqrt-op (expt base (numerator exp))))
       
       ;; Keep symbolic for other cases
       (else (list 'expt base exp)))))
