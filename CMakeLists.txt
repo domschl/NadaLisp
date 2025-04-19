@@ -81,4 +81,4 @@ install(TARGETS nada_lib nada_shared
         LIBRARY DESTINATION lib)
 
 # Install the REPL executable
-install(TARGETS NadaLisp DESTINATION bin)
+install(TARGETS nada DESTINATION bin)

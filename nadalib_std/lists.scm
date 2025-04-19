@@ -19,18 +19,18 @@
     
 (define append
   (lambda args
-    
     (append-all args)))
 
 ;; Reverse a list
+  (define rev-helper
+    (lambda (remaining result)
+      (if (null? remaining)
+          result
+          (rev-helper (cdr remaining)
+                      (cons (car remaining) result)))))
+
 (define reverse
   (lambda (lst)
-    (define rev-helper
-      (lambda (remaining result)
-        (if (null? remaining)
-            result
-            (rev-helper (cdr remaining)
-                       (cons (car remaining) result)))))
     (rev-helper lst '())))
 
 ;; Filter a list using a predicate function
