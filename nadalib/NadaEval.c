@@ -60,6 +60,10 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
                 rest_param = next->data.symbol;
                 break;
             }
+            // Prevent infinite loop on improper lists like (a b . c) where c is not a symbol
+            if (next->type != NADA_PAIR && next->type != NADA_NIL) {
+                break;
+            }
             current = next;
         }
     }
@@ -74,10 +78,8 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
 
             // Evaluate each argument and build a new list
             while (current->type == NADA_PAIR) {
-                // NadaValue *arg_evaluated = nada_eval(current->data.pair.car, env);
-                // NadaValue *new_args = nada_cons(arg_evaluated, evaluated_args);
-                NadaValue *new_args = nada_cons(current->data.pair.car, evaluated_args);
-                // nada_free(arg_evaluated);   // Free after it's been copied
+                NadaValue *arg_evaluated = nada_eval(current->data.pair.car, env);
+                NadaValue *new_args = nada_cons(arg_evaluated, evaluated_args);
                 nada_free(evaluated_args);  // Free the old list
                 evaluated_args = new_args;  // Update our list pointer
                 current = current->data.pair.cdr;
@@ -89,7 +91,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
 
             // Bind the evaluated arguments list to the parameter
             nada_env_set(func_env, rest_param, reversed_args);
-            nada_free(reversed_args);  // Free after it's been stored
+            nada_free(reversed_args);  // Free after it's been copied by env_set
         } else {
             // Case: (lambda (a b . rest) body) - fixed args plus rest list
             NadaValue *current_param = params;
@@ -97,7 +99,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
 
             // Process the fixed parameters
             while (current_param->type == NADA_PAIR &&
-                   current_param->data.pair.cdr->type == NADA_PAIR) {
+                   current_param->data.pair.cdr->type != NADA_SYMBOL) {  // Stop before the rest symbol
 
                 if (nada_is_nil(current_arg)) {
                     // Not enough arguments
@@ -122,7 +124,7 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
             if (current_param->type == NADA_PAIR &&
                 current_param->data.pair.car->type == NADA_SYMBOL) {
 
-                if (nada_is_nil(current_arg)) {
+                if (nada_is_nil(current_arg) || current_arg->type != NADA_PAIR) {
                     // Not enough arguments
                     nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "too few arguments");
                     nada_env_release(func_env);
@@ -130,16 +132,32 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
                 }
 
                 // Bind this parameter
+                NadaValue *arg_evaluated = nada_eval(current_arg->data.pair.car, env);
                 nada_env_set(func_env,
                              current_param->data.pair.car->data.symbol,
-                             current_arg->data.pair.car);
+                             arg_evaluated);
+                nada_free(arg_evaluated);
 
                 // Move to next arg
                 current_arg = current_arg->data.pair.cdr;
             }
 
+            // Evaluate remaining arguments and collect into a list for the rest parameter
+            NadaValue *rest_args_list = nada_create_nil();
+            NadaValue *current_rest_arg = current_arg;
+            while (current_rest_arg->type == NADA_PAIR) {
+                NadaValue *arg_evaluated = nada_eval(current_rest_arg->data.pair.car, env);
+                NadaValue *new_rest_list = nada_cons(arg_evaluated, rest_args_list);
+                nada_free(arg_evaluated);
+                nada_free(rest_args_list);
+                rest_args_list = new_rest_list;
+                current_rest_arg = current_rest_arg->data.pair.cdr;
+            }
+            NadaValue *reversed_rest_args = nada_reverse(rest_args_list);
+            nada_free(rest_args_list);
             // Bind rest parameter to remaining args - don't use nada_deep_copy
-            nada_env_set(func_env, rest_param, current_arg);
+            nada_env_set(func_env, rest_param, reversed_rest_args);
+            nada_free(reversed_rest_args);
         }
     } else {
         // Regular function binding - same fix applies
@@ -153,11 +171,10 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
                 return nada_create_nil();
             }
 
-            // NadaValue *arg_evaluated = nada_eval(current_arg->data.pair.car, env);
+            NadaValue *arg_evaluated = nada_eval(current_arg->data.pair.car, env);
             nada_env_set(func_env,
                          current_param->data.pair.car->data.symbol,
-                         current_arg->data.pair.car);
-            //             arg_evaluated);
+                         arg_evaluated);
             // nada_free(arg_evaluated);  // Free after it's been stored
 
             // Move to next param and arg

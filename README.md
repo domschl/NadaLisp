@@ -2,7 +2,7 @@
 
 # NadaLisp Project
 
-It's Scheme implementation implemented by Copilot using Claude Sonnet 3.7 Thinking, Gemini 2.5 Pro (preview) and all of it's collegues. Human did only little hand-holding and debris removal...
+It's Scheme implementation implemented by Copilot using Claude Sonnet 3.7 Thinking and all of it's collegues. Human did only little hand-holding and debris removal...
 
 Since the language is in flux, have a look at `tests/lisp_tests` for the current language elements. `nadalib` contains a standard library.
 
