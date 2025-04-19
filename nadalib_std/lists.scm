@@ -1,23 +1,24 @@
 ;; Basic list operations for NadaLisp
 
 ;; Append multiple lists together
+(define append-two
+  (lambda (lst1 lst2)
+    (if (null? lst1)
+        lst2
+        (cons (car lst1) (append-two (cdr lst1) lst2)))))
+
+(define append-all
+  (lambda (lists)
+    (cond
+      ;; No lists - return empty list
+      ((null? lists) '())
+      ;; One list left - return it
+      ((null? (cdr lists)) (car lists))
+      ;; Otherwise append first list with result of appending the rest
+      (else (append-two (car lists) (append-all (cdr lists)))))))
+    
 (define append
   (lambda args
-    (define append-two
-      (lambda (lst1 lst2)
-        (if (null? lst1)
-            lst2
-            (cons (car lst1) (append-two (cdr lst1) lst2)))))
-    
-    (define append-all
-      (lambda (lists)
-        (cond
-          ;; No lists - return empty list
-          ((null? lists) '())
-          ;; One list left - return it
-          ((null? (cdr lists)) (car lists))
-          ;; Otherwise append first list with result of appending the rest
-          (else (append-two (car lists) (append-all (cdr lists)))))))
     
     (append-all args)))
 
