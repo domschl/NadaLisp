@@ -144,7 +144,7 @@
       
       ;; Special case: square root of perfect square
       (if (= (denominator exp) 2) 
-       (sqrt-op (expt base (numerator exp)))
+       (sqrt-op (expt base (numerator exp))))
       
       ;; Keep symbolic for other cases
       (else (list 'expt base exp)))))
