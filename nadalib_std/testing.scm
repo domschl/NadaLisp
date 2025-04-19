@@ -31,30 +31,21 @@
     (display "Running test: ")
     (display name)
     (display "\n")
-    (display "   Assertion: ")
-    (display assertion)
-    (display "\n")
-    (define result "FAILED")
-    (define test-passed #f)
     
     ;; Update global counters based on result
-    (if (eq? (eval assertion) #t)
+    (if assertion
+        (set! tests-passed-count (+ tests-passed-count 1))
         (begin
-          (display "Test passed\n")
-          ;; Increment the passed test counter
-          (set! tests-passed-count (+ tests-passed-count 1))
-          (set! result "PASSED")
-          (set! test-passed #t))
-        (begin
-          (display "Test failed\n")
           (set! tests-failed-count (+ tests-failed-count 1))
           (set! tests-all-passed #f)))
     
     (display "Test '")
     (display name)
     (display "' ")
-    (display result)
+    (if assertion
+        (display "PASSED")
+        (display "FAILED"))
     (display "\n")
     
     ;; Return the test result
-    test-passed))
+    assertion))
