@@ -507,10 +507,13 @@ NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
     } else {
         // Regular case - for each position in the lists
         for (int i = 0; i < count; i++) {
-            // Build argument list for the function call
-            NadaValue *call_args = nada_create_nil();
+            // Create a custom environment for this function call
+            NadaEnv *call_env = nada_env_create(env);
 
-            // For each list, get the ith element and add it to the call args
+            // For each list, get the ith element
+            NadaValue *func_args = nada_create_nil();
+            int all_lists_valid = 1;
+
             for (int j = list_count - 1; j >= 0; j--) {
                 // Get the ith element of list j
                 NadaValue *list_j = list_args[j];
@@ -519,52 +522,76 @@ NadaValue *builtin_map(NadaValue *args, NadaEnv *env) {
                 }
 
                 if (list_j->type == NADA_PAIR) {
-                    NadaValue *element = nada_car(list_j);
-
-                    if (element->type == NADA_FUNC) {
-                        // Element is a function, preserve it correctly
-                        NadaValue *func_copy = NULL;
-                        if (element->data.function.builtin) {
-                            func_copy = nada_create_builtin_function(element->data.function.builtin);
-                        } else {
-                            func_copy = nada_deep_copy(element);
-                        }
-
-                        // Add to argument list
-                        NadaValue *new_args = nada_cons(func_copy, call_args);
-                        nada_free(func_copy);
-                        nada_free(call_args);
-                        call_args = new_args;
-                    } else {
-                        // For regular values or nested lists, do a deep copy to preserve structure
-                        NadaValue *element_copy = nada_deep_copy(element);
-                        NadaValue *new_args = nada_cons(element_copy, call_args);
-                        nada_free(element_copy);
-                        nada_free(call_args);
-                        call_args = new_args;
-                    }
+                    // Extract the element at this position and add it to our args
+                    NadaValue *element = nada_deep_copy(nada_car(list_j));
+                    NadaValue *new_args = nada_cons(element, func_args);
+                    nada_free(element);
+                    nada_free(func_args);
+                    func_args = new_args;
                 } else {
-                    // If any list is too short, stop processing
-                    nada_free(call_args);
-                    call_args = nada_create_nil();
+                    all_lists_valid = 0;
                     break;
                 }
             }
 
-            // Check if we have a valid arg list
-            if (nada_is_nil(call_args)) {
+            if (!all_lists_valid) {
+                nada_free(func_args);
+                nada_env_release(call_env);
                 break;
             }
 
-            // Apply function to arguments
-            NadaValue *mapped_result = apply_function(func, call_args, env);
-            nada_free(call_args);
+            // If we have a lambda function, bind parameters directly
+            NadaValue *mapped_result = NULL;
+
+            if (func->data.function.builtin == NULL) {
+                // For user-defined lambda, bind parameters directly
+                NadaValue *params = func->data.function.params;
+                NadaValue *body = func->data.function.body;
+                NadaValue *current_param = params;
+                NadaValue *current_arg = func_args;
+
+                // Bind each parameter without re-evaluating
+                while (!nada_is_nil(current_param) && !nada_is_nil(current_arg)) {
+                    if (current_param->type != NADA_PAIR ||
+                        current_param->data.pair.car->type != NADA_SYMBOL) {
+                        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "invalid parameter list");
+                        mapped_result = nada_create_nil();
+                        break;
+                    }
+
+                    // Bind parameter directly to argument without evaluation
+                    nada_env_set(call_env,
+                                 current_param->data.pair.car->data.symbol,
+                                 nada_car(current_arg));
+
+                    // Move to next param and arg
+                    current_param = nada_cdr(current_param);
+                    current_arg = nada_cdr(current_arg);
+                }
+
+                // Evaluate body expressions
+                mapped_result = nada_create_nil();
+                NadaValue *current_expr = body;
+
+                while (!nada_is_nil(current_expr)) {
+                    nada_free(mapped_result);
+                    mapped_result = nada_eval(nada_car(current_expr), call_env);
+                    current_expr = nada_cdr(current_expr);
+                }
+            } else {
+                // For built-in functions, use the builtin function directly
+                mapped_result = func->data.function.builtin(func_args, env);
+            }
 
             // Add the result to our list (in reverse)
             NadaValue *new_result = nada_cons(mapped_result, result);
             nada_free(mapped_result);
             nada_free(result);
             result = new_result;
+
+            // Clean up
+            nada_free(func_args);
+            nada_env_release(call_env);
         }
     }
 
