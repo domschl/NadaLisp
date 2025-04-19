@@ -468,18 +468,21 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             binding = binding->next;
         }
 
-        // // Also check if the result directly contains a function that references loop_env
-        // if (result_copy->type == NADA_FUNC && result_copy->data.function.env == loop_env) {
-        //     // Replace with parent environment
-        //     result_copy->data.function.env = loop_env->parent;
-        //     if (loop_env->parent) {
-        //         nada_env_add_ref(loop_env->parent);
-        //     }
-        // }
-        fix_env_references(result_copy, loop_env, loop_env->parent);
+        // Also check if the result directly contains a function that references loop_env
+        if (result_copy->type == NADA_FUNC && result_copy->data.function.env == loop_env) {
+            // Replace with parent environment
+            result_copy->data.function.env = loop_env->parent;
+            if (loop_env->parent) {
+                nada_env_add_ref(loop_env->parent);
+            }
+        }
+
+        loop_env->ref_count = 1;
+
+        // fix_env_references(result_copy, loop_env, loop_env->parent);
 
         // Release loop_env correctly - both references
-        nada_env_release(loop_env);  // Release initial reference
+        // nada_env_release(loop_env);  // Release initial reference
         nada_env_release(loop_env);  // Release extra reference added earlier
 
         return result_copy;
@@ -559,15 +562,18 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             binding = binding->next;
         }
 
-        // // Also check if the result directly contains a function that references let_env
-        // if (result_copy->type == NADA_FUNC && result_copy->data.function.env == let_env) {
-        //     // Replace with parent environment
-        //     result_copy->data.function.env = let_env->parent;
-        //     if (let_env->parent) {
-        //         nada_env_add_ref(let_env->parent);
-        //     }
-        // }
-        fix_env_references(result_copy, let_env, let_env->parent);
+        // Also check if the result directly contains a function that references let_env
+        if (result_copy->type == NADA_FUNC && result_copy->data.function.env == let_env) {
+            // Replace with parent environment
+            result_copy->data.function.env = let_env->parent;
+            if (let_env->parent) {
+                nada_env_add_ref(let_env->parent);
+            }
+        }
+
+        let_env->ref_count = 1;
+
+        // fix_env_references(result_copy, let_env, let_env->parent);
 
         // Release let_env correctly - don't manually set ref_count
         nada_env_release(let_env);

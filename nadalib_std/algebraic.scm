@@ -64,13 +64,13 @@
             (integer-sqrt-loop low mid n)
             (integer-sqrt-loop mid high n))))))
 
-(define integer-sqrt
+(define integer-sqrt-simple
   (lambda (n)
     (if (< n 0)
         (error "Cannot compute square root of negative number")
         (integer-sqrt-loop 0 (+ n 1) n))))
 
-(define integer-sqrt-leaking
+(define integer-sqrt
   (lambda (n)
     (if (< n 0)
         (error "Cannot compute square root of negative number")
