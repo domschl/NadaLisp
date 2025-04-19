@@ -5,6 +5,31 @@
 #include "NadaError.h"
 #include "NadaBuiltinSpecialForms.h"
 
+// Recursively check for and fix references to a specific environment
+void fix_env_references(NadaValue *value, NadaEnv *target_env, NadaEnv *replacement_env) {
+    if (!value) return;
+
+    printf("FIX ENV: Checking for references to env #%d\n", target_env->id);
+
+    // Check for direct function reference to target environment
+    if (value->type == NADA_FUNC && value->data.function.env == target_env) {
+        printf("FIX ENV: Found reference in function, replacing env #%d with #%d\n",
+               target_env->id, replacement_env ? replacement_env->id : -1);
+
+        // Fix the reference by replacing with parent
+        value->data.function.env = replacement_env;
+        if (replacement_env) {
+            nada_env_add_ref(replacement_env);
+        }
+    }
+    // Recursively check pairs
+    else if (value->type == NADA_PAIR) {
+        fix_env_references(value->data.pair.car, target_env, replacement_env);
+        fix_env_references(value->data.pair.cdr, target_env, replacement_env);
+    }
+    // Other types can't contain environment references
+}
+
 // Built-in function: quote
 NadaValue *builtin_quote(NadaValue *args, NadaEnv *env) {
     // Check for exactly 1 argument
@@ -423,13 +448,16 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             current_expr = nada_cdr(current_expr);
         }
 
-        // Before returning, break the circular reference
+        // Make a copy of the result to return
+        NadaValue *result_copy = nada_deep_copy(result);
+        nada_free(result);
+
+        // Before releasing loop_env, find and fix circular references
         struct NadaBinding *binding = loop_env->bindings;
         while (binding != NULL) {
-            if (strcmp(binding->name, func_name) == 0 &&
-                binding->value && binding->value->type == NADA_FUNC &&
+            if (binding->value && binding->value->type == NADA_FUNC &&
                 binding->value->data.function.env == loop_env) {
-                // printf("Breaking circular reference in named let function: %s\n", func_name);
+                // printf("Breaking circular reference in let-bound function: %s\n", binding->name);
 
                 // Set function's env pointer to parent env and increment parent's ref count
                 binding->value->data.function.env = loop_env->parent;
@@ -440,12 +468,21 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             binding = binding->next;
         }
 
-        // Force let_env to be fully cleaned up
-        // printf("Forcing cleanup of named let_env #%d\n", loop_env->id);
-        loop_env->ref_count = 1;  // Set to 1 so next release will free it
-        nada_env_release(loop_env);
+        // // Also check if the result directly contains a function that references loop_env
+        // if (result_copy->type == NADA_FUNC && result_copy->data.function.env == loop_env) {
+        //     // Replace with parent environment
+        //     result_copy->data.function.env = loop_env->parent;
+        //     if (loop_env->parent) {
+        //         nada_env_add_ref(loop_env->parent);
+        //     }
+        // }
+        fix_env_references(result_copy, loop_env, loop_env->parent);
 
-        return result;
+        // Release loop_env correctly - both references
+        nada_env_release(loop_env);  // Release initial reference
+        nada_env_release(loop_env);  // Release extra reference added earlier
+
+        return result_copy;
     } else {
         // Regular let
         NadaValue *bindings = first_arg;
@@ -522,9 +559,17 @@ NadaValue *builtin_let(NadaValue *args, NadaEnv *env) {
             binding = binding->next;
         }
 
-        // Force let_env to be fully cleaned up
-        // printf("Forcing cleanup of let_env #%d\n", let_env->id);
-        let_env->ref_count = 1;  // Set to 1 so next release will free it
+        // // Also check if the result directly contains a function that references let_env
+        // if (result_copy->type == NADA_FUNC && result_copy->data.function.env == let_env) {
+        //     // Replace with parent environment
+        //     result_copy->data.function.env = let_env->parent;
+        //     if (let_env->parent) {
+        //         nada_env_add_ref(let_env->parent);
+        //     }
+        // }
+        fix_env_references(result_copy, let_env, let_env->parent);
+
+        // Release let_env correctly - don't manually set ref_count
         nada_env_release(let_env);
 
         return result_copy;
