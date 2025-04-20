@@ -78,9 +78,24 @@
   (lambda (lst)
     (cdr (car lst))))
 
+(define cddr
+  (lambda (lst)
+    (cdr (cdr lst))))
+
 (define cdddr
   (lambda (lst)
     (cdr (cdr (cdr lst)))))
+
+;;(define cadr  (in core)
+;;(define caddr (in core)
+
+(define set-car!
+  (lambda (lst new-car)
+    (set! lst (cons new-car (cdr lst)))))
+
+(define set-cdr!
+  (lambda (lst new-cdr)
+    (set! lst (cons (car lst) new-cdr))))
 
 ;; Move fold-left from algebraic.scm to here
 (define fold-left
@@ -96,3 +111,9 @@
       ((null? alist) #f)
       ((equal? key (caar alist)) (car alist))
       (else (assoc key (cdr alist))))))
+
+;; Concatenate multiple strings together
+(define string-append
+  (lambda args
+    (string-join args "")))
+
