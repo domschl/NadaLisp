@@ -78,9 +78,9 @@
   (lambda (lst)
     (cdr (car lst))))
 
-(define cddr
+(define cdddr
   (lambda (lst)
-    (cdr (cdr lst))))
+    (cdr (cdr (cdr lst)))))
 
 ;; Move fold-left from algebraic.scm to here
 (define fold-left

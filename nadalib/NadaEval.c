@@ -542,6 +542,9 @@ static BuiltinFuncInfo builtins[] = {
     // Add the new map function
     {"map", builtin_map},
 
+    // Add the new for-each function
+    {"for-each", builtin_for_each},
+
     // Add the new set! function
     {"set!", builtin_set},
 

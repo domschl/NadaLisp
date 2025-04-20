@@ -26,4 +26,7 @@ NadaValue *builtin_set(NadaValue *args, NadaEnv *env);
 // Add this declaration
 NadaValue *builtin_apply(NadaValue *args, NadaEnv *env);
 
+// Built-in function: for-each
+NadaValue *builtin_for_each(NadaValue *args, NadaEnv *env);
+
 #endif  // NADABUILTINSPECIALFORMS_H
