@@ -1,8 +1,12 @@
 ;; General purpose functions for the
 ;; NADA programming language.
 
-(define newline (display "\n"))
-
+(define newline (lambda () (display "\n")))
+(define displayln
+  (lambda (x)
+    (display x)
+    (newline)))
+    
 (define let*
   (lambda (bindings body)
     (if (null? bindings)
