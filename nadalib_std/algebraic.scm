@@ -41,11 +41,6 @@
          (not (irrational? expr))
          (not (complex? expr)))))
 
-;; Update eval-algebraic to use full-simplify
-(define eval-algebraic
-  (lambda (expr)
-    (eval (infix->prefix expr))))
-
 ;; Integer division truncated toward zero, using `remainder`
 (define quotient
   (lambda (n d)
@@ -101,6 +96,90 @@
               (set! i (- i 1))   ; decrement i by 1
               (loop))))))))
 
+
+;; Helper function to identify symbolic expressions
+(define symbolic?
+  (lambda (expr)
+    (or (variable? expr)                  ; Single variable
+        (and (list? expr)                 ; Function application
+             (not (null? expr))
+             (not (number? expr))))))
+
+;; Addition operation
+(define add-op
+  (lambda args
+    (let ((numeric-sum 0)
+          (symbolic-terms '()))
+      ;; First pass: separate numeric and symbolic terms
+      (for-each
+        (lambda (term)
+          (if (number? term)
+              (set! numeric-sum (+ numeric-sum term))
+              (set! symbolic-terms (cons term symbolic-terms))))
+        args)
+      ;; Second pass: build result
+      (let ((result
+              (if (null? symbolic-terms)
+                  numeric-sum                ; Just a number
+                  (if (= numeric-sum 0)
+                      (if (null? (cdr symbolic-terms))
+                          (car symbolic-terms)  ; Just one symbolic term
+                          (cons '+ (reverse symbolic-terms))) ; Multiple symbolic terms
+                      (cons '+ (cons numeric-sum (reverse symbolic-terms)))))))
+        result))))
+
+;; Subtraction operation
+(define sub-op
+  (lambda args
+    (if (null? args)
+        0  ; No arguments means 0
+        (if (null? (cdr args))
+            (if (number? (car args))
+                (- (car args))  ; Negate a single numeric argument
+                (list '- (car args)))  ; Negate a single symbolic argument
+            ;; Multiple arguments: first - rest
+            (let ((first (car args))
+                  (rest (cdr args)))
+              (add-op first (mul-op -1 (apply add-op rest))))))))
+
+;; Multiplication operation
+(define mul-op
+  (lambda args
+    (let ((numeric-product 1)
+          (symbolic-factors '()))
+      ;; First pass: separate numeric and symbolic factors
+      (for-each
+        (lambda (factor)
+          (if (number? factor)
+              (set! numeric-product (* numeric-product factor))
+              (set! symbolic-factors (cons factor symbolic-factors))))
+        args)
+      ;; Second pass: build result
+      (let ((result
+              (cond
+                ((= numeric-product 0) 0)  ; Anything * 0 = 0
+                ((null? symbolic-factors) numeric-product)  ; Just a number
+                ((= numeric-product 1)
+                 (if (null? (cdr symbolic-factors))
+                     (car symbolic-factors)  ; Just one symbolic factor
+                     (cons '* (reverse symbolic-factors)))) ; Multiple symbolic factors
+                (else (cons '* (cons numeric-product (reverse symbolic-factors)))))))
+        result))))
+
+;; Division operation
+(define div-op
+  (lambda args
+    (if (null? args)
+        1  ; No arguments means 1
+        (if (null? (cdr args))
+            (if (number? (car args))
+                (/ 1 (car args))  ; Reciprocal of a single numeric argument
+                (list '/ 1 (car args)))  ; Reciprocal of a single symbolic argument
+            ;; Multiple arguments: first / rest
+            (let ((first (car args))
+                  (rest (cdr args)))
+              (mul-op first (expt-op (apply mul-op rest) -1)))))))
+
 ;; √‑operation that pulls perfect squares out of a rational
 (define sqrt-op
   (lambda (x)
@@ -149,3 +228,30 @@
       ;; Keep symbolic for other cases
       (else (list 'expt base exp)))))
 
+;; Evaluates symbolic expressions, simplifying where possible
+(define eval-symbolic
+  (lambda (expr)
+    (cond
+      ;; Constants evaluate to themselves
+      ((constant? expr) expr)
+      
+      ;; Variables evaluate to themselves
+      ((variable? expr) expr)
+      
+      ;; Lists are function applications
+      ((list? expr)
+       (if (null? expr)
+           expr  ; Empty list evaluates to itself
+           (let ((op (car expr))
+                 (args (map eval-symbolic (cdr expr))))
+             (cond
+               ((eq? op '+) (apply add-op args))
+               ((eq? op '-) (apply sub-op args))
+               ((eq? op '*) (apply mul-op args))
+               ((eq? op '/) (apply div-op args))
+               ((eq? op 'expt) (apply expt-op args))
+               ((eq? op 'sqrt) (sqrt-op (car args)))
+               (else (cons op args))))))  ; Unknown operation
+      
+      ;; Default: return as-is
+      (else expr))))

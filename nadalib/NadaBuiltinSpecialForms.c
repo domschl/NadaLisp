@@ -733,3 +733,168 @@ NadaValue *builtin_apply(NadaValue *args, NadaEnv *env) {
 
     return result;
 }
+
+// Built-in function: for-each
+NadaValue *builtin_for_each(NadaValue *args, NadaEnv *env) {
+    // Check that we have at least 2 arguments
+    if (nada_is_nil(args) || nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT,
+                          "for-each requires at least a function and a list");
+        return nada_create_nil();
+    }
+
+    // Evaluate the first argument to get the function
+    NadaValue *func = nada_eval(nada_car(args), env);
+    if (func->type != NADA_FUNC) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "for-each requires a function as first argument");
+        nada_free(func);
+        return nada_create_nil();
+    }
+
+    // Get all list arguments (there may be multiple)
+    int list_count = 0;
+    NadaValue **list_args = NULL;
+    NadaValue *current_arg_ptr = nada_cdr(args);
+
+    // First, count how many list arguments we have
+    while (!nada_is_nil(current_arg_ptr)) {
+        list_count++;
+        current_arg_ptr = nada_cdr(current_arg_ptr);
+    }
+
+    // Allocate array for evaluated list arguments
+    list_args = malloc(list_count * sizeof(NadaValue *));
+    if (!list_args) {
+        nada_report_error(NADA_ERROR_OUT_OF_MEMORY, "Out of memory in for-each");
+        nada_free(func);
+        return nada_create_nil();
+    }
+
+    // Evaluate each list argument
+    current_arg_ptr = nada_cdr(args);
+    for (int i = 0; i < list_count; i++) {
+        list_args[i] = nada_eval(nada_car(current_arg_ptr), env);
+
+        // Check that it's actually a list
+        if (!nada_is_nil(list_args[i]) && list_args[i]->type != NADA_PAIR) {
+            nada_report_error(NADA_ERROR_TYPE_ERROR, "for-each requires list arguments");
+            // Clean up
+            nada_free(func);
+            for (int j = 0; j <= i; j++) {
+                nada_free(list_args[j]);
+            }
+            free(list_args);
+            return nada_create_nil();
+        }
+
+        current_arg_ptr = nada_cdr(current_arg_ptr);
+    }
+
+    // Create pointers to track current position in each list
+    NadaValue **current_positions = malloc(list_count * sizeof(NadaValue *));
+    if (!current_positions) {
+        nada_report_error(NADA_ERROR_OUT_OF_MEMORY, "Out of memory in for-each");
+        nada_free(func);
+        for (int i = 0; i < list_count; i++) {
+            nada_free(list_args[i]);
+        }
+        free(list_args);
+        return nada_create_nil();
+    }
+
+    // Initialize current positions
+    for (int i = 0; i < list_count; i++) {
+        current_positions[i] = list_args[i];
+    }
+
+    // Process lists until any list is exhausted
+    while (1) {
+        // Check if any list is empty
+        int any_list_empty = 0;
+        for (int i = 0; i < list_count; i++) {
+            if (nada_is_nil(current_positions[i])) {
+                any_list_empty = 1;
+                break;
+            }
+        }
+
+        if (any_list_empty) {
+            break;
+        }
+
+        // Build arguments for this function call
+        NadaValue *call_args = nada_create_nil();
+
+        // Create arguments list (in reverse order)
+        for (int i = list_count - 1; i >= 0; i--) {
+            NadaValue *element = nada_car(current_positions[i]);
+            NadaValue *new_args = nada_cons(element, call_args);
+            nada_free(call_args);
+            call_args = new_args;
+        }
+
+        // Apply the function to these arguments
+        NadaValue *result = NULL;
+
+        // Use appropriate method to call function depending on type
+        if (func->data.function.builtin == NULL) {
+            // For user-defined functions, create environment & bind args
+            NadaEnv *call_env = nada_env_create(func->data.function.env);
+
+            // Bind parameters to arguments
+            NadaValue *params = func->data.function.params;
+            NadaValue *current_param = params;
+            NadaValue *current_arg = call_args;
+
+            while (!nada_is_nil(current_param) && !nada_is_nil(current_arg)) {
+                if (current_param->type != NADA_PAIR ||
+                    current_param->data.pair.car->type != NADA_SYMBOL) {
+                    break;
+                }
+
+                nada_env_set(call_env,
+                             current_param->data.pair.car->data.symbol,
+                             nada_car(current_arg));
+
+                current_param = nada_cdr(current_param);
+                current_arg = nada_cdr(current_arg);
+            }
+
+            // Evaluate function body
+            result = nada_create_nil();
+            NadaValue *body = func->data.function.body;
+            NadaValue *current_expr = body;
+
+            while (!nada_is_nil(current_expr)) {
+                nada_free(result);
+                result = nada_eval(nada_car(current_expr), call_env);
+                current_expr = nada_cdr(current_expr);
+            }
+
+            nada_env_release(call_env);
+        } else {
+            // For built-in functions, call directly
+            result = func->data.function.builtin(call_args, env);
+        }
+
+        // Free result and arguments (for-each doesn't use return values)
+        nada_free(result);
+        nada_free(call_args);
+
+        // Advance to next element in each list
+        for (int i = 0; i < list_count; i++) {
+            current_positions[i] = nada_cdr(current_positions[i]);
+        }
+    }
+
+    // Clean up
+    free(current_positions);
+    for (int i = 0; i < list_count; i++) {
+        nada_free(list_args[i]);
+    }
+    free(list_args);
+    nada_free(func);
+
+    // Return unspecified value (nil in NadaLisp)
+    return nada_create_nil();
+}

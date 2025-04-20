@@ -127,3 +127,8 @@
           (display "Error: infix->prefix requires a string argument\n")
           '())
         (process-tokens (tokenize-expr expr)))))
+
+;; Update eval-algebraic to use full-simplify
+(define eval-algebraic
+  (lambda (expr)
+    (eval (infix->prefix expr))))
