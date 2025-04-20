@@ -249,7 +249,7 @@
                ((eq? op '-) (apply sub-op args))
                ((eq? op '*) (apply mul-op args))
                ((eq? op '/) (apply div-op args))
-               ((eq? op 'expt) (apply expt-op args))
+               ((eq? op '^) (apply expt-op args))
                ((eq? op 'sqrt) (sqrt-op (car args)))
                (else (cons op args))))))  ; Unknown operation
       
