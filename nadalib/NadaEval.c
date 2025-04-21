@@ -464,6 +464,14 @@ static BuiltinFuncInfo builtins[] = {
     {"=", builtin_numeric_equal},
     {"eq?", builtin_eq},
     {"equal?", builtin_equal},
+
+    // Add standard Scheme string comparison aliases
+    {"string<?", builtin_less_than},
+    {"string<=?", builtin_less_equal},
+    {"string>?", builtin_greater_than},
+    {"string>=?", builtin_greater_equal},
+    {"string=?", builtin_eq},
+
     {"null?", builtin_null},
     {"cond", builtin_cond},
     {"let", builtin_let},

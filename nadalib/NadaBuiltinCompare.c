@@ -15,14 +15,21 @@ NadaValue *builtin_less_than(NadaValue *args, NadaEnv *env) {
     NadaValue *first = nada_eval(nada_car(args), env);
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
-    if (first->type != NADA_NUM || second->type != NADA_NUM) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "< requires number arguments");
+    bool result = 0;
+
+    // Both are numbers
+    if (first->type == NADA_NUM && second->type == NADA_NUM) {
+        result = nada_num_less(first->data.number, second->data.number);
+    }
+    // Both are strings
+    else if (first->type == NADA_STRING && second->type == NADA_STRING) {
+        result = strcmp(first->data.string, second->data.string) < 0;
+    } else {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "< requires both arguments to be numbers or both to be strings");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
     }
-
-    bool result = nada_num_less(first->data.number, second->data.number);
 
     nada_free(first);
     nada_free(second);
@@ -41,14 +48,21 @@ NadaValue *builtin_less_equal(NadaValue *args, NadaEnv *env) {
     NadaValue *first = nada_eval(nada_car(args), env);
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
-    if (first->type != NADA_NUM || second->type != NADA_NUM) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "<= requires number arguments");
+    bool result = 0;
+
+    // Both are numbers
+    if (first->type == NADA_NUM && second->type == NADA_NUM) {
+        result = nada_num_less_equal(first->data.number, second->data.number);
+    }
+    // Both are strings
+    else if (first->type == NADA_STRING && second->type == NADA_STRING) {
+        result = strcmp(first->data.string, second->data.string) <= 0;
+    } else {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "<= requires both arguments to be numbers or both to be strings");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
     }
-
-    bool result = nada_num_less_equal(first->data.number, second->data.number);
 
     nada_free(first);
     nada_free(second);
@@ -67,14 +81,21 @@ NadaValue *builtin_greater_than(NadaValue *args, NadaEnv *env) {
     NadaValue *first = nada_eval(nada_car(args), env);
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
-    if (first->type != NADA_NUM || second->type != NADA_NUM) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "> requires number arguments");
+    bool result = 0;
+
+    // Both are numbers
+    if (first->type == NADA_NUM && second->type == NADA_NUM) {
+        result = nada_num_greater(first->data.number, second->data.number);
+    }
+    // Both are strings
+    else if (first->type == NADA_STRING && second->type == NADA_STRING) {
+        result = strcmp(first->data.string, second->data.string) > 0;
+    } else {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "> requires both arguments to be numbers or both to be strings");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
     }
-
-    bool result = nada_num_greater(first->data.number, second->data.number);
 
     nada_free(first);
     nada_free(second);
@@ -93,14 +114,21 @@ NadaValue *builtin_greater_equal(NadaValue *args, NadaEnv *env) {
     NadaValue *first = nada_eval(nada_car(args), env);
     NadaValue *second = nada_eval(nada_car(nada_cdr(args)), env);
 
-    if (first->type != NADA_NUM || second->type != NADA_NUM) {
-        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, ">= requires number arguments");
+    bool result = 0;
+
+    // Both are numbers
+    if (first->type == NADA_NUM && second->type == NADA_NUM) {
+        result = nada_num_greater_equal(first->data.number, second->data.number);
+    }
+    // Both are strings
+    else if (first->type == NADA_STRING && second->type == NADA_STRING) {
+        result = strcmp(first->data.string, second->data.string) >= 0;
+    } else {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, ">= requires both arguments to be numbers or both to be strings");
         nada_free(first);
         nada_free(second);
         return nada_create_bool(0);
     }
-
-    bool result = nada_num_greater_equal(first->data.number, second->data.number);
 
     nada_free(first);
     nada_free(second);
