@@ -44,3 +44,104 @@
 
 (define-test "equal-different-lists"
   (assert-equal (equal? (quote (1 2 3)) (quote (1 2 4))) #f))
+
+;; String comparison tests
+(define-test "string-less-than-true" 
+  (assert-equal (< "abc" "def") #t))
+
+(define-test "string-less-than-false" 
+  (assert-equal (< "def" "abc") #f))
+
+(define-test "string-less-than-prefix" 
+  (assert-equal (< "abc" "abcd") #t))
+
+(define-test "string-less-than-case" 
+  (assert-equal (< "ABC" "abc") #t))
+
+(define-test "string-less-equal-true-different" 
+  (assert-equal (<= "abc" "def") #t))
+
+(define-test "string-less-equal-true-same" 
+  (assert-equal (<= "abc" "abc") #t))
+
+(define-test "string-less-equal-false" 
+  (assert-equal (<= "xyz" "abc") #f))
+
+(define-test "string-greater-than-true" 
+  (assert-equal (> "xyz" "abc") #t))
+
+(define-test "string-greater-than-false" 
+  (assert-equal (> "abc" "xyz") #f))
+
+(define-test "string-greater-than-prefix" 
+  (assert-equal (> "abcd" "abc") #t))
+
+(define-test "string-greater-equal-true-different" 
+  (assert-equal (>= "xyz" "abc") #t))
+
+(define-test "string-greater-equal-true-same" 
+  (assert-equal (>= "abc" "abc") #t))
+
+(define-test "string-greater-equal-false" 
+  (assert-equal (>= "abc" "xyz") #f))
+
+(define-test "string-eq-true" 
+  (assert-equal (eq? "hello" "hello") #t))
+
+(define-test "string-eq-false" 
+  (assert-equal (eq? "hello" "world") #f))
+
+(define-test "string-equal-true" 
+  (assert-equal (equal? "hello" "hello") #t))
+
+(define-test "string-equal-false" 
+  (assert-equal (equal? "hello" "world") #f))
+
+;; Standard Scheme string comparison tests
+(define-test "string<? true" 
+  (assert-equal (string<? "abc" "def") #t))
+
+(define-test "string<? false" 
+  (assert-equal (string<? "def" "abc") #f))
+
+(define-test "string<? prefix" 
+  (assert-equal (string<? "abc" "abcd") #t))
+
+(define-test "string<? case" 
+  (assert-equal (string<? "ABC" "abc") #t))
+
+(define-test "string<=? true-different" 
+  (assert-equal (string<=? "abc" "def") #t))
+
+(define-test "string<=? true-same" 
+  (assert-equal (string<=? "abc" "abc") #t))
+
+(define-test "string<=? false" 
+  (assert-equal (string<=? "xyz" "abc") #f))
+
+(define-test "string>? true" 
+  (assert-equal (string>? "xyz" "abc") #t))
+
+(define-test "string>? false" 
+  (assert-equal (string>? "abc" "xyz") #f))
+
+(define-test "string>? prefix" 
+  (assert-equal (string>? "abcd" "abc") #t))
+
+(define-test "string>=? true-different" 
+  (assert-equal (string>=? "xyz" "abc") #t))
+
+(define-test "string>=? true-same" 
+  (assert-equal (string>=? "abc" "abc") #t))
+
+(define-test "string>=? false" 
+  (assert-equal (string>=? "abc" "xyz") #f))
+
+(define-test "string=? true" 
+  (assert-equal (string=? "hello" "hello") #t))
+
+(define-test "string=? false" 
+  (assert-equal (string=? "hello" "world") #f))
+
+(define-test "string=? case-sensitive" 
+  (assert-equal (string=? "Hello" "hello") #f))
