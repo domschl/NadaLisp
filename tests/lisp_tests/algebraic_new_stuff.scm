@@ -28,6 +28,9 @@
 (define-test "largest-square-divisor-composite-18"
   (assert-equal (largest-square-divisor 18) 3))
 
+;; Symbolic evaluation tests
+(define-test "eval-symbolic-1"
+  (assert-equal (eval-symbolic '(+ 1 (+ x 2) x 3 y)) '(+ 6 (* 2 x) y)))
 
 ;; Tests for sqrt-op
 ;(define-test "sqrt-op-perfect-square"

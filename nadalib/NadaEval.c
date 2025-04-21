@@ -12,6 +12,9 @@
 // Forward declaration of the builtins array
 static BuiltinFuncInfo builtins[];
 
+// From builtin special forms
+void fix_env_references(NadaValue *value, NadaEnv *target_env, NadaEnv *replacement_env);
+
 // Flag to control symbol error reporting
 int g_silent_symbol_lookup = 0;
 
@@ -191,6 +194,20 @@ NadaValue *apply_function(NadaValue *func, NadaValue *args, NadaEnv *env) {
     // Make a deep copy before cleaning up
     NadaValue *result_copy = nada_deep_copy(result);
     nada_free(result);
+
+    /*
+    // IMPORTANT: Check if the result contains any functions that reference this environment
+    if (result_copy->type == NADA_FUNC && result_copy->data.function.env == func_env) {
+        // Break circular reference to prevent leak
+        result_copy->data.function.env = func->data.function.env;
+        if (func->data.function.env) {
+            nada_env_add_ref(func->data.function.env);
+        }
+    } else if (result_copy->type == NADA_PAIR) {
+        // Recursively scan list result for functions referencing this environment
+        fix_env_references(result_copy, func_env, func->data.function.env);
+    }
+    */
 
     // Clean up
     nada_env_release(func_env);

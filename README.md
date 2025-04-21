@@ -46,7 +46,7 @@ ctest -L JupyterKernel     # Test Jupyter kernel only
 
 ### Known problems
 
-- nested function definitions with recursion in the nested definition cause leaks.
+- Nested anonymous function definitions may cause leaks. Workaround: use named functions. Also probablematic are complex expressions with named let: also a source of leaks.
 
 ## Jupyter Kernel for NadaLisp
 
