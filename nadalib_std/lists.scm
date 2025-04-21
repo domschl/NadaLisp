@@ -128,7 +128,7 @@
             (list pivot)
             (sort (filter (lambda (x) (>= x pivot)) rest)))))))
 
-(define symsort  ;; quicksort
+(define symsort  ;; quicksort for any data type, using string comparison
   (lambda (lst)
     (if (null? lst)
         '()
