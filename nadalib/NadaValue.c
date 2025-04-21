@@ -53,6 +53,11 @@ const char *nada_type_name(int type) {
     }
 }
 
+// Have a static nil for car, cdr
+NadaValue nada_static_nil = {
+    .type = NADA_NIL,
+};
+
 // Create a new number value
 NadaValue *nada_create_num(NadaNum *num) {
     NadaValue *val = malloc(sizeof(NadaValue));
@@ -155,7 +160,7 @@ NadaValue *nada_create_function(NadaValue *params, NadaValue *body, NadaEnv *env
 NadaValue *nada_car(NadaValue *pair) {
     if (pair->type != NADA_PAIR) {
         fprintf(stderr, "Error: car called on non-pair\n");
-        return nada_create_nil();
+        return &nada_static_nil;  //  nada_create_nil();
     }
     return pair->data.pair.car;
 }
@@ -164,7 +169,7 @@ NadaValue *nada_car(NadaValue *pair) {
 NadaValue *nada_cdr(NadaValue *pair) {
     if (pair->type != NADA_PAIR) {
         fprintf(stderr, "Error: cdr called on non-pair\n");
-        return nada_create_nil();
+        return &nada_static_nil;  // nada_create_nil();
     }
     return pair->data.pair.cdr;
 }
