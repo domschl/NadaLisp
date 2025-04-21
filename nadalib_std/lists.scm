@@ -117,3 +117,24 @@
   (lambda args
     (string-join args "")))
 
+(define sort  ;; quicksort
+  (lambda (lst)
+    (if (null? lst)
+        '()
+        (let ((pivot (car lst))
+              (rest (cdr lst)))
+          (append 
+            (sort (filter (lambda (x) (< x pivot)) rest))
+            (list pivot)
+            (sort (filter (lambda (x) (>= x pivot)) rest)))))))
+
+(define symsort  ;; quicksort
+  (lambda (lst)
+    (if (null? lst)
+        '()
+        (let ((pivot (write-to-string (car lst)))
+              (rest (cdr lst)))
+          (append 
+            (symsort (filter (lambda (x) (< (write-to-string x) pivot)) rest))
+            (list pivot)
+            (symsort (filter (lambda (x) (>= (write-to-string x) pivot)) rest)))))))
