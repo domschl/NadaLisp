@@ -132,9 +132,9 @@
   (lambda (lst)
     (if (null? lst)
         '()
-        (let ((pivot (write-to-string (car lst)))
+        (let ((pivot (car lst))
               (rest (cdr lst)))
           (append 
-            (symsort (filter (lambda (x) (< (write-to-string x) pivot)) rest))
+            (symsort (filter (lambda (x) (< (write-to-string x) (write-to-string pivot))) rest))
             (list pivot)
-            (symsort (filter (lambda (x) (>= (write-to-string x) pivot)) rest)))))))
+            (symsort (filter (lambda (x) (>= (write-to-string x) (write-to-string pivot))) rest)))))))
