@@ -573,7 +573,10 @@ NadaEnv *nada_standard_env(void) {
     for (int i = 0; builtins[i].name != NULL; i++) {
         // For simplicity, we're not creating proper function objects yet
         // We'll just use symbols with special handling in the evaluator
-        nada_env_set(env, builtins[i].name, nada_create_symbol(builtins[i].name));
+        NadaValue *symbol = nada_create_symbol(builtins[i].name);
+        nada_env_set(env, builtins[i].name, symbol);
+        // Free the symbol after it's been added to the environment
+        nada_free(symbol);
     }
 
     return env;
