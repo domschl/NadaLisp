@@ -96,20 +96,51 @@
               (set! i (- i 1))   ; decrement i by 1
               (loop))))))))
 
-(define symplus 'symplus)
+(define notnumber?
+  (lambda (x)
+    (not (number? x))))
 
-(define add-op (lambda (args)
+;; In a sorted argument list 'args' like (8 a b x x) transform it to (8 a b (* 2 x))
+(define factor-equal-symbols
+  (lambda (args)
+    (if (null? args)
+        '()
+        (factor-equal-symbols-helper (cdr args) (car args) 1 '()))))
+
+(define factor-equal-symbols-helper
+  (lambda (rest current count result)
+    (if (null? rest)
+        ;; Handle the last element and return the final result
+        (reverse
+          (if (= count 1)
+              (cons current result)
+              (cons (list '* count current) result)))
+        ;; Process the list
+        (if (equal? (car rest) current)
+            ;; Same element, increment count
+            (factor-equal-symbols-helper (cdr rest) current (+ count 1) result)
+            ;; Different element, add the current element to result
+            (if (= count 1)
+                (factor-equal-symbols-helper (cdr rest) (car rest) 1 (cons current result))
+                (factor-equal-symbols-helper (cdr rest) (car rest) 1 (cons (list '* count current) result)))))))
+
+(define associative-expand (lambda (args op)
   (define exp-args '())
   (for-each (lambda (arg)
     (if (list? arg)
-       (if (eq? '+ (car arg))
+       (if (eq? op (car arg))
           (set! exp-args (append exp-args (cdr arg)))
           (set! exp-args (append exp-args (list arg))))
        (set! exp-args (append exp-args (list arg)))))
     args)
+    exp-args))
+
+(define add-op (lambda (args)
+  (define exp-args (factor-equal-symbols (associative-expand args '+)))
   (display "Exp-args: ") (display exp-args) (newline)
   (define num-sum (apply + (filter number? exp-args)))
-  (define sym-sum (filter (lambda (x) (not (number? x))) exp-args))
+  ;; (define sym-sum (filter (lambda (x) (not (number? x))) exp-args))  ;; LEAKs
+  (define sym-sum (filter notnumber? exp-args))
   (display "Add-op: ") (display num-sum) (display " ")
   (display sym-sum) (newline)
   (if (null? num-sum)
@@ -145,6 +176,4 @@
                 (cond 
                   ((eq? op '+) (add-op args))
                   ((eq? op '*) (apply mul-op args))
-                  (else expr))))))
-)
-          
+                  (else expr))))))))
