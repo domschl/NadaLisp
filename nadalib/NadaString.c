@@ -579,6 +579,7 @@ NadaValue *builtin_float(NadaValue *args, NadaEnv *env) {
     nada_free(prec_val);
     return result;
 }
+
 // Built-in function: read-from-string
 NadaValue *builtin_read_from_string(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
@@ -630,4 +631,64 @@ NadaValue *builtin_write_to_string(NadaValue *args, NadaEnv *env) {
     nada_free(expr);
 
     return result;
+}
+
+// string-upcase: Convert a string to uppercase
+NadaValue *builtin_string_upcase(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "string-upcase requires exactly 1 argument");
+        return nada_create_nil();
+    }
+
+    NadaValue *str_val = nada_eval(nada_car(args), env);
+    if (str_val->type != NADA_STRING) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "string-upcase requires a string argument");
+        nada_free(str_val);
+        return nada_create_nil();
+    }
+
+    const char *input = str_val->data.string;
+    int len = strlen(input);
+    char *result = malloc(len + 1);
+
+    for (int i = 0; i < len; i++) {
+        result[i] = toupper((unsigned char)input[i]);
+    }
+    result[len] = '\0';
+
+    NadaValue *ret = nada_create_string(result);
+    free(result);
+    nada_free(str_val);
+
+    return ret;
+}
+
+// string-downcase: Convert a string to lowercase
+NadaValue *builtin_string_downcase(NadaValue *args, NadaEnv *env) {
+    if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
+        nada_report_error(NADA_ERROR_INVALID_ARGUMENT, "string-downcase requires exactly 1 argument");
+        return nada_create_nil();
+    }
+
+    NadaValue *str_val = nada_eval(nada_car(args), env);
+    if (str_val->type != NADA_STRING) {
+        nada_report_error(NADA_ERROR_TYPE_ERROR, "string-downcase requires a string argument");
+        nada_free(str_val);
+        return nada_create_nil();
+    }
+
+    const char *input = str_val->data.string;
+    int len = strlen(input);
+    char *result = malloc(len + 1);
+
+    for (int i = 0; i < len; i++) {
+        result[i] = tolower((unsigned char)input[i]);
+    }
+    result[len] = '\0';
+
+    NadaValue *ret = nada_create_string(result);
+    free(result);
+    nada_free(str_val);
+
+    return ret;
 }

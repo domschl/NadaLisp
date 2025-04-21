@@ -45,3 +45,41 @@
 
 (define-test "number-to-float-approx"
   (assert-equal (float 1/3 3) "0.333"))
+
+;; String case conversion tests
+
+(define-test "string-upcase-basic"
+  (assert-equal (string-upcase "hello") "HELLO"))
+
+(define-test "string-upcase-mixed"
+  (assert-equal (string-upcase "Hello World") "HELLO WORLD"))
+
+(define-test "string-upcase-already-upper"
+  (assert-equal (string-upcase "CAPS") "CAPS"))
+
+(define-test "string-upcase-with-numbers"
+  (assert-equal (string-upcase "abc123") "ABC123"))
+
+(define-test "string-upcase-with-symbols"
+  (assert-equal (string-upcase "hello!@#") "HELLO!@#"))
+
+(define-test "string-upcase-empty"
+  (assert-equal (string-upcase "") ""))
+
+(define-test "string-downcase-basic"
+  (assert-equal (string-downcase "HELLO") "hello"))
+
+(define-test "string-downcase-mixed"
+  (assert-equal (string-downcase "Hello World") "hello world"))
+
+(define-test "string-downcase-already-lower"
+  (assert-equal (string-downcase "lower") "lower"))
+
+(define-test "string-downcase-with-numbers"
+  (assert-equal (string-downcase "ABC123") "abc123"))
+
+(define-test "string-downcase-with-symbols"
+  (assert-equal (string-downcase "HELLO!@#") "hello!@#"))
+
+(define-test "string-downcase-empty"
+  (assert-equal (string-downcase "") ""))

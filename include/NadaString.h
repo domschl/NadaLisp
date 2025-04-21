@@ -22,7 +22,10 @@ NadaValue *builtin_number_to_string(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_float(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_read_from_string(NadaValue *args, NadaEnv *env);
 NadaValue *builtin_write_to_string(NadaValue *args, NadaEnv *env);
-
+// Convert string to uppercase
+NadaValue *builtin_string_upcase(NadaValue *args, NadaEnv *env);
+// Convert string to lowercase
+NadaValue *builtin_string_downcase(NadaValue *args, NadaEnv *env);
 // Function to register all string functions
 void register_string_functions(void);
 
