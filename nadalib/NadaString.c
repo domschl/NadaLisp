@@ -633,6 +633,132 @@ NadaValue *builtin_write_to_string(NadaValue *args, NadaEnv *env) {
     return result;
 }
 
+// Map of lowercase to uppercase for UTF-8 encoded Unicode characters
+typedef struct {
+    const char *lower;
+    const char *upper;
+} CasePair;
+
+static const CasePair unicode_case_map[] = {
+    // Latin-1 Supplement (U+00A0 to U+00FF)
+    {"à", "À"},
+    {"á", "Á"},
+    {"â", "Â"},
+    {"ã", "Ã"},
+    {"ä", "Ä"},
+    {"å", "Å"},
+    {"æ", "Æ"},
+    {"ç", "Ç"},
+    {"è", "È"},
+    {"é", "É"},
+    {"ê", "Ê"},
+    {"ë", "Ë"},
+    {"ì", "Ì"},
+    {"í", "Í"},
+    {"î", "Î"},
+    {"ï", "Ï"},
+    {"ð", "Ð"},
+    {"ñ", "Ñ"},
+    {"ò", "Ò"},
+    {"ó", "Ó"},
+    {"ô", "Ô"},
+    {"õ", "Õ"},
+    {"ö", "Ö"},
+    {"ø", "Ø"},
+    {"ù", "Ù"},
+    {"ú", "Ú"},
+    {"û", "Û"},
+    {"ü", "Ü"},
+    {"ý", "Ý"},
+    {"þ", "Þ"},
+    {"ÿ", "Ÿ"},
+
+    // Latin Extended-A (U+0100 to U+017F)
+    {"ā", "Ā"},
+    {"ă", "Ă"},
+    {"ą", "Ą"},
+    {"ć", "Ć"},
+    {"ĉ", "Ĉ"},
+    {"ċ", "Ċ"},
+    {"č", "Č"},
+    {"ď", "Ď"},
+    {"đ", "Đ"},
+    {"ē", "Ē"},
+    {"ĕ", "Ĕ"},
+    {"ė", "Ė"},
+    {"ę", "Ę"},
+    {"ě", "Ě"},
+    {"ĝ", "Ĝ"},
+    {"ğ", "Ğ"},
+    {"ġ", "Ġ"},
+    {"ģ", "Ģ"},
+    {"ĥ", "Ĥ"},
+    {"ħ", "Ħ"},
+    {"ĩ", "Ĩ"},
+    {"ī", "Ī"},
+    {"ĭ", "Ĭ"},
+    {"į", "Į"},
+    {"ı", "I"},
+    {"ĳ", "Ĳ"},
+    {"ĵ", "Ĵ"},
+    {"ķ", "Ķ"},
+    {"ĸ", "K"},
+    {"ĺ", "Ĺ"},
+    {"ļ", "Ļ"},
+    {"ľ", "Ľ"},
+    {"ŀ", "Ŀ"},
+    {"ł", "Ł"},
+    {"ń", "Ń"},
+    {"ņ", "Ņ"},
+    {"ň", "Ň"},
+    {"ŉ", "ʼN"},
+    {"ŋ", "Ŋ"},
+    {"ō", "Ō"},
+    {"ŏ", "Ŏ"},
+    {"ő", "Ő"},
+    {"œ", "Œ"},
+    {"ŕ", "Ŕ"},
+    {"ŗ", "Ŗ"},
+    {"ř", "Ř"},
+    {"ś", "Ś"},
+    {"ŝ", "Ŝ"},
+    {"ş", "Ş"},
+    {"š", "Š"},
+    {"ţ", "Ţ"},
+    {"ť", "Ť"},
+    {"ŧ", "Ŧ"},
+    {"ũ", "Ũ"},
+    {"ū", "Ū"},
+    {"ŭ", "Ŭ"},
+    {"ů", "Ů"},
+    {"ű", "Ű"},
+    {"ų", "Ų"},
+    {"ŵ", "Ŵ"},
+    {"ŷ", "Ŷ"},
+    {"ź", "Ź"},
+    {"ż", "Ż"},
+    {"ž", "Ž"},
+
+    // Add more mappings as needed...
+
+    {NULL, NULL}  // End marker
+};
+
+// Helper function to find a character in the Unicode case map
+static const char *find_in_case_map(const char *utf8_char, int to_upper) {
+    for (int i = 0; unicode_case_map[i].lower != NULL; i++) {
+        if (to_upper) {
+            if (strcmp(utf8_char, unicode_case_map[i].lower) == 0) {
+                return unicode_case_map[i].upper;
+            }
+        } else {
+            if (strcmp(utf8_char, unicode_case_map[i].upper) == 0) {
+                return unicode_case_map[i].lower;
+            }
+        }
+    }
+    return NULL;  // Not found
+}
 // string-upcase: Convert a string to uppercase
 NadaValue *builtin_string_upcase(NadaValue *args, NadaEnv *env) {
     if (nada_is_nil(args) || !nada_is_nil(nada_cdr(args))) {
@@ -648,13 +774,41 @@ NadaValue *builtin_string_upcase(NadaValue *args, NadaEnv *env) {
     }
 
     const char *input = str_val->data.string;
-    int len = strlen(input);
-    char *result = malloc(len + 1);
+    // Allocate buffer (worst case: each UTF-8 char becomes 4 bytes)
+    int input_len = strlen(input);
+    int buffer_size = input_len * 4 + 1;
+    char *result = malloc(buffer_size);
+    int pos = 0;
 
-    for (int i = 0; i < len; i++) {
-        result[i] = toupper((unsigned char)input[i]);
+    const char *p = input;
+    while (*p) {
+        if ((*p & 0x80) == 0) {
+            // ASCII character
+            result[pos++] = toupper((unsigned char)*p);
+            p++;
+        } else {
+            // UTF-8 character
+            int charlen = utf8_charlen(p);
+            char utf8_char[5] = {0};
+            strncpy(utf8_char, p, charlen);
+
+            // Check if we have a mapping for this character
+            const char *mapped = find_in_case_map(utf8_char, 1);  // 1 means to_upper
+            if (mapped) {
+                int mapped_len = strlen(mapped);
+                if (pos + mapped_len < buffer_size) {
+                    strcpy(result + pos, mapped);
+                    pos += mapped_len;
+                }
+            } else {
+                // No mapping, copy as is
+                strncpy(result + pos, p, charlen);
+                pos += charlen;
+            }
+            p += charlen;
+        }
     }
-    result[len] = '\0';
+    result[pos] = '\0';
 
     NadaValue *ret = nada_create_string(result);
     free(result);
@@ -678,13 +832,41 @@ NadaValue *builtin_string_downcase(NadaValue *args, NadaEnv *env) {
     }
 
     const char *input = str_val->data.string;
-    int len = strlen(input);
-    char *result = malloc(len + 1);
+    // Allocate buffer (worst case: each UTF-8 char becomes 4 bytes)
+    int input_len = strlen(input);
+    int buffer_size = input_len * 4 + 1;
+    char *result = malloc(buffer_size);
+    int pos = 0;
 
-    for (int i = 0; i < len; i++) {
-        result[i] = tolower((unsigned char)input[i]);
+    const char *p = input;
+    while (*p) {
+        if ((*p & 0x80) == 0) {
+            // ASCII character
+            result[pos++] = tolower((unsigned char)*p);
+            p++;
+        } else {
+            // UTF-8 character
+            int charlen = utf8_charlen(p);
+            char utf8_char[5] = {0};
+            strncpy(utf8_char, p, charlen);
+
+            // Check if we have a mapping for this character
+            const char *mapped = find_in_case_map(utf8_char, 0);  // 0 means to_lower
+            if (mapped) {
+                int mapped_len = strlen(mapped);
+                if (pos + mapped_len < buffer_size) {
+                    strcpy(result + pos, mapped);
+                    pos += mapped_len;
+                }
+            } else {
+                // No mapping, copy as is
+                strncpy(result + pos, p, charlen);
+                pos += charlen;
+            }
+            p += charlen;
+        }
     }
-    result[len] = '\0';
+    result[pos] = '\0';
 
     NadaValue *ret = nada_create_string(result);
     free(result);

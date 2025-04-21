@@ -83,3 +83,36 @@
 
 (define-test "string-downcase-empty"
   (assert-equal (string-downcase "") ""))
+
+;; Unicode string case conversion tests
+
+(define-test "string-upcase-unicode-basic"
+  (assert-equal (string-upcase "café") "CAFÉ"))
+
+(define-test "string-upcase-unicode-mixed"
+  (assert-equal (string-upcase "Hållo Wörld") "HÅLLO WÖRLD"))
+
+(define-test "string-upcase-unicode-extended"
+  (assert-equal (string-upcase "řčšžýáíé") "ŘČŠŽÝÁÍÉ"))
+
+(define-test "string-upcase-unicode-with-ascii"
+  (assert-equal (string-upcase "abc-äöü-xyz") "ABC-ÄÖÜ-XYZ"))
+
+(define-test "string-downcase-unicode-basic"
+  (assert-equal (string-downcase "CAFÉ") "café"))
+
+(define-test "string-downcase-unicode-mixed"
+  (assert-equal (string-downcase "HÅLLO WÖRLD") "hållo wörld"))
+
+(define-test "string-downcase-unicode-extended"
+  (assert-equal (string-downcase "ŘČŠŽÝÁÍÉ") "řčšžýáíé"))
+
+(define-test "string-downcase-unicode-with-ascii"
+  (assert-equal (string-downcase "ABC-ÄÖÜ-XYZ") "abc-äöü-xyz"))
+
+(define-test "string-case-conversion-preserves-non-mapped-chars-1"
+  (assert-equal (string-upcase "こんにちは") "こんにちは"))
+
+(define-test "string-case-conversion-preserves-non-mapped-chars-2"
+  (assert-equal (string-downcase "こんにちは") "こんにちは"))
+
