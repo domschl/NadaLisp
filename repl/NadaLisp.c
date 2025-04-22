@@ -3,6 +3,8 @@
 #include <string.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "NadaValue.h"
 #include "NadaParser.h"
@@ -67,8 +69,32 @@ void run_repl(void) {
 
     // Install silent error handler for REPL mode only
     NadaErrorHandler previous_handler = nada_get_error_handler();
-    void *previous_user_data = nada_get_user_data();  // You'll need to add this function
+    void *previous_user_data = nada_get_user_data();
     nada_set_error_handler(silent_error_handler, NULL);
+
+    // Set up persistent history
+    char *home_dir = getenv("HOME");
+    char history_dir[1024] = "";
+    char history_file[1024] = "";
+
+    if (home_dir) {
+        // Create directory path
+        snprintf(history_dir, sizeof(history_dir), "%s/.config/nada", home_dir);
+        snprintf(history_file, sizeof(history_file), "%s/history", history_dir);
+
+        // Create directory if it doesn't exist
+        struct stat st = {0};
+        if (stat(history_dir, &st) == -1) {
+            // Directory doesn't exist, create it (mode 0700 = rwx for user only)
+            mkdir(history_dir, 0700);
+        }
+
+        // Load history if the file exists
+        read_history(history_file);
+
+        // Limit history size to 1000 entries
+        stifle_history(1000);
+    }
 
     nada_write_string("NadaLisp REPL (Ctrl+D to exit)\n");
     nada_memory_reset();
@@ -167,6 +193,12 @@ void run_repl(void) {
 
     // Clean up
     free(buffer);
+
+    // Save history before exiting
+    if (history_file[0] != '\0') {
+        write_history(history_file);
+    }
+
     nada_write_string("\nGoodbye!\n");
 
     // Restore previous error handler when exiting REPL
