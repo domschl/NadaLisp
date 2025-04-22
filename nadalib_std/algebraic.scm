@@ -130,6 +130,10 @@
         '()
         (factor-exp-equal-symbols-helper (cdr args) (car args) 1 '()))))
 
+(define non-zero-number?
+  (lambda (x)
+    (and (number? x) (not (= x 0)))))
+
 (define factor-exp-equal-symbols-helper
   (lambda (rest current count result)
     (if (null? rest)
@@ -161,7 +165,7 @@
 (define add-op (lambda (args)
   (define exp-args (associative-expand args '+))
   (display "Exp-args: ") (display exp-args) (newline)
-  (define num-sum (apply + (filter number? exp-args)))
+  (define num-sum (apply + (filter non-zero-number? exp-args)))
   ;; (define sym-sum (filter (lambda (x) (not (number? x))) exp-args))  ;; LEAKs
   (define sym-sum (factor-equal-symbols (filter notnumber? exp-args)))
   (display "Add-op: ") (display num-sum) (display " ")
@@ -177,12 +181,16 @@
           (cons '+ (cons num-sum sym-sum))))
   ))
 
+(define mul-number-filter?
+  (lambda (x)
+    (and (number? x) (not (= x 1)))))
+
 (define mul-op (lambda (args)
   (define exp-args (associative-expand args '*))
   (display "Exp-args: ") (display exp-args) (newline)
-  (define num-mul (apply * (filter number? exp-args)))
+  (define num-mul (apply * (filter mul-number-filter? exp-args)))
   (define sym-mul (factor-exp-equal-symbols (filter notnumber? exp-args)))
-  (display "Mul-op: ") (display num-mul) (display " ")
+  (display "Mul-op: ") (display num-mul) (display "| ")
   (display sym-mul) (newline)
   (if (null? num-mul)
       (if (null? sym-mul)
@@ -192,7 +200,15 @@
               (list '* sym-mul)))
       (if (null? sym-mul)
           num-mul
-          (cons '* (cons num-mul sym-mul))))
+          (if (= num-mul 0)
+              0
+              (if (= num-mul 1)
+                (if (= (length sym-mul) 1)
+                  (car sym-mul)
+                  (cons '* sym-mul))
+                (if (= (length sym-mul) 1)
+                    (cons '* (cons num-mul (car sym-mul)))
+                    (cons '* (cons num-mul sym-mul)))))))
   ))
 
 (define expt-op (lambda (args) (apply expt args)))
