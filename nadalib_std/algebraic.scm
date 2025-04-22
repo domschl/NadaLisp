@@ -124,6 +124,29 @@
                 (factor-equal-symbols-helper (cdr rest) (car rest) 1 (cons current result))
                 (factor-equal-symbols-helper (cdr rest) (car rest) 1 (cons (list '* count current) result)))))))
 
+(define factor-exp-equal-symbols
+  (lambda (args)
+    (if (null? args)
+        '()
+        (factor-exp-equal-symbols-helper (cdr args) (car args) 1 '()))))
+
+(define factor-exp-equal-symbols-helper
+  (lambda (rest current count result)
+    (if (null? rest)
+        ;; Handle the last element and return the final result
+        (reverse
+          (if (= count 1)
+              (cons current result)
+              (cons (list '^ current count) result)))
+        ;; Process the list
+        (if (equal? (car rest) current)
+            ;; Same element, increment count
+            (factor-exp-equal-symbols-helper (cdr rest) current (+ count 1) result)
+            ;; Different element, add the current element to result
+            (if (= count 1)
+                (factor-exp-equal-symbols-helper (cdr rest) (car rest) 1 (cons current result))
+                (factor-exp-equal-symbols-helper (cdr rest) (car rest) 1 (cons (list '^ current count) result)))))))
+
 (define associative-expand (lambda (args op)
   (define exp-args '())
   (for-each (lambda (arg)
@@ -136,11 +159,11 @@
     exp-args))
 
 (define add-op (lambda (args)
-  (define exp-args (factor-equal-symbols (associative-expand args '+)))
+  (define exp-args (associative-expand args '+))
   (display "Exp-args: ") (display exp-args) (newline)
   (define num-sum (apply + (filter number? exp-args)))
   ;; (define sym-sum (filter (lambda (x) (not (number? x))) exp-args))  ;; LEAKs
-  (define sym-sum (filter notnumber? exp-args))
+  (define sym-sum (factor-equal-symbols (filter notnumber? exp-args)))
   (display "Add-op: ") (display num-sum) (display " ")
   (display sym-sum) (newline)
   (if (null? num-sum)
@@ -154,10 +177,25 @@
           (cons '+ (cons num-sum sym-sum))))
   ))
 
-(define mul-op (lambda args
-  (if (null? args)
-      1
-      (apply * args))))
+(define mul-op (lambda (args)
+  (define exp-args (associative-expand args '*))
+  (display "Exp-args: ") (display exp-args) (newline)
+  (define num-mul (apply * (filter number? exp-args)))
+  (define sym-mul (factor-exp-equal-symbols (filter notnumber? exp-args)))
+  (display "Mul-op: ") (display num-mul) (display " ")
+  (display sym-mul) (newline)
+  (if (null? num-mul)
+      (if (null? sym-mul)
+          1
+          (if (= (length sym-mul) 1)
+              (car sym-mul)
+              (list '* sym-mul)))
+      (if (null? sym-mul)
+          num-mul
+          (cons '* (cons num-mul sym-mul))))
+  ))
+
+(define expt-op (lambda (args) (apply expt args)))
 
 (define eval-symbolic (lambda (expr)
   (cond ((number? expr) expr)
@@ -175,5 +213,6 @@
           (display "Op: ") (display op) (newline) (display "Args: ") (display args) (newline)
                 (cond 
                   ((eq? op '+) (add-op args))
-                  ((eq? op '*) (apply mul-op args))
+                  ((eq? op '*) (mul-op args))
+                  ((eq? op '^) (expt-op args))
                   (else expr))))))))
