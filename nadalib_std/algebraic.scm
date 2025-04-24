@@ -265,7 +265,7 @@
                     (car sym-div)
                     (cons '/ (cons num-div sym-div))))
               (else 
-                (cons '/' (cons num-div sym-div)))))))))
+                (cons '/ (cons num-div sym-div)))))))))
 
 (define expt-op (lambda (args) (apply expt args)))
 
@@ -289,4 +289,6 @@
                   ((eq? op '*) (mul-op args))
                   ((eq? op '/) (div-op args))
                   ((eq? op '^) (expt-op args))
-                  (else expr))))))))
+                  (else expr)))))))
+
+(define calc (lambda (expr) (eval-symbolic (infix->prefix expr))))

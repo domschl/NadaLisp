@@ -318,7 +318,7 @@ int main(int argc, char *argv[]) {
     } else if (eval_algebraic) {
         // Evaluate algebraic expression
         char buffer[10240];
-        snprintf(buffer, sizeof(buffer), "(eval-algebraic \"%s\")", expression);
+        snprintf(buffer, sizeof(buffer), "(calc \"%s\")", expression);
 
         NadaValue *result = nada_parse_eval_multi(buffer, global_env);
 
