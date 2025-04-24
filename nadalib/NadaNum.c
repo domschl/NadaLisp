@@ -134,11 +134,16 @@ NadaNum *nada_num_from_string(const char *str) {
             integer_part = strdup("0");
         }
 
-        // Convert decimal part to fraction
-        char *decimal_part = strip_leading_zeros(dot + 1);
-        size_t decimal_len = strlen(decimal_part);
+        // For decimal part, preserve the original length (including leading zeros)
+        size_t decimal_len = strlen(dot + 1);
 
-        // Create denominator (10^decimal_len)
+        // Get actual decimal digits (stripping zeros only for calculation)
+        char *decimal_part = strip_leading_zeros(dot + 1);
+        if (!decimal_part || *decimal_part == '\0') {
+            decimal_part = strdup("0");
+        }
+
+        // Create denominator (10^decimal_len) based on ORIGINAL length
         char *denominator = malloc(decimal_len + 2);
         denominator[0] = '1';
         for (size_t i = 0; i < decimal_len; i++) {

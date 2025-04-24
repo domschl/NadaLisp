@@ -234,6 +234,39 @@
                     (cons '* (cons num-mul sym-mul)))))))
   ))
 
+(define div-op (lambda (args)
+  (define exp-args (associative-expand args '/))
+  (display "Exp-args: ") (display exp-args) (newline)
+  (define num-div '())
+  (define num-div-list (filter number? exp-args))
+  (cond 
+    ((null? num-div-list) (set! num-div '()))
+    ((= (length num-div-list) 1) (set! num-div (car num-div-list)))
+    (else (set! num-div (apply / num-div-list))))
+  (define sym-div (factor-exp-equal-symbols (filter notnumber? exp-args)))
+  (display "Div-op: ") (display num-div) (display "| ")
+  (display sym-div) (newline)
+  (if (null? num-div)
+      (if (null? sym-div)
+          1
+          (if (= (length sym-div) 1)
+              (car sym-div)
+              (list '/ sym-div)))
+      (if (= num-div 0)
+          0
+          (if (= num-div 1)
+            (if (= (length sym-div) 1)
+              (car sym-div)
+              (cons '/ sym-div))
+            (cond 
+              ((null? sym-div) num-div)
+              ((= (length sym-div 1))
+                (if (= num-div 1)
+                    (car sym-div)
+                    (cons '/ (cons num-div sym-div)))
+              (else 
+                (cons '/' (cons num-div sym-div))))))))))
+
 (define expt-op (lambda (args) (apply expt args)))
 
 (define eval-symbolic (lambda (expr)
