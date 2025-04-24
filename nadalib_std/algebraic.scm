@@ -165,7 +165,10 @@
 (define add-op (lambda (args)
   (define exp-args (associative-expand args '+))
   (display "Exp-args: ") (display exp-args) (newline)
-  (define num-sum (apply + (filter non-zero-number? exp-args)))
+  (define num-sum-list (filter non-zero-number? exp-args))
+  (define num-sum '())
+  (if (not (null? num-sum-list))
+      (set! num-sum (apply + num-sum-list)))
   ;; (define sym-sum (filter (lambda (x) (not (number? x))) exp-args))  ;; LEAKs
   (define sym-sum (factor-equal-symbols (filter notnumber? exp-args)))
   (display "Add-op: ") (display num-sum) (display " ")
@@ -180,6 +183,26 @@
           num-sum
           (cons '+ (cons num-sum sym-sum))))
   ))
+
+
+
+(define sub-op (lambda (args)
+  (cond 
+    ((null? args) 0)  ; No arguments case
+    ((= (length args) 1)  ; Unary negation case
+     (if (number? (car args))
+         (- (car args))
+         (list '* -1 (car args))))
+    (else  ; Subtraction case: a - b - c becomes a + (-b) + (-c)
+     (let ((transformed-args 
+             (cons (car args)  ; Keep the first argument as is
+                   (map (lambda (x)  ; Negate all the rest
+                          (if (number? x)
+                              (- x)  ; Negate numbers directly
+                              (list '* -1 x)))  ; Symbolic negation for expressions
+                        (cdr args)))))
+       (add-op transformed-args))))))
+
 
 (define mul-number-filter?
   (lambda (x)
@@ -207,7 +230,7 @@
                   (car sym-mul)
                   (cons '* sym-mul))
                 (if (= (length sym-mul) 1)
-                    (cons '* (cons num-mul (car sym-mul)))
+                    (cons '* (cons num-mul sym-mul))
                     (cons '* (cons num-mul sym-mul)))))))
   ))
 
@@ -229,6 +252,8 @@
           (display "Op: ") (display op) (newline) (display "Args: ") (display args) (newline)
                 (cond 
                   ((eq? op '+) (add-op args))
+                  ((eq? op '-) (sub-op args))
                   ((eq? op '*) (mul-op args))
+                  ((eq? op '/) (div-op args))
                   ((eq? op '^) (expt-op args))
                   (else expr))))))))
