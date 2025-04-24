@@ -260,12 +260,12 @@
               (cons '/ sym-div))
             (cond 
               ((null? sym-div) num-div)
-              ((= (length sym-div 1))
+              ((= (length sym-div) 1)
                 (if (= num-div 1)
                     (car sym-div)
-                    (cons '/ (cons num-div sym-div)))
+                    (cons '/ (cons num-div sym-div))))
               (else 
-                (cons '/' (cons num-div sym-div))))))))))
+                (cons '/' (cons num-div sym-div)))))))))
 
 (define expt-op (lambda (args) (apply expt args)))
 
