@@ -6,6 +6,8 @@ It's Scheme implementation implemented by Copilot using Claude Sonnet 3.7 Thinki
 
 Since the language is in flux, have a look at `tests/lisp_tests` for the current language elements. `nadalib` contains a standard library.
 
+The NadaLisp Project has been replaced by the [SymLisp](https://github.com/domschl/symlisp) project by Gemini 2.5 Pro preview. Gemini's implementation seems to be superior.
+
 ## Build
 
 Requires: `cmake`, `ninja`, `readline`
@@ -47,6 +49,8 @@ ctest -L JupyterKernel     # Test Jupyter kernel only
 ### Known problems
 
 - Nested anonymous function definitions may cause leaks. Workaround: use named functions. Also probablematic are complex expressions with named let: also a source of leaks.
+
+-> See [SymLisp](https://github.com/domschl/symlisp) for an implementation that doesn't suffer from leaks due to usage of a mark/sweep garbage collector.
 
 ## Jupyter Kernel for NadaLisp
 
